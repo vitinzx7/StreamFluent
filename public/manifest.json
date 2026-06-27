@@ -1,0 +1,13 @@
+{
+  "manifest_version": 3,
+  "name": "StreamFluent",
+  "version": "0.1.0",
+  "description": "Subtitle layer over streaming video to study English.",
+  "content_scripts": [
+    {
+      "matches": ["*://*.netflix.com/*"],
+      "js": ["content.js"],
+      "run_at": "document_idle"
+    }
+  ]
+}
