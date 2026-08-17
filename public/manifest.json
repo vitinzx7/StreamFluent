@@ -4,6 +4,9 @@
   "version": "0.1.0",
   "description": "Learn English while watching Netflix and Max.",
   "permissions": ["storage"],
+  "host_permissions": [
+    "https://api.dictionaryapi.dev/*"
+  ],
   "action": {
     "default_popup": "popup.html",
     "default_title": "StreamFluent"
