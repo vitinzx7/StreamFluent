@@ -1,3 +1,26 @@
+export const EXTENSION_MARKER = "data-streamfluent";
+
+export function isExtensionElement(el: Node): boolean {
+  if (el instanceof HTMLElement) {
+    if (el.hasAttribute(EXTENSION_MARKER)) return true;
+    if (el.closest(`[${EXTENSION_MARKER}]`)) return true;
+  }
+  return false;
+}
+
+export function mutationHasExtensionNode(mutations: MutationRecord[]): boolean {
+  for (const m of mutations) {
+    if (isExtensionElement(m.target)) return true;
+    for (const node of Array.from(m.addedNodes)) {
+      if (isExtensionElement(node)) return true;
+    }
+    for (const node of Array.from(m.removedNodes)) {
+      if (isExtensionElement(node)) return true;
+    }
+  }
+  return false;
+}
+
 export function parseSeasonEpisode(text: string): { season: number | null; episode: number | null } {
   let season: number | null = null;
   let episode: number | null = null;
@@ -18,6 +41,7 @@ export function parseSeasonEpisode(text: string): { season: number | null; episo
 }
 
 export function extractSubtitleText(container: HTMLElement): string | null {
+  // Only get direct text spans, not nested extension elements
   const spans = container.querySelectorAll("span");
   if (spans.length === 0) {
     const text = container.textContent?.trim();
@@ -26,6 +50,8 @@ export function extractSubtitleText(container: HTMLElement): string | null {
 
   const lines: string[] = [];
   for (const span of spans) {
+    // Skip any spans that belong to our extension
+    if (isExtensionElement(span)) continue;
     const t = span.textContent?.trim();
     if (t) lines.push(t);
   }

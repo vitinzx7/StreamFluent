@@ -1,3 +1,5 @@
+import { EXTENSION_MARKER } from "../dom-utils.ts";
+
 const STYLE_ID = "streamfluent-overlay";
 
 function ensureStyles(): void {
@@ -146,6 +148,7 @@ function ensureStyles(): void {
 
 let currentSentence = "";
 let onWordSelect: ((word: string, sentence: string) => void) | null = null;
+let activeOverlay: ReturnType<typeof createSubtitleOverlay> | null = null;
 
 function handleWordClick(word: string): void {
   document.querySelectorAll(".sf-word.sf-selected").forEach((el) => {
@@ -163,6 +166,10 @@ function handleWordClick(word: string): void {
   onWordSelect?.(word, currentSentence);
 }
 
+function markElement(el: HTMLElement): void {
+  el.setAttribute(EXTENSION_MARKER, "");
+}
+
 export function createSubtitleOverlay(
   wordSelectCb: (word: string, sentence: string) => void
 ): {
@@ -176,21 +183,30 @@ export function createSubtitleOverlay(
   ) => void;
   destroy: () => void;
 } {
+  // Destroy previous overlay if one exists (only one instance allowed)
+  if (activeOverlay) {
+    activeOverlay.destroy();
+    activeOverlay = null;
+  }
+
   ensureStyles();
   onWordSelect = wordSelectCb;
 
   const overlay = document.createElement("div");
   overlay.className = "sf-overlay sf-hidden";
+  markElement(overlay);
   document.body.appendChild(overlay);
 
   const card = document.createElement("div");
   card.className = "sf-card sf-hidden";
+  markElement(card);
   document.body.appendChild(card);
 
   const fab = document.createElement("button");
   fab.className = "sf-fab sf-hidden";
   fab.textContent = "Aa";
   fab.title = "Open My Phrases (Ctrl+Shift+L)";
+  markElement(fab);
   fab.addEventListener("click", () => {
     chrome.tabs.create({ url: chrome.runtime.getURL("library.html") });
   });
@@ -224,7 +240,7 @@ export function createSubtitleOverlay(
   document.addEventListener("keydown", handleKeydown);
   document.addEventListener("click", handleClick);
 
-  return {
+  const instance = {
     update(text: string | null): void {
       if (!text) {
         overlay.classList.add("sf-hidden");
@@ -314,8 +330,14 @@ export function createSubtitleOverlay(
       card.remove();
       fab.remove();
       onWordSelect = null;
+      if (activeOverlay === instance) {
+        activeOverlay = null;
+      }
     },
   };
+
+  activeOverlay = instance;
+  return instance;
 }
 
 function escapeHtml(str: string): string {

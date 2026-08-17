@@ -4,12 +4,20 @@ import {
   extractSubtitleText,
   findElement,
   createDebouncedCallback,
+  mutationHasExtensionNode,
 } from "../core/dom-utils.ts";
 
 const SUBTITLE_SELECTORS = [
   "[data-testid='player-timedtext-text-container']",
   "[class*='timedtext']",
   ".player-timedtext",
+];
+
+const PLAYER_SELECTORS = [
+  ".netflix-player",
+  ".PlayerContainer",
+  "[data-testid='player']",
+  "#netflix-player",
 ];
 
 const EPISODE_SELECTORS = [
@@ -49,15 +57,44 @@ export class NetflixAdapter implements StreamingAdapter {
 
       this.lastText = text;
       onCue(text ? { text, start: 0, end: 0 } : null);
-    }, 50);
+    }, 100);
 
-    this.observer = new MutationObserver(check);
+    this.observer = new MutationObserver((mutations) => {
+      // Skip mutations that only involve our own extension elements
+      if (mutationHasExtensionNode(mutations)) return;
+      check();
+    });
 
-    this.observer.observe(document.body, {
+    // Try to observe the player container to reduce noise.
+    // Fall back to document.body if player not found yet.
+    const player = findElement(PLAYER_SELECTORS);
+    const target = player || document.body;
+
+    this.observer.observe(target, {
       childList: true,
       subtree: true,
       characterData: true,
     });
+
+    // If we fell back to body, retry finding the player periodically
+    // and switch to it once available (reduces noise significantly).
+    if (!player) {
+      const retryInterval = setInterval(() => {
+        const p = findElement(PLAYER_SELECTORS);
+        if (p && this.observer) {
+          this.observer.disconnect();
+          this.observer.observe(p, {
+            childList: true,
+            subtree: true,
+            characterData: true,
+          });
+          clearInterval(retryInterval);
+        }
+      }, 1000);
+
+      // Stop retrying after 30 seconds
+      setTimeout(() => clearInterval(retryInterval), 30000);
+    }
 
     return cleanup;
   }

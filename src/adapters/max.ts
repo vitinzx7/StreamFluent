@@ -4,6 +4,7 @@ import {
   extractSubtitleText,
   findElement,
   createDebouncedCallback,
+  mutationHasExtensionNode,
 } from "../core/dom-utils.ts";
 
 const SUBTITLE_SELECTORS = [
@@ -11,6 +12,12 @@ const SUBTITLE_SELECTORS = [
   "[class*='subtitle']",
   "[class*='captions']",
   ".text-track-container",
+];
+
+const PLAYER_SELECTORS = [
+  "[data-testid='player']",
+  ".player-container",
+  "[class*='player']",
 ];
 
 const EPISODE_SELECTORS = [
@@ -51,15 +58,38 @@ export class MaxAdapter implements StreamingAdapter {
 
       this.lastText = text;
       onCue(text ? { text, start: 0, end: 0 } : null);
-    }, 50);
+    }, 100);
 
-    this.observer = new MutationObserver(check);
+    this.observer = new MutationObserver((mutations) => {
+      if (mutationHasExtensionNode(mutations)) return;
+      check();
+    });
 
-    this.observer.observe(document.body, {
+    const player = findElement(PLAYER_SELECTORS);
+    const target = player || document.body;
+
+    this.observer.observe(target, {
       childList: true,
       subtree: true,
       characterData: true,
     });
+
+    if (!player) {
+      const retryInterval = setInterval(() => {
+        const p = findElement(PLAYER_SELECTORS);
+        if (p && this.observer) {
+          this.observer.disconnect();
+          this.observer.observe(p, {
+            childList: true,
+            subtree: true,
+            characterData: true,
+          });
+          clearInterval(retryInterval);
+        }
+      }, 1000);
+
+      setTimeout(() => clearInterval(retryInterval), 30000);
+    }
 
     return cleanup;
   }
