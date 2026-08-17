@@ -63,9 +63,20 @@ function ensureStyles(): void {
       color: #00d4aa;
       margin-bottom: 6px;
     }
+    .sf-card-phonetic {
+      font-size: 12px;
+      color: #888;
+      margin-bottom: 6px;
+    }
     .sf-card-translation {
       font-size: 14px;
       color: #ccc;
+      margin-bottom: 10px;
+    }
+    .sf-card-example {
+      font-size: 12px;
+      color: #777;
+      font-style: italic;
       margin-bottom: 10px;
     }
     .sf-card-sentence {
@@ -94,6 +105,51 @@ function ensureStyles(): void {
       background: #555;
       color: #999;
       cursor: default;
+    }
+    .sf-card-btn.sf-error {
+      background: #e74c3c;
+      color: #fff;
+    }
+    .sf-fab {
+      position: fixed;
+      bottom: 20px;
+      right: 20px;
+      z-index: 99998;
+      width: 40px;
+      height: 40px;
+      border-radius: 50%;
+      border: none;
+      background: #1a1a2e;
+      color: #00d4aa;
+      font-size: 18px;
+      cursor: pointer;
+      box-shadow: 0 4px 12px rgba(0, 0, 0, 0.4);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      transition: opacity 0.2s, transform 0.2s;
+      opacity: 0.6;
+    }
+    .sf-fab:hover {
+      opacity: 1;
+      transform: scale(1.1);
+    }
+    .sf-fab.sf-hidden {
+      display: none;
+    }
+    .sf-loading {
+      display: inline-block;
+      width: 14px;
+      height: 14px;
+      border: 2px solid #555;
+      border-top-color: #00d4aa;
+      border-radius: 50%;
+      animation: sf-spin 0.6s linear infinite;
+      vertical-align: middle;
+      margin-right: 6px;
+    }
+    @keyframes sf-spin {
+      to { transform: rotate(360deg); }
     }
   `;
   document.head.appendChild(style);
@@ -142,6 +198,37 @@ export function createSubtitleOverlay(
   card.className = "sf-card sf-hidden";
   document.body.appendChild(card);
 
+  // Floating action button to open library
+  const fab = document.createElement("button");
+  fab.className = "sf-fab sf-hidden";
+  fab.textContent = "Aa";
+  fab.title = "Open My Phrases (Ctrl+Shift+L)";
+  fab.addEventListener("click", () => {
+    chrome.tabs.create({ url: chrome.runtime.getURL("library.html") });
+  });
+  document.body.appendChild(fab);
+
+  // Show FAB when subtitle is active
+  let subtitleActive = false;
+  const updateFabVisibility = () => {
+    if (subtitleActive) {
+      fab.classList.remove("sf-hidden");
+    } else {
+      fab.classList.add("sf-hidden");
+    }
+  };
+
+  // Keyboard shortcut to open library
+  document.addEventListener("keydown", (e) => {
+    if (e.key === "Escape") {
+      card.classList.add("sf-hidden");
+    }
+    if (e.ctrlKey && e.shiftKey && e.key === "L") {
+      e.preventDefault();
+      chrome.tabs.create({ url: chrome.runtime.getURL("library.html") });
+    }
+  });
+
   document.addEventListener("click", (e) => {
     const target = e.target as HTMLElement;
     if (!card.contains(target) && !target.classList.contains("sf-word")) {
@@ -152,24 +239,22 @@ export function createSubtitleOverlay(
     }
   });
 
-  document.addEventListener("keydown", (e) => {
-    if (e.key === "Escape") {
-      card.classList.add("sf-hidden");
-    }
-  });
-
   return {
     update(text: string | null): void {
       if (!text) {
         overlay.classList.add("sf-hidden");
         overlay.innerHTML = "";
         currentSentence = "";
+        subtitleActive = false;
+        updateFabVisibility();
         return;
       }
 
       currentSentence = text;
       overlay.classList.remove("sf-hidden");
       overlay.innerHTML = "";
+      subtitleActive = true;
+      updateFabVisibility();
 
       const words = text.split(/\s+/);
       for (const w of words) {
@@ -202,33 +287,45 @@ export function createSubtitleOverlay(
         const rect = wordEl.getBoundingClientRect();
         card.style.left = `${Math.max(8, Math.min(rect.left, window.innerWidth - 370))}px`;
         card.style.top = `${Math.max(8, rect.top - 160)}px`;
+        card.style.transform = "";
       } else {
         card.style.left = "50%";
         card.style.top = "30%";
         card.style.transform = "translateX(-50%)";
       }
 
+      const isLoading = translation === "Loading...";
+      const isError = translation.startsWith("Failed") || translation === "No definition found.";
+
       card.innerHTML = `
         <div class="sf-card-word">${escapeHtml(word)}</div>
-        <div class="sf-card-translation">${escapeHtml(translation || "Loading...")}</div>
-        <div class="sf-card-sentence">${escapeHtml(sentence)}</div>
-        <button class="sf-card-btn" id="sf-save-btn">Save Phrase</button>
+        <div class="sf-card-translation">
+          ${isLoading ? '<span class="sf-loading"></span>' : ""}
+          ${escapeHtml(translation || "No definition found.")}
+        </div>
+        <div class="sf-card-sentence">"${escapeHtml(sentence)}"</div>
+        <button class="sf-card-btn${isError ? " sf-error" : ""}" id="sf-save-btn">
+          ${isLoading ? "Loading..." : isError ? "Error" : "Save Phrase"}
+        </button>
       `;
 
-      document.getElementById("sf-save-btn")?.addEventListener("click", (e) => {
-        e.stopPropagation();
-        onSave();
-        const btn = document.getElementById("sf-save-btn");
-        if (btn) {
-          btn.textContent = "Saved!";
-          btn.classList.add("sf-saved");
-        }
-      });
+      if (!isLoading) {
+        document.getElementById("sf-save-btn")?.addEventListener("click", (e) => {
+          e.stopPropagation();
+          onSave();
+          const btn = document.getElementById("sf-save-btn");
+          if (btn) {
+            btn.textContent = "Saved!";
+            btn.classList.add("sf-saved");
+          }
+        });
+      }
     },
 
     destroy(): void {
       overlay.remove();
       card.remove();
+      fab.remove();
       onWordSelect = null;
     },
   };
