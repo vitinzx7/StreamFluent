@@ -1,4 +1,5 @@
 import { getAdapter } from "../adapters/registry.ts";
+import { createSubtitleOverlay } from "../core/ui/subtitle-overlay.ts";
 
 function boot(): void {
   const adapter = getAdapter();
@@ -10,15 +11,20 @@ function boot(): void {
 
   console.log("[StreamFluent] active on this page");
 
-  const unsubscribe = adapter.observeSubtitles((cue) => {
-    if (cue) {
-      console.log("[StreamFluent] subtitle:", cue.text);
-    }
+  const overlay = createSubtitleOverlay((word, sentence) => {
+    console.log(`[StreamFluent] selected: "${word}" in "${sentence}"`);
+    // Translation and save will be wired in Block 5 and Block 8
+    overlay.showCard(word, "", sentence, () => {
+      console.log(`[StreamFluent] save requested for: ${word}`);
+    });
   });
 
-  // Disconnect when user navigates away
+  adapter.observeSubtitles((cue) => {
+    overlay.update(cue?.text ?? null);
+  });
+
   window.addEventListener("unload", () => {
-    unsubscribe();
+    overlay.destroy();
   });
 }
 
