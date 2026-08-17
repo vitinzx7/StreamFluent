@@ -28,3 +28,7 @@ export interface StreamingAdapter {
   observeSubtitles(onCue: (cue: SubtitleCue | null) => void): () => void;
   getMediaMetadata(): MediaMetadata | null;
 }
+
+export interface StorageSchema {
+  phrases: SavedPhrase[];
+}
