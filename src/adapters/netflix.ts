@@ -1,14 +1,17 @@
 import type { StreamingAdapter, SubtitleCue, MediaMetadata } from "../core/types.ts";
 
-// Netflix renders subtitles in a container inside the player overlay.
-// The DOM structure uses obfuscated class names that change across versions,
-// so we rely on structural patterns and data attributes rather than class names.
-
 const SUBTITLE_CONTAINER_SELECTORS = [
   ".player-timedtext",
   "[class*='timedtext']",
   "[data-testid='player-timedtext-text-container']",
   ".text-container",
+];
+
+const EPISODE_INFO_SELECTORS = [
+  "[data-testid='player-detail-text']",
+  ".episode-title",
+  "[class*='episode']",
+  "[data-testid='ep-title']",
 ];
 
 function findSubtitleContainer(): HTMLElement | null {
@@ -20,11 +23,8 @@ function findSubtitleContainer(): HTMLElement | null {
 }
 
 function extractText(container: HTMLElement): string | null {
-  // Netflix puts subtitle text in <span> elements inside the container.
-  // We join all spans to handle multi-line subtitles.
   const spans = container.querySelectorAll("span");
   if (spans.length === 0) {
-    // Sometimes the text is directly in the container
     const text = container.textContent?.trim();
     return text || null;
   }
@@ -36,6 +36,26 @@ function extractText(container: HTMLElement): string | null {
   }
 
   return lines.length > 0 ? lines.join(" ") : null;
+}
+
+function parseSeasonEpisode(text: string): { season: number | null; episode: number | null } {
+  let season: number | null = null;
+  let episode: number | null = null;
+
+  // Pattern: "S2E4" or "S02E04" or "Season 2, Episode 4"
+  const compactMatch = text.match(/S\s*(\d+)\s*E\s*(\d+)/i);
+  if (compactMatch) {
+    season = parseInt(compactMatch[1], 10);
+    episode = parseInt(compactMatch[2], 10);
+    return { season, episode };
+  }
+
+  const seasonMatch = text.match(/Season\s+(\d+)/i);
+  const episodeMatch = text.match(/Episode\s+(\d+)/i);
+  if (seasonMatch) season = parseInt(seasonMatch[1], 10);
+  if (episodeMatch) episode = parseInt(episodeMatch[1], 10);
+
+  return { season, episode };
 }
 
 export class NetflixAdapter implements StreamingAdapter {
@@ -54,8 +74,6 @@ export class NetflixAdapter implements StreamingAdapter {
       this.lastText = null;
     };
 
-    // We observe the entire document body for subtitle container changes
-    // because Netflix dynamically creates/destroys subtitle elements.
     this.observer = new MutationObserver(() => {
       const container = findSubtitleContainer();
       if (!container) {
@@ -72,11 +90,7 @@ export class NetflixAdapter implements StreamingAdapter {
       this.lastText = text;
 
       if (text) {
-        onCue({
-          text,
-          start: 0,
-          end: 0,
-        });
+        onCue({ text, start: 0, end: 0 });
       } else {
         onCue(null);
       }
@@ -92,33 +106,39 @@ export class NetflixAdapter implements StreamingAdapter {
   }
 
   getMediaMetadata(): MediaMetadata | null {
-    // Netflix stores metadata in the page title and URL
     const title = document.title;
-    // Title format: "Show Name: Season X, Episode Y: Title | Netflix"
-    // or "Movie Name | Netflix"
     const netflixSuffix = title.replace(/\s*\|\s*Netflix\s*$/i, "").trim();
     if (!netflixSuffix) return null;
 
-    // Try to detect season/episode from page content
     let season: number | null = null;
     let episode: number | null = null;
 
-    // Look for episode info in the player controls or metadata
-    const episodeEl = document.querySelector(
-      "[data-testid='player-detail-text'], .episode-title, [class*='episode']"
-    );
-    if (episodeEl) {
-      const epText = episodeEl.textContent || "";
-      const seasonMatch = epText.match(/S\s*(\d+)/i);
-      const episodeMatch = epText.match(/E\s*(\d+)/i);
-      if (seasonMatch) season = parseInt(seasonMatch[1], 10);
-      if (episodeMatch) episode = parseInt(episodeMatch[1], 10);
+    // Try to extract from page title
+    // Format: "Show Name: Season 2, Episode 4: Episode Title"
+    const titleSE = parseSeasonEpisode(netflixSuffix);
+    season = titleSE.season;
+    episode = titleSE.episode;
+
+    // If not found in title, try DOM elements
+    if (season === null && episode === null) {
+      for (const sel of EPISODE_INFO_SELECTORS) {
+        const el = document.querySelector<HTMLElement>(sel);
+        if (el) {
+          const epText = el.textContent || "";
+          const domSE = parseSeasonEpisode(epText);
+          if (domSE.season !== null) season = domSE.season;
+          if (domSE.episode !== null) episode = domSE.episode;
+          if (season !== null || episode !== null) break;
+        }
+      }
     }
 
-    return {
-      title: netflixSuffix,
-      season,
-      episode,
-    };
+    // Clean up title: remove season/episode info from the display title
+    let cleanTitle = netflixSuffix;
+    if (season !== null) {
+      cleanTitle = cleanTitle.replace(/:\s*Season\s+\d+.*$/i, "").trim();
+    }
+
+    return { title: cleanTitle, season, episode };
   }
 }
