@@ -2,12 +2,27 @@
   "manifest_version": 3,
   "name": "StreamFluent",
   "version": "0.1.0",
-  "description": "Subtitle layer over streaming video to study English.",
+  "description": "Learn English while watching Netflix and Max.",
+  "permissions": ["storage"],
+  "action": {
+    "default_popup": "popup.html",
+    "default_title": "StreamFluent"
+  },
   "content_scripts": [
     {
-      "matches": ["*://*.netflix.com/*"],
+      "matches": [
+        "*://*.netflix.com/*",
+        "*://*.max.com/*",
+        "*://*.hbomax.com/*"
+      ],
       "js": ["content.js"],
       "run_at": "document_idle"
+    }
+  ],
+  "web_accessible_resources": [
+    {
+      "resources": ["library.html"],
+      "matches": ["<all_urls>"]
     }
   ]
 }

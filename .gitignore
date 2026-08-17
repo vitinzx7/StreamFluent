@@ -11,3 +11,6 @@ dist/
 # OS / editor junk
 .DS_Store
 *.log
+
+# Tool caches
+.lh/
