@@ -63,20 +63,9 @@ function ensureStyles(): void {
       color: #00d4aa;
       margin-bottom: 6px;
     }
-    .sf-card-phonetic {
-      font-size: 12px;
-      color: #888;
-      margin-bottom: 6px;
-    }
     .sf-card-translation {
       font-size: 14px;
       color: #ccc;
-      margin-bottom: 10px;
-    }
-    .sf-card-example {
-      font-size: 12px;
-      color: #777;
-      font-style: italic;
       margin-bottom: 10px;
     }
     .sf-card-sentence {
@@ -198,7 +187,6 @@ export function createSubtitleOverlay(
   card.className = "sf-card sf-hidden";
   document.body.appendChild(card);
 
-  // Floating action button to open library
   const fab = document.createElement("button");
   fab.className = "sf-fab sf-hidden";
   fab.textContent = "Aa";
@@ -208,18 +196,12 @@ export function createSubtitleOverlay(
   });
   document.body.appendChild(fab);
 
-  // Show FAB when subtitle is active
   let subtitleActive = false;
   const updateFabVisibility = () => {
-    if (subtitleActive) {
-      fab.classList.remove("sf-hidden");
-    } else {
-      fab.classList.add("sf-hidden");
-    }
+    fab.classList.toggle("sf-hidden", !subtitleActive);
   };
 
-  // Keyboard shortcut to open library
-  document.addEventListener("keydown", (e) => {
+  const handleKeydown = (e: KeyboardEvent) => {
     if (e.key === "Escape") {
       card.classList.add("sf-hidden");
     }
@@ -227,9 +209,9 @@ export function createSubtitleOverlay(
       e.preventDefault();
       chrome.tabs.create({ url: chrome.runtime.getURL("library.html") });
     }
-  });
+  };
 
-  document.addEventListener("click", (e) => {
+  const handleClick = (e: MouseEvent) => {
     const target = e.target as HTMLElement;
     if (!card.contains(target) && !target.classList.contains("sf-word")) {
       card.classList.add("sf-hidden");
@@ -237,7 +219,10 @@ export function createSubtitleOverlay(
         el.classList.remove("sf-selected");
       });
     }
-  });
+  };
+
+  document.addEventListener("keydown", handleKeydown);
+  document.addEventListener("click", handleClick);
 
   return {
     update(text: string | null): void {
@@ -323,6 +308,8 @@ export function createSubtitleOverlay(
     },
 
     destroy(): void {
+      document.removeEventListener("keydown", handleKeydown);
+      document.removeEventListener("click", handleClick);
       overlay.remove();
       card.remove();
       fab.remove();

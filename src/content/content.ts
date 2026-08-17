@@ -2,55 +2,37 @@ import { getAdapter } from "../adapters/registry.ts";
 import { createSubtitleOverlay } from "../core/ui/subtitle-overlay.ts";
 import { PhraseRepository } from "../core/storage.ts";
 import { translateWord } from "../core/translation.ts";
+import type { MediaMetadata } from "../core/types.ts";
 
 function boot(): void {
   const adapter = getAdapter();
   if (!adapter) return;
-
-  console.log(`[StreamFluent] detected: ${adapter.name}`);
-
   if (!adapter.isSupportedPage()) return;
 
-  console.log("[StreamFluent] active on this page");
-
   const overlay = createSubtitleOverlay(async (word, sentence) => {
-    console.log(`[StreamFluent] selected: "${word}" in "${sentence}"`);
+    const getMetadata = (): MediaMetadata | null => adapter.getMediaMetadata();
 
-    // Show card immediately with loading state
-    overlay.showCard(word, "Loading...", sentence, async () => {
-      const metadata = adapter.getMediaMetadata();
+    const buildSaveFn = (translation: string) => async () => {
+      const metadata = getMetadata();
       await PhraseRepository.save({
         sentence,
         selectedWord: word,
-        translation: "",
+        translation,
         platform: adapter.name,
         mediaTitle: metadata?.title || "Unknown",
         season: metadata?.season ?? null,
         episode: metadata?.episode ?? null,
       });
-      console.log(`[StreamFluent] phrase saved: ${word}`);
-    });
+    };
 
-    // Fetch translation
+    overlay.showCard(word, "Loading...", sentence, await buildSaveFn(""));
+
     const result = await translateWord(word);
     const display = result.definition
       ? `${result.phonetic ? result.phonetic + " " : ""}${result.definition}${result.example ? ` e.g. "${result.example}"` : ""}`
       : "No definition found.";
 
-    // Update card with translation
-    overlay.showCard(word, display, sentence, async () => {
-      const metadata = adapter.getMediaMetadata();
-      await PhraseRepository.save({
-        sentence,
-        selectedWord: word,
-        translation: display,
-        platform: adapter.name,
-        mediaTitle: metadata?.title || "Unknown",
-        season: metadata?.season ?? null,
-        episode: metadata?.episode ?? null,
-      });
-      console.log(`[StreamFluent] phrase saved: ${word}`);
-    });
+    overlay.showCard(word, display, sentence, await buildSaveFn(display));
   });
 
   adapter.observeSubtitles((cue) => {
