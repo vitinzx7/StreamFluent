@@ -1,15 +1,20 @@
 import type { StreamingAdapter } from "../core/types.ts";
+import { NetflixAdapter } from "./netflix.ts";
+
+let cached: StreamingAdapter | null = null;
 
 export function getAdapter(): StreamingAdapter | null {
+  if (cached) return cached;
+
   const host = location.hostname;
 
   if (host.includes("netflix.com")) {
-    // Netflix adapter will be imported here
-    return null;
+    cached = new NetflixAdapter();
+    return cached;
   }
 
   if (host.includes("max.com") || host.includes("hbomax.com")) {
-    // Max adapter will be imported here
+    // MaxAdapter will be added here
     return null;
   }
 
