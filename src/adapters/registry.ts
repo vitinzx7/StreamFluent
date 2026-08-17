@@ -1,5 +1,6 @@
 import type { StreamingAdapter } from "../core/types.ts";
 import { NetflixAdapter } from "./netflix.ts";
+import { MaxAdapter } from "./max.ts";
 
 let cached: StreamingAdapter | null = null;
 
@@ -14,8 +15,8 @@ export function getAdapter(): StreamingAdapter | null {
   }
 
   if (host.includes("max.com") || host.includes("hbomax.com")) {
-    // MaxAdapter will be added here
-    return null;
+    cached = new MaxAdapter();
+    return cached;
   }
 
   return null;
