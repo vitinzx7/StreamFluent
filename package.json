@@ -7,11 +7,15 @@
   "scripts": {
     "build": "node build.mjs",
     "watch": "node build.mjs --watch",
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run",
+    "test:watch": "vitest"
   },
   "devDependencies": {
     "@types/chrome": "*",
     "esbuild": "^0.25.0",
-    "typescript": "^5.5.0"
+    "jsdom": "^30.0.1",
+    "typescript": "^5.5.0",
+    "vitest": "^4.1.10"
   }
 }
