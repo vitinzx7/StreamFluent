@@ -1,186 +1,90 @@
 # StreamFluent
 
-A browser extension that helps you learn English while watching Netflix and Max.
-Click on any subtitle word to see its definition, then save it for later review.
+Extensão Chrome Manifest V3 para estudar idiomas com legendas. Netflix e Max usam as legendas já renderizadas no DOM. O novo modo HTML5, habilitado para Cinetaro, lê faixas acessíveis ou um arquivo SRT/VTT local e usa o tempo real do vídeo.
 
-> **Privacy first:** the extension only reads subtitles the browser already
-> displays to you. It never downloads video, breaks DRM, or sends data to
-> external servers except for dictionary lookups.
+**Situação:** implementação e testes controlados disponíveis; compatibilidade com o player real do Cinetaro e reprodução real da Netflix ainda precisam de validação no navegador. A inspeção do site ficou indisponível no ambiente de desenvolvimento. Não há transcrição de áudio nem recuperação automática de falas ausentes.
 
-## Features
-
-- **Interactive subtitles** — click any word in the subtitle to see its definition
-- **Save phrases** — store words with their full sentence context
-- **Auto-translation** — definitions fetched from the free Dictionary API
-- **Media metadata** — automatically captures show title, season, and episode
-- **Phrase library** — browse, search, and filter all your saved phrases
-- **Multi-platform** — works on Netflix and Max (HBO Max)
-- **Keyboard shortcuts** — `Ctrl+Shift+L` opens the phrase library
-- **Non-intrusive** — minimal UI that doesn't interfere with the player
-
-## Architecture
-
-```
-Extension
-   |
-   +-- Core
-   |     +-- Subtitle Overlay (interactive word selection)
-   |     +-- Storage (chrome.storage.local)
-   |     +-- Translation (Dictionary API)
-   |     +-- Types & Utilities
-   |
-   +-- Streaming Adapters
-         +-- NetflixAdapter
-         +-- MaxAdapter
-```
-
-Each streaming platform implements the `StreamingAdapter` interface:
-
-```typescript
-interface StreamingAdapter {
-  name: string;
-  isSupportedPage(): boolean;
-  observeSubtitles(onCue: (cue: SubtitleCue | null) => void): () => void;
-  getMediaMetadata(): MediaMetadata | null;
-}
-```
-
-This makes it straightforward to add support for new platforms.
-
-## Technologies
-
-- TypeScript
-- HTML / CSS
-- Chrome Extension Manifest V3
-- esbuild (bundler)
-- Vitest (tests)
-- Dictionary API (free, no key required)
-
-## Project Structure
-
-```
-public/
-  manifest.json      # Extension manifest (Manifest V3)
-  popup.html         # Extension popup
-  popup.js           # Popup script
-  library.html       # Saved phrases page
-  library.js         # Library script
-src/
-  content/
-    content.ts       # Entry point (injected into streaming pages)
-  core/
-    types.ts         # Shared TypeScript types
-    utils.ts         # Utility functions
-    storage.ts       # chrome.storage wrapper
-    translation.ts   # Dictionary API client
-    dom-utils.ts     # Shared DOM utilities
-    ui/
-      subtitle-overlay.ts  # Interactive subtitle UI
-  adapters/
-    registry.ts      # Adapter detection and caching
-    netflix.ts       # Netflix adapter
-    max.ts           # Max adapter
-  __tests__/         # Unit tests
-build.mjs            # esbuild configuration
-```
-
-## Requirements
-
-- Node.js 18+
-- Chrome or Edge browser
-
-## Setup
+## Instalar e recarregar
 
 ```bash
 npm install
+npm run typecheck
+npm test
 npm run build
 ```
 
-## Scripts
+1. Abra `chrome://extensions`, ative o modo de desenvolvedor e carregue a pasta `dist/` em **Carregar sem compactação**.
+2. Se já estiver instalada, clique em **Recarregar** na extensão depois do build.
+3. Recarregue também a aba do streaming para substituir o content script antigo.
 
-| Command             | Description                              |
-| ------------------- | ---------------------------------------- |
-| `npm run build`     | Build the extension into `dist/`         |
-| `npm run watch`     | Rebuild automatically on file changes    |
-| `npm run typecheck` | Run TypeScript type checking             |
-| `npm run test`      | Run unit tests                           |
-| `npm run test:watch`| Run tests in watch mode                  |
+`npm run watch` recompila os bundles; alterações em `public/` exigem um novo build. Não há comando de lint.
 
-## Install in Chrome
+## Usar no Cinetaro / HTML5
 
-1. Go to `chrome://extensions`
-2. Enable **Developer mode** (top-right)
-3. Click **Load unpacked**
-4. Select the `dist/` folder
-5. Open Netflix or Max and start watching
+Abra `https://cinetaro.to/watch/62560?ep=8` e inicie o player. No painel StreamFluent:
 
-## Install in Edge
+1. Selecione uma faixa acessível ou importe um arquivo `.srt`/`.vtt` em UTF-8, até 2 MB. Informe se o arquivo já está em português ou se está em inglês.
+2. Ative a camada de legendas. A importação fica apenas em memória, sem upload do arquivo.
+3. Ative a tradução para português brasileiro se quiser enviar a fala atual ao tradutor. O texto original continua disponível enquanto a tradução está pendente ou falha.
+4. Use **Adiantar 0,5 s** quando a legenda aparece depois da fala; use **Atrasar 0,5 s** quando aparece antes. **Restaurar** volta a zero.
 
-1. Go to `edge://extensions`
-2. Enable **Developer mode**
-3. Click **Load unpacked**
-4. Select the `dist/` folder
-5. Open Netflix or Max and start watching
+Exemplo: uma fala marcada em 10–12 s aparece em 9,5–11,5 s após adiantar e em 10,5–12,5 s após atrasar. O intervalo é fechado no início e aberto no fim. Pausa, busca e velocidade usam `video.currentTime`, sem acumular um relógio separado.
 
-## Usage
+Trocar episódio, fonte de mídia ou elemento de vídeo descarta a faixa importada e o ajuste. Respostas de tradução antigas não podem substituir as da nova sessão. Selecionar uma nova faixa também restaura o ajuste.
 
-1. Open Netflix or Max in your browser
-2. Start playing a video with English subtitles
-3. Our subtitle overlay appears over the video
-4. Click any word to see its definition
-5. Click **Save Phrase** to store it
-6. Press `Ctrl+Shift+L` or click the floating button to open your phrase library
+Um deslocamento fixo não resolve descompasso crescente ou legendas de outra edição. Falas ausentes precisam de uma faixa mais completa: tradução não cria texto ausente.
 
-## Limitations
+## Netflix e Max
 
-- Subtitle detection depends on the streaming site's DOM structure, which may
-  change without notice
-- Definitions come from the free Dictionary API and may not cover all words
-- Season/episode detection is best-effort and may not work for all content
-- The extension requires English subtitles to be enabled on the streaming site
+O fluxo anterior permanece: habilite legendas no site, clique nas palavras da camada StreamFluent para consultar tradução/definição e salve frases na biblioteca local. O botão **Aa** e o popup controlam direção e linha traduzida. Arraste a legenda para mudar a posição. A biblioteca abre pelo service worker.
 
-## Adding a New Streaming Adapter
+## Player de teste local
 
-1. Create `src/adapters/yourplatform.ts`
-2. Implement the `StreamingAdapter` interface
-3. Register it in `src/adapters/registry.ts`
-4. Add the domain to `manifest.json` content_scripts matches
+No popup, clique em **Testar player local**. A página contém um vídeo sintético de 15 segundos, sem downloads externos, e uma faixa de exemplo. Os arquivos de importação estão em `public/fixtures/`.
 
-```typescript
-export class YourPlatformAdapter implements StreamingAdapter {
-  name = "YourPlatform";
+Checklist manual ainda pendente neste ambiente:
 
-  isSupportedPage(): boolean {
-    return location.hostname.includes("yourplatform.com");
-  }
+- Ativar a camada e a tradução; conferir texto e acentos.
+- Importar `example.srt` e `example.vtt`; conferir múltiplas linhas e intervalos.
+- Pausar, buscar para 10 s e mudar para 2x; verificar que a legenda segue o vídeo.
+- Aplicar cada ajuste e restaurar; conferir os intervalos do exemplo acima.
+- Trocar episódio e substituir vídeo durante uma tradução; confirmar descarte da fonte e do resultado antigo.
+- Desativar a camada; conferir restauração das legendas nativas.
+- Entrar/sair da tela cheia do contêiner; conferir painel, legenda e ausência de duplicatas.
+- Repetir Netflix/Max com conteúdo real e inspecionar os domínios dos frames do Cinetaro.
 
-  observeSubtitles(onCue: (cue: SubtitleCue | null) => void): () => void {
-    // Use MutationObserver to watch for subtitle changes
-    // Return a cleanup function
-  }
+Os testes automatizados usam DOM e respostas de rede controladas. Eles não substituem reprodução em Chrome nem comprovam CORS, políticas de fullscreen ou estrutura dos sites reais. Uma chamada isolada ao endpoint Google respondeu `Bom dia.` para `Good morning.` durante o desenvolvimento; isso não garante disponibilidade contínua.
 
-  getMediaMetadata(): MediaMetadata | null {
-    // Extract title, season, episode from the page
-  }
-}
-```
+Validação desta entrega: **172 testes em 14 arquivos passaram**, assim como `npm run typecheck`, `npm run build` e `git diff --check`. Inclui regressões DOM de Netflix/Max, importação, ajuste, respostas antigas, transporte e limpeza. Reprodução manual em navegador continua pendente.
 
-## Privacy
+## Privacidade e rede
 
-- **No data leaves your browser** except dictionary API lookups
-- **No video download** or DRM circumvention
-- **No tracking** or analytics
-- **No accounts** or authentication required
-- All saved phrases are stored locally in your browser
-- The dictionary API is free and requires no API key
+- Sem download de streaming, contorno de DRM, telemetria ou análise de áudio.
+- As únicas APIs externas são `clients5.google.com` e `api.mymemory.translated.net` para tradução, e `api.dictionaryapi.dev` para definições em inglês.
+- Saem somente a fala atual e, no fluxo de consulta, a palavra selecionada. Título, episódio, biblioteca e arquivo completo não são enviados.
+- Tradução no modo HTML5 exige ativação visível. Não há tradução antecipada ou em lote.
+- O worker valida destinos, usa timeout por provedor e não envia cookies nem segue redirecionamentos.
+- Frases salvas ficam em `chrome.storage.local`; não são sincronizadas.
+- Não há chaves ou assinatura nova. O endpoint Google é não documentado e pode recusar chamadas ou mudar. MyMemory possui limites próprios. Nenhum deles tem disponibilidade ou uso ilimitado garantido.
 
-## Future Plans
+## Limitações
 
-The architecture supports adding:
+- Apenas vídeos e faixas que o navegador permite ler. Legendas em imagem, áudio sem faixa e formatos diferentes de SRT/VTT não são suportados.
+- Frames de outro domínio não recebem permissões genéricas. A interface informa a indisponibilidade; é necessário identificar o host real antes de adicionar suporte específico.
+- Tela cheia do contêiner pode hospedar a camada. Tela cheia nativa do próprio elemento de vídeo pode impedir overlays HTML; use a do contêiner ou saia desse modo.
+- A versão HTML5 não inclui o cartão de palavras/biblioteca do fluxo Netflix/Max.
+- Os seletores DOM da Netflix/Max continuam sujeitos a mudanças dos sites.
+- A detecção de episódio usa URL e fonte do vídeo. Players que trocam conteúdo mantendo ambos exigem integração específica.
 
-- Disney+, Prime Video, YouTube, Crunchyroll
-- Spaced repetition review
-- Flashcards
-- Word statistics
-- Export/import
-- Cross-device sync
+## Código
+
+- `src/adapters/netflix.ts`, `max.ts`: extração DOM existente.
+- `src/adapters/html5-player.ts`, `src/core/player-types.ts`: descoberta de vídeo, frames acessíveis, eventos e sessões.
+- `src/core/subtitles.ts`: parsing, UTF-8, intervalos, ajuste e controle assíncrono.
+- `src/core/ui/timed-subtitles.ts`: importação, faixas e controles HTML5.
+- `src/core/translation.ts`, `translation-request.ts`: tradutor reutilizado e transporte restrito.
+- `src/background/background.ts`: solicitações externas e abertura da biblioteca.
+- `src/content/content.ts`: integração e limpeza dos dois fluxos.
+- `src/__tests__/`: testes de parsing, sincronização, DOM, armazenamento e tradução.
+
+`public/popup.js` e `library.js` são JavaScript sem compilação TypeScript; mudanças de schema/detecção precisam manter as cópias coerentes.
