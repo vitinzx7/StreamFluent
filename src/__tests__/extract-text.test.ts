@@ -44,6 +44,36 @@ describe("extractSubtitleText", () => {
     expect(extractSubtitleText(container)).toBe("spaced");
   });
 
+  it("does not repeat words when the player nests its cue spans", () => {
+    // Netflix ships <span><span>text</span></span>; reading per element counted
+    // every word once per level.
+    const container = document.createElement("div");
+    container.innerHTML =
+      "<span><span>One more.</span></span><span><span>Just one more.</span></span>";
+
+    expect(extractSubtitleText(container)).toBe("One more. Just one more.");
+  });
+
+  it("reads every line of a multi-line cue", () => {
+    const root = document.createElement("div");
+    root.innerHTML =
+      '<div class="line"><span>I told you</span></div>' +
+      '<div class="line"><span>not to come back.</span></div>';
+
+    expect(extractSubtitleText(root)).toBe("I told you not to come back.");
+  });
+
+  it("ignores text inside our own injected elements", () => {
+    const container = document.createElement("div");
+    container.innerHTML = "<span>Original</span>";
+    const injected = document.createElement("span");
+    injected.setAttribute("data-streamfluent", "");
+    injected.textContent = "Tradução";
+    container.appendChild(injected);
+
+    expect(extractSubtitleText(container)).toBe("Original");
+  });
+
   it("skips empty spans", () => {
     const container = document.createElement("div");
     const span1 = document.createElement("span");

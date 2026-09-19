@@ -40,23 +40,75 @@ export function parseSeasonEpisode(text: string): { season: number | null; episo
   return { season, episode };
 }
 
+/**
+ * Walks text nodes rather than elements. Both players nest their cue markup
+ * (`<span><span>text</span></span>`), and an element's textContent already
+ * contains its descendants' — collecting per element therefore yielded every
+ * word once per level of nesting, which showed up as a doubled subtitle.
+ */
 export function extractSubtitleText(container: HTMLElement): string | null {
-  // Only get direct text spans, not nested extension elements
-  const spans = container.querySelectorAll("span");
-  if (spans.length === 0) {
-    const text = container.textContent?.trim();
-    return text || null;
+  const walker = document.createTreeWalker(container, NodeFilter.SHOW_TEXT, {
+    acceptNode(node) {
+      const parent = node.parentElement;
+      // Never read back the overlay we injected ourselves.
+      if (parent && isExtensionElement(parent)) return NodeFilter.FILTER_REJECT;
+      return NodeFilter.FILTER_ACCEPT;
+    },
+  });
+
+  const parts: string[] = [];
+  for (let node = walker.nextNode(); node; node = walker.nextNode()) {
+    const text = node.textContent?.trim();
+    if (text) parts.push(text);
   }
 
-  const lines: string[] = [];
-  for (const span of spans) {
-    // Skip any spans that belong to our extension
-    if (isExtensionElement(span)) continue;
-    const t = span.textContent?.trim();
-    if (t) lines.push(t);
-  }
+  return parts.length > 0 ? parts.join(" ") : null;
+}
 
-  return lines.length > 0 ? lines.join(" ") : null;
+const NATIVE_HIDDEN_MARKER = "data-streamfluent-native-hidden";
+const NATIVE_HIDDEN_STYLE_ID = "streamfluent-native-hidden";
+
+function ensureNativeHiddenStyle(): void {
+  if (document.getElementById(NATIVE_HIDDEN_STYLE_ID)) return;
+
+  const style = document.createElement("style");
+  style.id = NATIVE_HIDDEN_STYLE_ID;
+  style.setAttribute(EXTENSION_MARKER, "");
+  // A stylesheet rule (not an inline style) because the players rewrite the
+  // inline `style` of their cue containers on every cue, which would wipe the
+  // hiding out again. `!important` on a stylesheet rule beats their inline
+  // styles. Opacity rather than `display: none` so the cue container keeps its
+  // box: the players measure it to position cues, and we still read its text.
+  style.textContent = `[${NATIVE_HIDDEN_MARKER}] { opacity: 0 !important; pointer-events: none !important; }`;
+  (document.head || document.documentElement).appendChild(style);
+}
+
+/**
+ * Walks up from a matched cue container to the outermost ancestor that still
+ * matches one of `selectors`. Players recreate the inner per-cue container on
+ * every line, so hiding only that one leaves the next line visible for a frame;
+ * the outer wrapper is created once and stays put.
+ */
+export function findSubtitleRoot(container: HTMLElement, selectors: string[]): HTMLElement {
+  let root = container;
+  for (let parent = root.parentElement; parent; parent = root.parentElement) {
+    const candidate = parent;
+    if (!selectors.some((sel) => candidate.matches(sel))) break;
+    root = candidate;
+  }
+  return root;
+}
+
+export function hideNativeSubtitles(container: HTMLElement): void {
+  ensureNativeHiddenStyle();
+  container.setAttribute(NATIVE_HIDDEN_MARKER, "");
+}
+
+export function restoreNativeSubtitles(): void {
+  document.querySelectorAll(`[${NATIVE_HIDDEN_MARKER}]`).forEach((el) => {
+    el.removeAttribute(NATIVE_HIDDEN_MARKER);
+  });
+  document.getElementById(NATIVE_HIDDEN_STYLE_ID)?.remove();
 }
 
 export function findElement(selectors: string[]): HTMLElement | null {

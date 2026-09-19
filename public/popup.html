@@ -41,11 +41,70 @@
     .btn + .btn {
       margin-top: 8px;
     }
+    .field {
+      margin-bottom: 16px;
+    }
+    .field label {
+      display: block;
+      font-size: 11px;
+      font-weight: 600;
+      letter-spacing: 0.4px;
+      text-transform: uppercase;
+      color: #6d7a86;
+      margin-bottom: 6px;
+    }
+    .field select {
+      width: 100%;
+      padding: 9px 10px;
+      border: 1px solid #2a3a5c;
+      border-radius: 6px;
+      background: #16213e;
+      color: #e0e0e0;
+      font-size: 13px;
+      cursor: pointer;
+    }
+    .hint {
+      font-size: 11px;
+      color: #666;
+      margin-top: 6px;
+    }
+    .toggle {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      font-size: 13px;
+      font-weight: 400;
+      letter-spacing: 0;
+      text-transform: none;
+      color: #e0e0e0;
+      cursor: pointer;
+      margin-bottom: 0;
+    }
+    .toggle input {
+      width: 15px;
+      height: 15px;
+      accent-color: #00d4aa;
+      cursor: pointer;
+    }
   </style>
 </head>
 <body>
   <h1>StreamFluent</h1>
   <p class="status" id="status">Checking current page...</p>
+  <div class="field">
+    <label for="direction">Translation</label>
+    <select id="direction">
+      <option value="en-pt">English &rarr; Portugu&ecirc;s</option>
+      <option value="pt-en">Portugu&ecirc;s &rarr; English</option>
+    </select>
+    <p class="hint" id="directionHint">Applies to the next subtitle line.</p>
+  </div>
+  <div class="field">
+    <label class="toggle" for="showTranslation">
+      <input type="checkbox" id="showTranslation" />
+      <span>Show translated subtitle line</span>
+    </label>
+  </div>
   <button class="btn" id="openLibrary">My Phrases</button>
   <script src="popup.js"></script>
 </body>

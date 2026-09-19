@@ -1,47 +1,128 @@
 import { getAdapter } from "../adapters/registry.ts";
 import { createSubtitleOverlay } from "../core/ui/subtitle-overlay.ts";
 import { PhraseRepository } from "../core/storage.ts";
-import { translateWord } from "../core/translation.ts";
-import type { MediaMetadata } from "../core/types.ts";
+import { SettingsRepository, DIRECTION_LABELS } from "../core/settings.ts";
+import {
+  translateWord,
+  translateSentence,
+  type TranslationResult,
+} from "../core/translation.ts";
 
-function boot(): void {
+/** Phonetic + definition + example, collapsed into the card's second line. */
+function formatDefinition(result: TranslationResult): string {
+  if (!result.definition) return "";
+  const phonetic = result.phonetic ? `${result.phonetic} ` : "";
+  const example = result.example ? ` e.g. "${result.example}"` : "";
+  return `${phonetic}${result.definition}${example}`;
+}
+
+async function boot(): Promise<void> {
   const adapter = getAdapter();
   if (!adapter) return;
   if (!adapter.isSupportedPage()) return;
 
-  const overlay = createSubtitleOverlay(async (word, sentence) => {
-    const getMetadata = (): MediaMetadata | null => adapter.getMediaMetadata();
+  let settings = await SettingsRepository.get();
+  let unsubscribe = () => {};
+  let currentLine: string | null = null;
 
-    const buildSaveFn = (translation: string) => async () => {
-      const metadata = getMetadata();
-      await PhraseRepository.save({
-        sentence,
-        selectedWord: word,
-        translation,
-        platform: adapter.name,
-        mediaTitle: metadata?.title || "Unknown",
-        season: metadata?.season ?? null,
-        episode: metadata?.episode ?? null,
-      });
-    };
+  const showLineTranslation = (line: string): void => {
+    void translateSentence(line, settings.direction).then((translation) => {
+      // The overlay drops the result if the line already changed.
+      if (translation) overlay.setTranslation(line, translation);
+    });
+  };
 
-    overlay.showCard(word, "Loading...", sentence, await buildSaveFn(""));
+  // Clicking a second word while the first is still in flight must not let the
+  // slower response overwrite the newer card.
+  let lookupId = 0;
 
-    const result = await translateWord(word);
-    const display = result.definition
-      ? `${result.phonetic ? result.phonetic + " " : ""}${result.definition}${result.example ? ` e.g. "${result.example}"` : ""}`
-      : "No definition found.";
+  const overlay = createSubtitleOverlay({
+    settings,
+    onSettingsChange: (patch) => {
+      // Storage is the source of truth: the write comes back through
+      // onChange below, which refreshes `settings` and the panel controls.
+      void SettingsRepository.save(patch);
+    },
+    onOpenLibrary: () => {
+      chrome.tabs.create({ url: chrome.runtime.getURL("library.html") });
+    },
+    onWordSelect: async (word, sentence) => {
+      const direction = settings.direction;
+      const directionLabel = DIRECTION_LABELS[direction];
+      const id = ++lookupId;
 
-    overlay.showCard(word, display, sentence, await buildSaveFn(display));
+      overlay.showCard(
+        {
+          word,
+          translation: "",
+          definition: "",
+          sentence,
+          sentenceTranslation: "",
+          directionLabel,
+          state: "loading",
+        },
+        () => {},
+      );
+
+      // Already resolved and cached for the line on screen, so this is free.
+      const [result, sentenceTranslation] = await Promise.all([
+        translateWord(word, direction),
+        translateSentence(sentence, direction),
+      ]);
+      if (id !== lookupId) return;
+
+      const definition = formatDefinition(result);
+
+      overlay.showCard(
+        {
+          word: result.word,
+          translation: result.translation,
+          definition,
+          sentence,
+          sentenceTranslation,
+          directionLabel,
+          state: result.error ? "error" : "ready",
+        },
+        async () => {
+          const metadata = adapter.getMediaMetadata();
+          await PhraseRepository.save({
+            sentence,
+            sentenceTranslation,
+            selectedWord: word,
+            translation: result.translation,
+            definition,
+            platform: adapter.name,
+            mediaTitle: metadata?.title || "Unknown",
+            season: metadata?.season ?? null,
+            episode: metadata?.episode ?? null,
+          });
+        },
+      );
+    },
+  });
+
+  unsubscribe = SettingsRepository.onChange((next) => {
+    const wasOff = !settings.showTranslation;
+    settings = next;
+    overlay.applySettings(next);
+
+    // Turning the option on mid-line should fill it in, not wait for the next cue.
+    if (wasOff && next.showTranslation && currentLine) showLineTranslation(currentLine);
   });
 
   adapter.observeSubtitles((cue) => {
-    overlay.update(cue?.text ?? null);
+    const text = cue?.text ?? null;
+    currentLine = text;
+    overlay.update(text);
+
+    if (!text || !settings.showTranslation) return;
+    showLineTranslation(text);
   });
 
   window.addEventListener("unload", () => {
+    unsubscribe();
     overlay.destroy();
   });
 }
 
-boot();
+void boot();

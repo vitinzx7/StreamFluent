@@ -5,6 +5,9 @@ import {
   findElement,
   createDebouncedCallback,
   mutationHasExtensionNode,
+  hideNativeSubtitles,
+  restoreNativeSubtitles,
+  findSubtitleRoot,
 } from "../core/dom-utils.ts";
 
 const SUBTITLE_SELECTORS = [
@@ -41,6 +44,7 @@ export class MaxAdapter implements StreamingAdapter {
       this.observer?.disconnect();
       this.observer = null;
       this.lastText = null;
+      restoreNativeSubtitles();
     };
 
     const check = createDebouncedCallback(() => {
@@ -53,9 +57,18 @@ export class MaxAdapter implements StreamingAdapter {
         return;
       }
 
-      const text = extractSubtitleText(container);
-      if (text === this.lastText) return;
+      // Read from the same root we hide: a multi-line cue is split across sibling
+      // containers, and findElement only ever returns the first of them.
+      const root = findSubtitleRoot(container, SUBTITLE_SELECTORS);
+      const text = extractSubtitleText(root);
 
+      // Only hide the native cues once we know we can actually read them, so a
+      // stale selector degrades to "extension does nothing" instead of "no
+      // subtitles at all". Re-applied on every check (cheap, idempotent) so a
+      // player that rebuilds its subtitle DOM gets re-hidden.
+      if (text) hideNativeSubtitles(root);
+
+      if (text === this.lastText) return;
       this.lastText = text;
       onCue(text ? { text, start: 0, end: 0 } : null);
     }, 100);

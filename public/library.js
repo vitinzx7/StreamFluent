@@ -54,7 +54,13 @@ function renderPhrases(phrases) {
       <button class="card-delete" data-id="${escapeHtml(p.id)}" title="Delete">&times;</button>
       <div class="card-word">${escapeHtml(p.selectedWord)}</div>
       <div class="card-translation">${escapeHtml(p.translation || "No translation")}</div>
+      ${p.definition ? `<div class="card-definition">${escapeHtml(p.definition)}</div>` : ""}
       <div class="card-sentence">"${escapeHtml(p.sentence)}"</div>
+      ${
+        p.sentenceTranslation
+          ? `<div class="card-sentence-translation">"${escapeHtml(p.sentenceTranslation)}"</div>`
+          : ""
+      }
       <div class="card-meta">
         ${escapeHtml(p.platform)} &middot; ${escapeHtml(p.mediaTitle)}
         ${p.season ? ` &middot; S${p.season}E${p.episode || "?"}` : ""}
