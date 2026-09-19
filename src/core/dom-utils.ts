@@ -119,10 +119,15 @@ export function findElement(selectors: string[]): HTMLElement | null {
   return null;
 }
 
-export function createDebouncedCallback(fn: () => void, delay: number): () => void {
+export function createDebouncedCallback(fn: () => void, delay: number): (() => void) & { cancel(): void } {
   let timer: ReturnType<typeof setTimeout> | null = null;
-  return () => {
-    if (timer) clearTimeout(timer);
-    timer = setTimeout(fn, delay);
+  const cancel = () => {
+    if (timer !== null) clearTimeout(timer);
+    timer = null;
   };
+  const callback = () => {
+    cancel();
+    timer = setTimeout(() => { timer = null; fn(); }, delay);
+  };
+  return Object.assign(callback, { cancel });
 }

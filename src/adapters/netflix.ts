@@ -39,7 +39,12 @@ export class NetflixAdapter implements StreamingAdapter {
   }
 
   observeSubtitles(onCue: (cue: SubtitleCue | null) => void): () => void {
+    let retryInterval: ReturnType<typeof setInterval> | undefined;
+    let retryTimeout: ReturnType<typeof setTimeout> | undefined;
     const cleanup = () => {
+      check.cancel();
+      clearInterval(retryInterval);
+      clearTimeout(retryTimeout);
       this.observer?.disconnect();
       this.observer = null;
       this.lastText = null;
@@ -92,7 +97,7 @@ export class NetflixAdapter implements StreamingAdapter {
     // If we fell back to body, retry finding the player periodically
     // and switch to it once available (reduces noise significantly).
     if (!player) {
-      const retryInterval = setInterval(() => {
+      retryInterval = setInterval(() => {
         const p = findElement(PLAYER_SELECTORS);
         if (p && this.observer) {
           this.observer.disconnect();
@@ -106,7 +111,7 @@ export class NetflixAdapter implements StreamingAdapter {
       }, 1000);
 
       // Stop retrying after 30 seconds
-      setTimeout(() => clearInterval(retryInterval), 30000);
+      retryTimeout = setTimeout(() => clearInterval(retryInterval), 30000);
     }
 
     return cleanup;

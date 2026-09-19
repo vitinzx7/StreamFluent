@@ -40,7 +40,12 @@ export class MaxAdapter implements StreamingAdapter {
   }
 
   observeSubtitles(onCue: (cue: SubtitleCue | null) => void): () => void {
+    let retryInterval: ReturnType<typeof setInterval> | undefined;
+    let retryTimeout: ReturnType<typeof setTimeout> | undefined;
     const cleanup = () => {
+      check.cancel();
+      clearInterval(retryInterval);
+      clearTimeout(retryTimeout);
       this.observer?.disconnect();
       this.observer = null;
       this.lastText = null;
@@ -88,7 +93,7 @@ export class MaxAdapter implements StreamingAdapter {
     });
 
     if (!player) {
-      const retryInterval = setInterval(() => {
+      retryInterval = setInterval(() => {
         const p = findElement(PLAYER_SELECTORS);
         if (p && this.observer) {
           this.observer.disconnect();
@@ -101,7 +106,7 @@ export class MaxAdapter implements StreamingAdapter {
         }
       }, 1000);
 
-      setTimeout(() => clearInterval(retryInterval), 30000);
+      retryTimeout = setTimeout(() => clearInterval(retryInterval), 30000);
     }
 
     return cleanup;

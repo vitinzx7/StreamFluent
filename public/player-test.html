@@ -1,0 +1,56 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>StreamFluent — player de teste</title>
+  <style>
+    :root { color-scheme: dark; font: 16px system-ui, sans-serif; }
+    body { max-width: 960px; margin: 32px auto; padding: 0 20px 180px; background: #101823; color: #e8eef6; }
+    h1 { font-size: 26px; }
+    p, li { line-height: 1.6; }
+    a { color: #8ac5ff; }
+    #player-shell { position: relative; background: #000; }
+    #player-shell:fullscreen { display: flex; align-items: center; justify-content: center; }
+    video { display: block; width: 100%; max-height: 70vh; }
+    #player-shell:fullscreen video { width: 100%; height: 100%; max-height: none; }
+    .controls { display: flex; gap: 8px; flex-wrap: wrap; margin: 16px 0; }
+    button { border: 1px solid #60728b; border-radius: 6px; padding: 10px 14px; color: inherit; background: #26364b; cursor: pointer; }
+    button:focus-visible, a:focus-visible { outline: 3px solid #8ac5ff; outline-offset: 3px; }
+    output { display: block; margin: 16px 0; font-variant-numeric: tabular-nums; }
+    .note { color: #bac8db; }
+  </style>
+</head>
+<body>
+  <h1>Player de teste do StreamFluent</h1>
+  <p>Vídeo local de 15 segundos, sem áudio. A faixa em inglês contém frases de exemplo para verificar o tempo das legendas. A tradução usa o serviço real e requer conexão.</p>
+  <div id="player-shell">
+    <video data-test-video controls preload="metadata" src="fixtures/player.webm">
+      <track kind="subtitles" srclang="en" label="Inglês — exemplo local" src="fixtures/example.vtt" default>
+    </video>
+  </div>
+  <div class="controls" aria-label="Controles de teste">
+    <button id="seek-start" type="button">Voltar a 0 s</button>
+    <button id="seek-ten" type="button">Ir para 10 s</button>
+    <button id="normal-rate" type="button">Velocidade 1×</button>
+    <button id="double-rate" type="button">Velocidade 2×</button>
+    <button id="next-episode" type="button">Trocar episódio de teste</button>
+    <button id="replace-video" type="button">Substituir elemento de vídeo</button>
+    <button id="fullscreen" type="button">Tela cheia com controles da extensão</button>
+  </div>
+  <output id="clock" aria-live="off">Aguardando o player.</output>
+  <p id="test-message" role="status"></p>
+  <p>Arquivos para testar a importação: <a href="fixtures/example.srt" download>baixar SRT</a> · <a href="fixtures/example.vtt" download>baixar VTT</a>.</p>
+  <ol>
+    <li>Reproduza o vídeo, abra “SF · Legendas”, selecione a faixa em inglês ou importe um dos arquivos acima e marque “Ativar camada de legendas”.</li>
+    <li>Para testar a tradução real, marque “Traduzir inglês → português brasileiro”. Sem essa opção, o teste de sincronização funciona localmente.</li>
+    <li>Verifique as falas em 1–4 s, 5–8 s e 10–14 s. Entre esses intervalos não há fala prevista.</li>
+    <li>Use “Adiantar 0,5 s”: a fala de 5 s deve começar em 4,5 s. Use “Atrasar 0,5 s”: ela deve começar em 5,5 s quando o ajuste partir de zero.</li>
+    <li>Pause, busque 10 s e mude a velocidade. A legenda deve acompanhar o relógio exibido acima.</li>
+    <li>Troque o episódio ou substitua o vídeo. A faixa selecionada, tradução e ajuste anteriores devem ser descartados; selecione a faixa novamente.</li>
+    <li>Teste a tela cheia pelo botão desta página e desative as legendas da extensão para verificar a restauração da faixa nativa.</li>
+  </ol>
+  <p class="note">Este ambiente controlado não comprova compatibilidade com o Cinetaro, frames de outros domínios ou a Netflix. As frases são texto de teste; não representam transcrição de áudio.</p>
+  <script src="player-test.js"></script>
+</body>
+</html>

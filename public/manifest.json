@@ -2,8 +2,9 @@
   "manifest_version": 3,
   "name": "StreamFluent",
   "version": "0.1.0",
-  "description": "Learn English while watching Netflix and Max.",
+  "description": "Legendas para estudar idiomas na Netflix, Max e players HTML5 do Cinetaro.",
   "permissions": ["storage"],
+  "background": { "service_worker": "background.js" },
   "host_permissions": [
     "https://api.dictionaryapi.dev/*",
     "https://clients5.google.com/*",
@@ -18,7 +19,9 @@
       "matches": [
         "*://*.netflix.com/*",
         "*://*.max.com/*",
-        "*://*.hbomax.com/*"
+        "*://*.hbomax.com/*",
+        "https://cinetaro.to/*",
+        "https://www.cinetaro.to/*"
       ],
       "js": ["content.js"],
       "run_at": "document_idle"
@@ -27,7 +30,7 @@
   "web_accessible_resources": [
     {
       "resources": ["library.html"],
-      "matches": ["<all_urls>"]
+      "matches": ["*://*.netflix.com/*", "*://*.max.com/*", "*://*.hbomax.com/*"]
     }
   ]
 }

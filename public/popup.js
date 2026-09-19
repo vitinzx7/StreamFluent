@@ -10,17 +10,25 @@ chrome.tabs.query({ active: true, currentWindow: true }, (tabs) => {
   const url = new URL(tab.url);
   const host = url.hostname;
 
-  if (host.includes("netflix.com")) {
+  const matches = (domain) => host === domain || host.endsWith(`.${domain}`);
+  if (matches("netflix.com")) {
     statusEl.textContent = "Netflix detected. Open a video to start.";
-  } else if (host.includes("max.com") || host.includes("hbomax.com")) {
+  } else if (matches("max.com") || matches("hbomax.com")) {
     statusEl.textContent = "Max detected. Open a video to start.";
+  } else if (host === "cinetaro.to" || host === "www.cinetaro.to") {
+    statusEl.textContent = "Cinetaro: use o painel StreamFluent no player para importar SRT/VTT, traduzir e ajustar o tempo. Frames externos podem estar indisponíveis.";
+    document.querySelectorAll(".field").forEach((field) => { field.hidden = true; });
   } else {
-    statusEl.textContent = "Navigate to Netflix or Max to use StreamFluent.";
+    statusEl.textContent = "Abra Netflix, Max ou Cinetaro para usar StreamFluent.";
   }
 });
 
 document.getElementById("openLibrary")?.addEventListener("click", () => {
   chrome.tabs.create({ url: chrome.runtime.getURL("library.html") });
+});
+
+document.getElementById("openPlayerTest")?.addEventListener("click", () => {
+  chrome.tabs.create({ url: chrome.runtime.getURL("player-test.html") });
 });
 
 // Mirrors src/core/settings.ts - this file is plain JS, outside the TS bundle.

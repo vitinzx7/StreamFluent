@@ -8,13 +8,14 @@ export function getAdapter(): StreamingAdapter | null {
   if (cached) return cached;
 
   const host = location.hostname;
+  const matches = (domain: string) => host === domain || host.endsWith(`.${domain}`);
 
-  if (host.includes("netflix.com")) {
+  if (matches("netflix.com")) {
     cached = new NetflixAdapter();
     return cached;
   }
 
-  if (host.includes("max.com") || host.includes("hbomax.com")) {
+  if (matches("max.com") || matches("hbomax.com")) {
     cached = new MaxAdapter();
     return cached;
   }

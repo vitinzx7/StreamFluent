@@ -1,4 +1,6 @@
 import { getAdapter } from "../adapters/registry.ts";
+import { observeHtml5Player } from "../adapters/html5-player.ts";
+import { createTimedSubtitles } from "../core/ui/timed-subtitles.ts";
 import { createSubtitleOverlay } from "../core/ui/subtitle-overlay.ts";
 import { PhraseRepository } from "../core/storage.ts";
 import { SettingsRepository, DIRECTION_LABELS } from "../core/settings.ts";
@@ -16,19 +18,56 @@ function formatDefinition(result: TranslationResult): string {
   return `${phonetic}${result.definition}${example}`;
 }
 
+const lifecycle = globalThis as typeof globalThis & { __streamfluentCleanup?: () => void };
+lifecycle.__streamfluentCleanup?.();
+let disposed = false;
+let bootGeneration = 0;
+let stopContent = () => {};
+function cleanup(): void {
+  if (disposed) return;
+  disposed = true;
+  bootGeneration++;
+  stopContent();
+  window.removeEventListener("pagehide", cleanup);
+}
+const resume = (event: PageTransitionEvent): void => {
+  if (!event.persisted || !disposed) return;
+  disposed = false;
+  window.addEventListener("pagehide", cleanup);
+  void boot().catch(() => cleanup());
+};
+lifecycle.__streamfluentCleanup = () => {
+  cleanup();
+  window.removeEventListener("pageshow", resume);
+};
+window.addEventListener("pagehide", cleanup);
+window.addEventListener("pageshow", resume);
+
 async function boot(): Promise<void> {
+  const generation = ++bootGeneration;
+  if (location.hostname === "cinetaro.to" || location.hostname === "www.cinetaro.to") {
+    const timed = createTimedSubtitles();
+    const stop = observeHtml5Player((state) => timed.updatePlayer(state));
+    stopContent = () => { stop(); timed.destroy(); };
+    return;
+  }
   const adapter = getAdapter();
   if (!adapter) return;
   if (!adapter.isSupportedPage()) return;
 
   let settings = await SettingsRepository.get();
+  if (disposed || generation !== bootGeneration) return;
   let unsubscribe = () => {};
   let currentLine: string | null = null;
+  let lineRequestId = 0;
 
   const showLineTranslation = (line: string): void => {
+    const id = ++lineRequestId;
+    const page = location.href;
     void translateSentence(line, settings.direction).then((translation) => {
-      // The overlay drops the result if the line already changed.
-      if (translation) overlay.setTranslation(line, translation);
+      if (!disposed && id === lineRequestId && page === location.href && settings.showTranslation && translation) {
+        overlay.setTranslation(line, translation);
+      }
     });
   };
 
@@ -44,12 +83,14 @@ async function boot(): Promise<void> {
       void SettingsRepository.save(patch);
     },
     onOpenLibrary: () => {
-      chrome.tabs.create({ url: chrome.runtime.getURL("library.html") });
+      void chrome.runtime.sendMessage({ type: "sf:open-library" });
     },
     onWordSelect: async (word, sentence) => {
       const direction = settings.direction;
       const directionLabel = DIRECTION_LABELS[direction];
       const id = ++lookupId;
+      const page = location.href;
+      const metadata = adapter.getMediaMetadata();
 
       overlay.showCard(
         {
@@ -69,7 +110,7 @@ async function boot(): Promise<void> {
         translateWord(word, direction),
         translateSentence(sentence, direction),
       ]);
-      if (id !== lookupId) return;
+      if (disposed || id !== lookupId || page !== location.href) return;
 
       const definition = formatDefinition(result);
 
@@ -84,7 +125,7 @@ async function boot(): Promise<void> {
           state: result.error ? "error" : "ready",
         },
         async () => {
-          const metadata = adapter.getMediaMetadata();
+          if (disposed || page !== location.href) return;
           await PhraseRepository.save({
             sentence,
             sentenceTranslation,
@@ -103,14 +144,22 @@ async function boot(): Promise<void> {
 
   unsubscribe = SettingsRepository.onChange((next) => {
     const wasOff = !settings.showTranslation;
+    const directionChanged = settings.direction !== next.direction;
+    if (directionChanged || settings.showTranslation !== next.showTranslation) lineRequestId++;
     settings = next;
     overlay.applySettings(next);
+    if (directionChanged) {
+      lookupId++;
+      overlay.hideCard();
+      overlay.update(currentLine);
+    }
 
     // Turning the option on mid-line should fill it in, not wait for the next cue.
-    if (wasOff && next.showTranslation && currentLine) showLineTranslation(currentLine);
+    if ((wasOff || directionChanged) && next.showTranslation && currentLine) showLineTranslation(currentLine);
   });
 
-  adapter.observeSubtitles((cue) => {
+  const stopObserving = adapter.observeSubtitles((cue) => {
+    lineRequestId++;
     const text = cue?.text ?? null;
     currentLine = text;
     overlay.update(text);
@@ -119,10 +168,13 @@ async function boot(): Promise<void> {
     showLineTranslation(text);
   });
 
-  window.addEventListener("unload", () => {
+  stopContent = () => {
+    lineRequestId++;
+    lookupId++;
+    stopObserving();
     unsubscribe();
     overlay.destroy();
-  });
+  };
 }
 
-void boot();
+void boot().catch(() => cleanup());

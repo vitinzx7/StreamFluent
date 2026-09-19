@@ -70,6 +70,30 @@ describe("cleanWord", () => {
 });
 
 describe("translateSentence", () => {
+  it("shares an in-flight request between the overlay and word card", async () => {
+    let resolve!: (response: unknown) => void;
+    const fetchFn = vi.fn(() => new Promise((done) => { resolve = done; }));
+    vi.stubGlobal("fetch", fetchFn);
+
+    const first = translateSentence("Good morning.");
+    const second = translateSentence("Good morning.");
+    expect(fetchFn).toHaveBeenCalledTimes(1);
+    resolve({ ok: true, json: async () => ["Bom dia."] });
+    expect(await Promise.all([first, second])).toEqual(["Bom dia.", "Bom dia."]);
+  });
+
+  it("does not let a cleared in-flight response populate the cache", async () => {
+    let resolve!: (response: unknown) => void;
+    vi.stubGlobal("fetch", vi.fn(() => new Promise((done) => { resolve = done; })));
+    const old = translateSentence("Good morning.");
+    clearTranslationCache();
+    resolve({ ok: true, json: async () => ["Antiga"] });
+    await old;
+    const freshFetch = mockFetch({ google: () => ["Bom dia."] });
+    expect(await translateSentence("Good morning.")).toBe("Bom dia.");
+    expect(freshFetch).toHaveBeenCalledTimes(1);
+  });
+
   it("translates the whole line and reports the language pair", async () => {
     const fetchFn = mockFetch({ google: () => ["Mais um. Só mais um, por favor."] });
 

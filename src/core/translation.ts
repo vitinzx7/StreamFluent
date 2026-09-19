@@ -1,4 +1,5 @@
 import { DEFAULT_SETTINGS, getLangPair, type LanguageDirection } from "./settings.ts";
+import { requestProviderJson } from "./translation-request.ts";
 
 export interface TranslationResult {
   word: string;
@@ -38,10 +39,7 @@ interface DictionaryEntry {
 }
 
 async function fetchDefinition(word: string): Promise<DictionaryEntry | null> {
-  const res = await fetch(`${DICT_API}/${encodeURIComponent(word)}`);
-  if (!res.ok) return null;
-
-  const data = await res.json();
+  const data = await requestProviderJson(`${DICT_API}/${encodeURIComponent(word)}`);
   if (!Array.isArray(data) || data.length === 0) return null;
 
   const entry = data[0];
@@ -75,10 +73,8 @@ function collectStrings(value: unknown, out: string[]): void {
 }
 
 /**
- * Undocumented endpoint — the one Chrome's own dictionary extension uses. Free,
- * no key, and no daily quota, which is what makes translating every subtitle line
- * viable. It can start refusing or change shape without notice, hence the
- * MyMemory fallback below.
+ * Undocumented endpoint with no availability or quota guarantee.
+ * Requests may fail or change shape; MyMemory is the existing fallback.
  */
 async function fetchGoogleTranslation(
   text: string,
@@ -92,11 +88,8 @@ async function fetchGoogleTranslation(
     q: text,
   });
 
-  const res = await fetch(`${GOOGLE_API}?${params}`);
-  if (!res.ok) return "";
-
   const parts: string[] = [];
-  collectStrings(await res.json(), parts);
+  collectStrings(await requestProviderJson(`${GOOGLE_API}?${params}`), parts);
 
   return parts.join("").replace(/\s+/g, " ").trim();
 }
@@ -108,10 +101,10 @@ async function fetchMyMemoryTranslation(
 ): Promise<string> {
   const { source, target } = getLangPair(direction);
   const langpair = encodeURIComponent(`${source}|${target}`);
-  const res = await fetch(`${MYMEMORY_API}?q=${encodeURIComponent(text)}&langpair=${langpair}`);
-  if (!res.ok) return "";
-
-  const data = await res.json();
+  const data = await requestProviderJson(`${MYMEMORY_API}?q=${encodeURIComponent(text)}&langpair=${langpair}`) as {
+    responseStatus?: unknown;
+    responseData?: { translatedText?: unknown };
+  } | null;
   if (Number(data?.responseStatus) !== 200) return "";
 
   const value = data?.responseData?.translatedText;
@@ -139,12 +132,16 @@ function remember(key: string, result: TranslationResult): void {
 }
 
 export function clearTranslationCache(): void {
+  cacheGeneration++;
   cache.clear();
   sentenceCache.clear();
+  pendingSentences.clear();
 }
 
 /** One entry per subtitle line; an episode is well under this. */
 const sentenceCache = new Map<string, string>();
+const pendingSentences = new Map<string, Promise<string>>();
+let cacheGeneration = 0;
 const SENTENCE_CACHE_LIMIT = 1000;
 
 /**
@@ -162,17 +159,23 @@ export async function translateSentence(
   const key = `${direction}:${trimmed}`;
   const cached = sentenceCache.get(key);
   if (cached !== undefined) return cached;
+  const pending = pendingSentences.get(key);
+  if (pending) return pending;
 
-  const translation = await fetchTranslation(trimmed, direction);
-  if (!translation) return "";
-
-  if (sentenceCache.size >= SENTENCE_CACHE_LIMIT) {
-    const oldest = sentenceCache.keys().next().value;
-    if (oldest !== undefined) sentenceCache.delete(oldest);
-  }
-  sentenceCache.set(key, translation);
-
-  return translation;
+  const generation = cacheGeneration;
+  const request = fetchTranslation(trimmed, direction).then((translation) => {
+    if (!translation || generation !== cacheGeneration) return translation;
+    if (sentenceCache.size >= SENTENCE_CACHE_LIMIT) {
+      const oldest = sentenceCache.keys().next().value;
+      if (oldest !== undefined) sentenceCache.delete(oldest);
+    }
+    sentenceCache.set(key, translation);
+    return translation;
+  }).finally(() => {
+    if (pendingSentences.get(key) === request) pendingSentences.delete(key);
+  });
+  pendingSentences.set(key, request);
+  return request;
 }
 
 export async function translateWord(
