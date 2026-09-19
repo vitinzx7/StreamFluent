@@ -22,6 +22,17 @@ function makeVideo(width = 640, height = 360, doc = document): HTMLVideoElement 
   return video;
 }
 
+function blockedFrame(source?: string): HTMLIFrameElement {
+  const frame = document.createElement("iframe");
+  // Mock the DOM URL rather than navigating the fixture to an external resource.
+  const getAttribute = frame.getAttribute.bind(frame);
+  vi.spyOn(frame, "getAttribute").mockImplementation((name) =>
+    name === "src" ? source ?? null : getAttribute(name));
+  Object.defineProperty(frame, "contentDocument", { get: () => null });
+  document.body.append(frame);
+  return frame;
+}
+
 describe("HTML5 player observation", () => {
   let stop: (() => void) | undefined;
   let states: PlayerSnapshot[];
@@ -131,6 +142,58 @@ describe("HTML5 player observation", () => {
     start();
     expect(latest().video).toBeNull();
     expect(latest().status).toContain("outro domínio bloqueado");
+  });
+
+  it("reports only unique HTTP(S) origins, excluding credentials, paths, queries and fragments", () => {
+    blockedFrame("https://alice:secret@player.example:8443/private-episode?token=sensitive#session");
+    blockedFrame("https://player.example:8443/other?key=another-secret");
+    blockedFrame("http://alternate.example/embed?auth=private");
+    const fetchSpy = vi.spyOn(globalThis, "fetch");
+    start();
+    const status = latest().status;
+    expect(status).toContain("Origens dos iframes inacessíveis: http://alternate.example, https://player.example:8443.");
+    expect(status.match(/https:\/\/player\.example:8443/g)).toHaveLength(1);
+    for (const value of ["alice", "secret", "private-episode", "token", "sensitive", "session", "auth", "?", "#"]) {
+      expect(status).not.toContain(value);
+    }
+    expect(fetchSpy).not.toHaveBeenCalled();
+  });
+
+  it("does not include origins of hidden frames or accessible frames", () => {
+    const hidden = blockedFrame("https://hidden.example/embed");
+    hidden.style.display = "none";
+    const accessible = document.createElement("iframe");
+    document.body.append(accessible);
+    const getAttribute = accessible.getAttribute.bind(accessible);
+    vi.spyOn(accessible, "getAttribute").mockImplementation((name) =>
+      name === "src" ? "https://accessible.example/player" : getAttribute(name));
+    blockedFrame("https://visible.example/embed");
+    start();
+    expect(latest().status).toContain("https://visible.example");
+    expect(latest().status).not.toContain("hidden.example");
+    expect(latest().status).not.toContain("accessible.example");
+  });
+
+  it.each([undefined, "", "   ", "about:blank", "data:text/html,private", "javascript:alert(1)",
+    "blob:https://private.example/session", "file:///private/movie", "https://["])(
+    "keeps the basic status for an absent, invalid or non-HTTP(S) frame source (%s)", (source) => {
+      blockedFrame(source);
+      start();
+      expect(latest().status).toContain("outro domínio bloqueado");
+      expect(latest().status).not.toContain("Origens");
+    },
+  );
+
+  it("keeps the basic status for srcdoc and an unreadable src", () => {
+    const inline = blockedFrame("https://ignored.example/private");
+    inline.setAttribute("srcdoc", "<p>Sandbox document</p>");
+    const unreadable = blockedFrame("https://unreadable.example");
+    vi.spyOn(unreadable, "getAttribute").mockImplementation(() => {
+      throw new DOMException("Unavailable", "SecurityError");
+    });
+    start();
+    expect(latest().status).toContain("outro domínio bloqueado");
+    expect(latest().status).not.toContain("Origens");
   });
 
   it("updates on track loading, additions, removals, mode changes and cue changes", () => {

@@ -55,7 +55,7 @@ Checklist manual ainda pendente neste ambiente:
 
 Os testes automatizados usam DOM e respostas de rede controladas. Eles não substituem reprodução em Chrome nem comprovam CORS, políticas de fullscreen ou estrutura dos sites reais. Uma chamada isolada ao endpoint Google respondeu `Bom dia.` para `Good morning.` durante o desenvolvimento; isso não garante disponibilidade contínua.
 
-Validação desta entrega: **172 testes em 14 arquivos passaram**, assim como `npm run typecheck`, `npm run build` e `git diff --check`. Inclui regressões DOM de Netflix/Max, importação, ajuste, respostas antigas, transporte e limpeza. Reprodução manual em navegador continua pendente.
+Validação desta entrega: **185 testes em 14 arquivos passaram**, assim como `npm run typecheck`, `npm run build` e `git diff --check`. Inclui regressões DOM de Netflix/Max, importação, ajuste, respostas antigas, transporte, diagnóstico de frames e limpeza. Reprodução manual em navegador continua pendente.
 
 ## Privacidade e rede
 
@@ -70,7 +70,7 @@ Validação desta entrega: **172 testes em 14 arquivos passaram**, assim como `n
 ## Limitações
 
 - Apenas vídeos e faixas que o navegador permite ler. Legendas em imagem, áudio sem faixa e formatos diferentes de SRT/VTT não são suportados.
-- Frames de outro domínio não recebem permissões genéricas. A interface informa a indisponibilidade; é necessário identificar o host real antes de adicionar suporte específico.
+- Frames de outro domínio não recebem permissões genéricas. O aviso no topo do painel lista as origens HTTP(S) visíveis desses frames, sem caminhos ou parâmetros. Copie a linha “Origens dos iframes inacessíveis” para identificar o host antes de adicionar suporte específico. Enquanto o vídeo estiver inacessível, importar legendas fica desativado, pois não há relógio disponível para sincronizá-las.
 - Tela cheia do contêiner pode hospedar a camada. Tela cheia nativa do próprio elemento de vídeo pode impedir overlays HTML; use a do contêiner ou saia desse modo.
 - A versão HTML5 não inclui o cartão de palavras/biblioteca do fluxo Netflix/Max.
 - Os seletores DOM da Netflix/Max continuam sujeitos a mudanças dos sites.

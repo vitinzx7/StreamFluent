@@ -145,6 +145,19 @@ function setup() {
 }
 
 describe("player subtitle UI", () => {
+  it("explains a blocked player before asking for a subtitle file", () => {
+    const c = setup();
+    overlay!.updatePlayer({ ...c.state, video: null, tracks: [], sessionKey: "blocked", status: "Nenhum vídeo acessível. Iframe bloqueado." });
+    expect(c.get<HTMLInputElement>("file").disabled).toBe(true);
+    expect(c.get<HTMLSelectElement>("source").disabled).toBe(true);
+    expect(c.get("source").textContent).toBe("Aguardando acesso ao player");
+    expect(c.get("status").textContent).toContain("Iframe bloqueado");
+    expect(c.get("status").compareDocumentPosition(c.get("file")) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    overlay!.updatePlayer({ ...c.state, tracks: [], sessionKey: "accessible" });
+    expect(c.get<HTMLInputElement>("file").disabled).toBe(false);
+    expect(c.get("source").textContent).toBe("Nenhuma faixa de legenda acessível");
+  });
+
   it("restores native captions when the selected track becomes unreadable", () => {
     const c = setup();
     c.change("enabled", true);

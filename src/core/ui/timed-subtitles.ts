@@ -41,6 +41,7 @@ export function createTimedSubtitles(): { updatePlayer(state: PlayerSnapshot): v
     <button class="fab" type="button" aria-expanded="false">SF · Legendas</button>
     <section class="panel" aria-label="StreamFluent: legendas do player" hidden>
       <strong>StreamFluent · Player HTML5</strong>
+      <p class="status" data-control="status" role="status"></p>
       <label><input type="checkbox" data-control="enabled">Ativar camada de legendas</label>
       <label>Faixa ou arquivo<select data-control="source"><option value="">Escolha uma fonte</option></select></label>
       <label>Importar SRT/VTT local (UTF-8, até 2 MB)<input type="file" accept=".srt,.vtt" data-control="file"></label>
@@ -50,7 +51,6 @@ export function createTimedSubtitles(): { updatePlayer(state: PlayerSnapshot): v
       <div class="offset"><button type="button" data-control="earlier">Adiantar 0,5 s</button><button type="button" data-control="later">Atrasar 0,5 s</button><button type="button" data-control="reset">Restaurar</button></div>
       <p data-control="offset">Ajuste: 0,0 s</p>
       <p class="small">Ajuste positivo atrasa. Um ajuste fixo não corrige outra edição ou descompasso crescente. Falas ausentes não são transcritas.</p>
-      <p class="status" data-control="status" role="status"></p>
       <p class="small" data-control="file-status" role="status"></p>
       <p class="small">Se o vídeo entrar sozinho em tela cheia nativa, a camada não pode aparecer. Use a tela cheia do contêiner do player.</p>
       <button type="button" data-control="retry" hidden>Tentar traduzir a fala atual novamente</button>
@@ -188,6 +188,11 @@ export function createTimedSubtitles(): { updatePlayer(state: PlayerSnapshot): v
   function refresh(): void {
     if (destroyed) return;
     const video = snapshot?.video;
+    sources.disabled = !video || (!tracks.length && !imported);
+    fileInput.disabled = !video;
+    const placeholder = sources.options[0];
+    if (placeholder) placeholder.textContent = !video ? "Aguardando acesso ao player"
+      : !tracks.length && !imported ? "Nenhuma faixa de legenda acessível" : "Escolha uma fonte";
     const targetDocument = video?.ownerDocument || document;
     if (currentDocument !== targetDocument) {
       documentListeners(currentDocument, false);

@@ -16,10 +16,29 @@ function isHidden(element: Element): boolean {
   return false;
 }
 
+/** Keep diagnostic text free of embedded credentials, episode paths and tokens. */
+function frameOrigin(frame: HTMLIFrameElement): string | null {
+  try {
+    if (frame.hasAttribute("srcdoc")) return null;
+    const source = frame.getAttribute("src")?.trim();
+    if (!source) return null;
+    const url = new URL(source, frame.ownerDocument.baseURI);
+    return url.protocol === "https:" || url.protocol === "http:" ? url.origin : null;
+  } catch {
+    return null;
+  }
+}
+
 /** Only inspect DOM that the browser permits us to read; never fetch frame URLs. */
-function findVideos(root: Document): { videos: HTMLVideoElement[]; blockedFrame: boolean } {
+function findVideos(root: Document): { videos: HTMLVideoElement[]; blockedFrame: boolean; blockedOrigins: string[] } {
   const videos: HTMLVideoElement[] = [];
   let blockedFrame = false;
+  const blockedOrigins = new Set<string>();
+  const recordBlocked = (frame: HTMLIFrameElement): void => {
+    blockedFrame = true;
+    const origin = frameOrigin(frame);
+    if (origin) blockedOrigins.add(origin);
+  };
   const visit = (doc: Document, depth: number): void => {
     for (const video of doc.querySelectorAll("video")) {
       if (!isHidden(video)) videos.push(video);
@@ -30,14 +49,14 @@ function findVideos(root: Document): { videos: HTMLVideoElement[]; blockedFrame:
       try {
         const child = frame.contentDocument;
         if (child) visit(child, depth + 1);
-        else blockedFrame = true;
+        else recordBlocked(frame);
       } catch {
-        blockedFrame = true;
+        recordBlocked(frame);
       }
     }
   };
   visit(root, 0);
-  return { videos, blockedFrame };
+  return { videos, blockedFrame, blockedOrigins: [...blockedOrigins].sort() };
 }
 
 function visibleArea(video: HTMLVideoElement): number {
@@ -58,6 +77,7 @@ export function observeHtml5Player(onChange: (state: PlayerSnapshot) => void): (
   let stopped = false;
   let video: HTMLVideoElement | null = null;
   let blockedFrame = false;
+  let blockedOrigins: string[] = [];
   let videoIdentity = 0;
   let generation = 0;
   let signature = "";
@@ -89,6 +109,7 @@ export function observeHtml5Player(onChange: (state: PlayerSnapshot) => void): (
       tracks: readTracks(),
       status: video ? "Player HTML5 conectado." : blockedFrame
         ? "Nenhum vídeo acessível. Há um iframe de outro domínio bloqueado; o domínio do player precisa ser identificado e autorizado."
+          + (blockedOrigins.length ? ` Origens dos iframes inacessíveis: ${blockedOrigins.join(", ")}.` : "")
         : "Nenhum vídeo HTML5 acessível encontrado. Aguardando o player.",
     };
     if (!force && previous && previous.video === state.video
@@ -130,6 +151,7 @@ export function observeHtml5Player(onChange: (state: PlayerSnapshot) => void): (
     if (stopped) return;
     const found = findVideos(document);
     blockedFrame = found.blockedFrame;
+    blockedOrigins = found.blockedOrigins;
     // Stable ordering keeps an equally sized secondary player from stealing the
     // session. Nonzero viewport area always wins over a zero-size placeholder.
     const candidates = found.videos.sort((a, b) => visibleArea(b) - visibleArea(a)
