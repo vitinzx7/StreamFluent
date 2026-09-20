@@ -30,7 +30,7 @@ function frameOrigin(frame: HTMLIFrameElement): string | null {
 }
 
 /** Only inspect DOM that the browser permits us to read; never fetch frame URLs. */
-function findVideos(root: Document): { videos: HTMLVideoElement[]; blockedFrame: boolean; blockedOrigins: string[] } {
+function findVideos(root: Document, includeFrames: boolean): { videos: HTMLVideoElement[]; blockedFrame: boolean; blockedOrigins: string[] } {
   const videos: HTMLVideoElement[] = [];
   let blockedFrame = false;
   const blockedOrigins = new Set<string>();
@@ -43,7 +43,7 @@ function findVideos(root: Document): { videos: HTMLVideoElement[]; blockedFrame:
     for (const video of doc.querySelectorAll("video")) {
       if (!isHidden(video)) videos.push(video);
     }
-    if (depth >= 3) return;
+    if (!includeFrames || depth >= 3) return;
     for (const frame of doc.querySelectorAll("iframe")) {
       if (isHidden(frame)) continue;
       try {
@@ -73,7 +73,10 @@ function visibleArea(video: HTMLVideoElement): number {
  * Polling also covers history.pushState, iframe navigation and video replacement
  * without patching site APIs or observing every subtitle/UI DOM mutation.
  */
-export function observeHtml5Player(onChange: (state: PlayerSnapshot) => void): () => void {
+export function observeHtml5Player(
+  onChange: (state: PlayerSnapshot) => void,
+  options: { includeFrames?: boolean } = {},
+): () => void {
   let stopped = false;
   let video: HTMLVideoElement | null = null;
   let blockedFrame = false;
@@ -108,8 +111,8 @@ export function observeHtml5Player(onChange: (state: PlayerSnapshot) => void): (
       playbackRate: video && Number.isFinite(video.playbackRate) ? video.playbackRate : 1,
       tracks: readTracks(),
       status: video ? "Player HTML5 conectado." : blockedFrame
-        ? "Nenhum vídeo acessível. Há um iframe de outro domínio bloqueado; o domínio do player precisa ser identificado e autorizado."
-          + (blockedOrigins.length ? ` Origens dos iframes inacessíveis: ${blockedOrigins.join(", ")}.` : "")
+        ? "Nenhum vídeo acessível. Há um iframe inacessível (outro domínio, sandbox ou redirecionamento)."
+          + (blockedOrigins.length ? ` Origens declaradas dos iframes inacessíveis: ${blockedOrigins.join(", ")}.` : "")
         : "Nenhum vídeo HTML5 acessível encontrado. Aguardando o player.",
     };
     if (!force && previous && previous.video === state.video
@@ -149,7 +152,7 @@ export function observeHtml5Player(onChange: (state: PlayerSnapshot) => void): (
   };
   const discover = (): void => {
     if (stopped) return;
-    const found = findVideos(document);
+    const found = findVideos(document, options.includeFrames !== false);
     blockedFrame = found.blockedFrame;
     blockedOrigins = found.blockedOrigins;
     // Stable ordering keeps an equally sized secondary player from stealing the

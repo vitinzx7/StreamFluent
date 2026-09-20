@@ -37,8 +37,8 @@ describe("HTML5 player observation", () => {
   let stop: (() => void) | undefined;
   let states: PlayerSnapshot[];
   const latest = (): PlayerSnapshot => states[states.length - 1];
-  const start = (): void => {
-    stop = observeHtml5Player((state) => states.push(state));
+  const start = (options?: { includeFrames?: boolean }): void => {
+    stop = observeHtml5Player((state) => states.push(state), options);
   };
 
   beforeEach(() => {
@@ -133,6 +133,54 @@ describe("HTML5 player observation", () => {
     expect(latest().video).toBeNull();
   });
 
+  it("selects the local video and never reads descendant frames in document-only mode", () => {
+    const localVideo = makeVideo(640, 360);
+    const frame = document.createElement("iframe");
+    document.body.append(frame);
+    const frameDoc = frame.contentDocument!;
+    makeVideo(1200, 700, frameDoc);
+    const readFrame = vi.fn(() => frameDoc);
+    Object.defineProperty(frame, "contentDocument", { get: readFrame });
+    start({ includeFrames: false });
+    expect(latest().video).toBe(localVideo);
+    expect(readFrame).not.toHaveBeenCalled();
+    localVideo.currentTime = 4.5;
+    localVideo.dispatchEvent(new Event("timeupdate"));
+    expect(latest().currentTime).toBe(4.5);
+    localVideo.remove();
+    vi.advanceTimersByTime(500);
+    expect(latest().video).toBeNull();
+    expect(readFrame).not.toHaveBeenCalled();
+    expect(latest().status).not.toContain("iframe inacessível");
+  });
+
+  it("does not discover descendant video when document-only mode has no local player", () => {
+    const frame = document.createElement("iframe");
+    document.body.append(frame);
+    makeVideo(640, 360, frame.contentDocument!);
+    const readFrame = vi.spyOn(frame, "contentDocument", "get");
+    start({ includeFrames: false });
+    vi.advanceTimersByTime(1000);
+    expect(latest().video).toBeNull();
+    expect(readFrame).not.toHaveBeenCalled();
+  });
+
+  it("cleans document-only media/track listeners and timers", () => {
+    const localVideo = makeVideo();
+    const track = new EventTarget() as TextTrack;
+    Object.defineProperty(localVideo, "textTracks", { value: mockTracks([track]) });
+    start({ includeFrames: false });
+    const count = states.length;
+    stop!();
+    localVideo.currentTime = 20;
+    localVideo.dispatchEvent(new Event("timeupdate"));
+    localVideo.textTracks.dispatchEvent(new Event("change"));
+    track.dispatchEvent(new Event("cuechange"));
+    vi.advanceTimersByTime(1500);
+    expect(states).toHaveLength(count);
+    expect(vi.getTimerCount()).toBe(0);
+  });
+
   it("explains inaccessible cross-origin frames without trying to fetch their URLs", () => {
     const frame = document.createElement("iframe");
     document.body.append(frame);
@@ -141,7 +189,7 @@ describe("HTML5 player observation", () => {
     });
     start();
     expect(latest().video).toBeNull();
-    expect(latest().status).toContain("outro domínio bloqueado");
+    expect(latest().status).toContain("iframe inacessível (outro domínio, sandbox ou redirecionamento)");
   });
 
   it("reports only unique HTTP(S) origins, excluding credentials, paths, queries and fragments", () => {
@@ -151,7 +199,7 @@ describe("HTML5 player observation", () => {
     const fetchSpy = vi.spyOn(globalThis, "fetch");
     start();
     const status = latest().status;
-    expect(status).toContain("Origens dos iframes inacessíveis: http://alternate.example, https://player.example:8443.");
+    expect(status).toContain("Origens declaradas dos iframes inacessíveis: http://alternate.example, https://player.example:8443.");
     expect(status.match(/https:\/\/player\.example:8443/g)).toHaveLength(1);
     for (const value of ["alice", "secret", "private-episode", "token", "sensitive", "session", "auth", "?", "#"]) {
       expect(status).not.toContain(value);
@@ -179,7 +227,7 @@ describe("HTML5 player observation", () => {
     "keeps the basic status for an absent, invalid or non-HTTP(S) frame source (%s)", (source) => {
       blockedFrame(source);
       start();
-      expect(latest().status).toContain("outro domínio bloqueado");
+      expect(latest().status).toContain("iframe inacessível (outro domínio, sandbox ou redirecionamento)");
       expect(latest().status).not.toContain("Origens");
     },
   );
@@ -192,7 +240,7 @@ describe("HTML5 player observation", () => {
       throw new DOMException("Unavailable", "SecurityError");
     });
     start();
-    expect(latest().status).toContain("outro domínio bloqueado");
+    expect(latest().status).toContain("iframe inacessível (outro domínio, sandbox ou redirecionamento)");
     expect(latest().status).not.toContain("Origens");
   });
 

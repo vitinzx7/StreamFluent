@@ -1,6 +1,6 @@
 import { getAdapter } from "../adapters/registry.ts";
-import { observeHtml5Player } from "../adapters/html5-player.ts";
-import { createTimedSubtitles } from "../core/ui/timed-subtitles.ts";
+import { startCinetaroTop, startEmbeddedPlayer } from "./cinetaro-session.ts";
+import { isCinetaroUrl, isEmbeddedPlayerUrl } from "../core/frame-messages.ts";
 import { createSubtitleOverlay } from "../core/ui/subtitle-overlay.ts";
 import { PhraseRepository } from "../core/storage.ts";
 import { SettingsRepository, DIRECTION_LABELS } from "../core/settings.ts";
@@ -45,10 +45,12 @@ window.addEventListener("pageshow", resume);
 
 async function boot(): Promise<void> {
   const generation = ++bootGeneration;
-  if (location.hostname === "cinetaro.to" || location.hostname === "www.cinetaro.to") {
-    const timed = createTimedSubtitles();
-    const stop = observeHtml5Player((state) => timed.updatePlayer(state));
-    stopContent = () => { stop(); timed.destroy(); };
+  if (isCinetaroUrl(location.href) && window === window.top) {
+    stopContent = startCinetaroTop();
+    return;
+  }
+  if (isEmbeddedPlayerUrl(location.href)) {
+    if (window !== window.top) stopContent = startEmbeddedPlayer();
     return;
   }
   const adapter = getAdapter();
