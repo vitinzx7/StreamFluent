@@ -3,7 +3,8 @@ import { startCinetaroTop, startEmbeddedPlayer } from "./cinetaro-session.ts";
 import { isCinetaroUrl, isEmbeddedPlayerUrl } from "../core/frame-messages.ts";
 import { createSubtitleOverlay } from "../core/ui/subtitle-overlay.ts";
 import { PhraseRepository } from "../core/storage.ts";
-import { SettingsRepository, DIRECTION_LABELS } from "../core/settings.ts";
+import { SettingsRepository, DIRECTION_LABELS, getLangPair } from "../core/settings.ts";
+import { createVocabularyStore, wordKey, type WordStatus } from "../core/vocabulary.ts";
 import {
   translateWord,
   translateSentence,
@@ -63,6 +64,17 @@ async function boot(): Promise<void> {
   let currentLine: string | null = null;
   let lineRequestId = 0;
 
+  // Words are coloured per source language: "new" means first appearance ever,
+  // computed once when the line arrives so a re-render keeps the same colours.
+  const vocabulary = createVocabularyStore();
+  let newWords = new Set<string>();
+  const sourceLanguage = (): string => getLangPair(settings.direction).source;
+  const wordStatus = (word: string): WordStatus | null => {
+    const mark = vocabulary.getMark(word, sourceLanguage());
+    if (mark) return mark;
+    return settings.highlightNewWords && newWords.has(wordKey(word)) ? "new" : null;
+  };
+
   const showLineTranslation = (line: string): void => {
     const id = ++lineRequestId;
     const page = location.href;
@@ -79,6 +91,7 @@ async function boot(): Promise<void> {
 
   const overlay = createSubtitleOverlay({
     settings,
+    getWordStatus: wordStatus,
     onSettingsChange: (patch) => {
       // Storage is the source of truth: the write comes back through
       // onChange below, which refreshes `settings` and the panel controls.
@@ -93,6 +106,13 @@ async function boot(): Promise<void> {
       const id = ++lookupId;
       const page = location.href;
       const metadata = adapter.getMediaMetadata();
+      const language = getLangPair(direction).source;
+      const mark = vocabulary.getMark(word, language);
+      const onMark = (next: typeof mark): void => {
+        if (disposed) return;
+        vocabulary.setMark(word, language, next);
+        overlay.refreshWordStatuses();
+      };
 
       overlay.showCard(
         {
@@ -103,8 +123,10 @@ async function boot(): Promise<void> {
           sentenceTranslation: "",
           directionLabel,
           state: "loading",
+          mark,
         },
         () => {},
+        onMark,
       );
 
       // Already resolved and cached for the line on screen, so this is free.
@@ -125,6 +147,8 @@ async function boot(): Promise<void> {
           sentenceTranslation,
           directionLabel,
           state: result.error ? "error" : "ready",
+          // Re-read: the user may have marked it while the lookup was in flight.
+          mark: vocabulary.getMark(word, language),
         },
         async () => {
           if (disposed || page !== location.href) return;
@@ -140,16 +164,26 @@ async function boot(): Promise<void> {
             episode: metadata?.episode ?? null,
           });
         },
+        onMark,
       );
     },
+  });
+
+  // Marks and words recorded by another tab (or before storage finished
+  // loading) show up on the line already on screen.
+  const stopVocabulary = vocabulary.onChange(() => overlay.refreshWordStatuses());
+  void vocabulary.ready.then(() => {
+    if (!disposed && generation === bootGeneration) overlay.refreshWordStatuses();
   });
 
   unsubscribe = SettingsRepository.onChange((next) => {
     const wasOff = !settings.showTranslation;
     const directionChanged = settings.direction !== next.direction;
+    const highlightChanged = settings.highlightNewWords !== next.highlightNewWords;
     if (directionChanged || settings.showTranslation !== next.showTranslation) lineRequestId++;
     settings = next;
     overlay.applySettings(next);
+    if (highlightChanged) overlay.refreshWordStatuses();
     if (directionChanged) {
       lookupId++;
       overlay.hideCard();
@@ -164,6 +198,7 @@ async function boot(): Promise<void> {
     lineRequestId++;
     const text = cue?.text ?? null;
     currentLine = text;
+    newWords = text ? vocabulary.observeLine(text, sourceLanguage()) : new Set();
     overlay.update(text);
 
     if (!text || !settings.showTranslation) return;
@@ -175,6 +210,8 @@ async function boot(): Promise<void> {
     lookupId++;
     stopObserving();
     unsubscribe();
+    stopVocabulary();
+    vocabulary.dispose();
     overlay.destroy();
   };
 }

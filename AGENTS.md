@@ -79,6 +79,12 @@ The overlay is dragged vertically by mousedown anywhere on it; `subtitleBottom` 
 
 Settings changes flow one way: a panel control calls `onSettingsChange` → `SettingsRepository.save` → `chrome.storage.onChanged` → `overlay.applySettings`. The panel never updates itself directly, so the popup and the panel cannot drift apart.
 
+### Word colours (vocabulary)
+
+[src/core/vocabulary.ts](src/core/vocabulary.ts) keeps, per source language (`getLangPair(direction).source`), the words ever seen in a subtitle and the user's marks (`difficult` | `marked`), under the `vocabulary` key in `chrome.storage.local`. None of it leaves the machine. "New" means **first appearance ever**: `content.ts` calls `observeLine()` once per incoming cue and keeps the returned set for that line, so a re-render (e.g. a direction change) keeps the colours instead of re-recording the line. Until the stored words have loaded, `observeLine()` reports nothing as new — otherwise every word on the first line would look new. A user mark wins over "new"; `highlightNewWords` turns off only the automatic colour, never the marks.
+
+The store is the last stored state plus this tab's unwritten changes. Writes are debounced (1s) read-modify-write merges, not overwrites, so two open player tabs cannot erase each other's words or marks; a failed write keeps its changes for the next one, and `dispose()` (on pagehide) writes whatever is pending. Words are keyed with `wordKey()`, the same normalisation as the lookups. Only the Netflix/Max overlay colours words; the HTML5/Cinetaro layer renders its own captions without per-word spans.
+
 ### Hiding the player's own subtitles
 
 The overlay replaces the native cues, so `hideNativeSubtitles()` ([src/core/dom-utils.ts](src/core/dom-utils.ts)) tags the cue container with `data-streamfluent-native-hidden` and injects one stylesheet rule for that attribute. Three details are load-bearing: it must be a **stylesheet rule with `!important`** (both players rewrite the inline `style` of their cue containers on every cue, so inline hiding gets wiped); it uses **`opacity: 0`, not `display: none`** (the players measure the container to position cues, and the extension reads its text); and adapters hide the element returned by `findSubtitleRoot()`, the outermost still-matching ancestor, because the inner per-cue container is destroyed and recreated on every line. Adapters only hide once `extractSubtitleText` actually returned text, so a stale selector degrades to "extension does nothing" rather than "no subtitles at all".

@@ -15,6 +15,7 @@ const mocks = vi.hoisted(() => ({
   savePhrase: vi.fn(),
   observeHtml5Player: vi.fn(),
   createTimedSubtitles: vi.fn(),
+  createVocabularyStore: vi.fn(),
 }));
 
 vi.mock("../adapters/registry.ts", () => ({ getAdapter: mocks.getAdapter }));
@@ -25,16 +26,31 @@ vi.mock("../core/storage.ts", () => ({ PhraseRepository: { save: mocks.savePhras
 vi.mock("../core/settings.ts", () => ({
   SettingsRepository: { get: mocks.getSettings, save: mocks.saveSettings, onChange: mocks.onSettingsChange },
   DIRECTION_LABELS: { "en-pt": "EN → PT", "pt-en": "PT → EN" },
+  getLangPair: (direction: string) =>
+    direction === "pt-en" ? { source: "pt-BR", target: "en" } : { source: "en", target: "pt-BR" },
+}));
+vi.mock("../core/vocabulary.ts", () => ({
+  createVocabularyStore: mocks.createVocabularyStore,
+  wordKey: (word: string) => word.toLowerCase().replace(/[^\p{L}']/gu, ""),
 }));
 vi.mock("../core/translation.ts", () => ({ translateSentence: mocks.translateSentence, translateWord: mocks.translateWord }));
 
-const defaults: Settings = { direction: "en-pt", showTranslation: true, subtitleBottom: 12 };
+const defaults: Settings = { direction: "en-pt", showTranslation: true, subtitleBottom: 12, highlightNewWords: true };
 let cue: (value: SubtitleCue | null) => void;
 let settingsChanged: (value: Settings) => void;
 let options: OverlayOptions;
 let stopObserving: ReturnType<typeof vi.fn>;
 let unsubscribe: ReturnType<typeof vi.fn>;
-let overlay: Record<"update" | "setTranslation" | "applySettings" | "hideCard" | "showCard" | "destroy", ReturnType<typeof vi.fn>>;
+let overlay: Record<"update" | "setTranslation" | "applySettings" | "refreshWordStatuses" | "hideCard" | "showCard" | "destroy", ReturnType<typeof vi.fn>>;
+let vocabulary: {
+  ready: Promise<void>;
+  observeLine: ReturnType<typeof vi.fn>;
+  getMark: ReturnType<typeof vi.fn>;
+  setMark: ReturnType<typeof vi.fn>;
+  onChange: ReturnType<typeof vi.fn>;
+  dispose: ReturnType<typeof vi.fn>;
+};
+let stopVocabulary: ReturnType<typeof vi.fn>;
 
 function deferred<T>() {
   let resolve!: (value: T) => void;
@@ -55,7 +71,17 @@ beforeEach(() => {
   window.history.replaceState({}, "", "/watch/first");
   stopObserving = vi.fn();
   unsubscribe = vi.fn();
-  overlay = { update: vi.fn(), setTranslation: vi.fn(), applySettings: vi.fn(), hideCard: vi.fn(), showCard: vi.fn(), destroy: vi.fn() };
+  overlay = { update: vi.fn(), setTranslation: vi.fn(), applySettings: vi.fn(), refreshWordStatuses: vi.fn(), hideCard: vi.fn(), showCard: vi.fn(), destroy: vi.fn() };
+  stopVocabulary = vi.fn();
+  vocabulary = {
+    ready: Promise.resolve(),
+    observeLine: vi.fn().mockReturnValue(new Set()),
+    getMark: vi.fn().mockReturnValue(null),
+    setMark: vi.fn(),
+    onChange: vi.fn().mockReturnValue(stopVocabulary),
+    dispose: vi.fn(),
+  };
+  mocks.createVocabularyStore.mockReturnValue(vocabulary);
   mocks.getSettings.mockResolvedValue({ ...defaults });
   mocks.onSettingsChange.mockImplementation((listener) => { settingsChanged = listener; return unsubscribe; });
   mocks.getAdapter.mockReturnValue({
@@ -197,5 +223,82 @@ describe("Netflix content integration", () => {
     await Promise.resolve();
     expect(overlay.showCard).toHaveBeenCalledTimes(1);
     expect(overlay.hideCard).toHaveBeenCalled();
+  });
+});
+
+describe("word colours", () => {
+  it("records each new line and colours only its first-time words", async () => {
+    vocabulary.observeLine.mockReturnValue(new Set(["hello"]));
+    await boot();
+
+    emit("Hello world");
+
+    expect(vocabulary.observeLine).toHaveBeenCalledWith("Hello world", "en");
+    expect(options.getWordStatus?.("Hello")).toBe("new");
+    expect(options.getWordStatus?.("world")).toBeNull();
+  });
+
+  it("keeps the line's colours on a re-render instead of re-recording it", async () => {
+    vocabulary.observeLine.mockReturnValueOnce(new Set(["hello"])).mockReturnValue(new Set());
+    await boot();
+    emit("Hello");
+
+    // A direction change re-renders the same line through overlay.update.
+    settingsChanged({ ...defaults, direction: "pt-en" });
+
+    expect(vocabulary.observeLine).toHaveBeenCalledTimes(1);
+    expect(options.getWordStatus?.("Hello")).toBe("new");
+  });
+
+  it("lets a user mark win over new, and keeps marks when new-word colour is off", async () => {
+    vocabulary.observeLine.mockReturnValue(new Set(["hello", "world"]));
+    vocabulary.getMark.mockImplementation((word: string) => (word === "Hello" ? "difficult" : null));
+    await boot();
+    emit("Hello world");
+
+    settingsChanged({ ...defaults, highlightNewWords: false });
+
+    expect(options.getWordStatus?.("Hello")).toBe("difficult");
+    expect(options.getWordStatus?.("world")).toBeNull();
+    expect(overlay.refreshWordStatuses).toHaveBeenCalled();
+  });
+
+  it("saves a mark from the card under the source language and recolours the line", async () => {
+    await boot();
+    void options.onWordSelect("Hello", "Hello world");
+
+    const onMark = overlay.showCard.mock.calls[0][2] as (mark: string | null) => void;
+    overlay.refreshWordStatuses.mockClear();
+    onMark("marked");
+
+    expect(vocabulary.setMark).toHaveBeenCalledWith("Hello", "en", "marked");
+    expect(overlay.refreshWordStatuses).toHaveBeenCalledTimes(1);
+  });
+
+  it("keys marks by Portuguese when the subtitles are in Portuguese", async () => {
+    mocks.getSettings.mockResolvedValue({ ...defaults, direction: "pt-en" });
+    await boot();
+    void options.onWordSelect("Coração", "Meu coração");
+
+    const onMark = overlay.showCard.mock.calls[0][2] as (mark: string | null) => void;
+    onMark("difficult");
+
+    expect(vocabulary.setMark).toHaveBeenCalledWith("Coração", "pt-BR", "difficult");
+  });
+
+  it("shows the word's existing mark on the card", async () => {
+    vocabulary.getMark.mockReturnValue("marked");
+    await boot();
+    void options.onWordSelect("Hello", "Hello world");
+
+    expect(overlay.showCard.mock.calls[0][0]).toMatchObject({ word: "Hello", mark: "marked" });
+  });
+
+  it("writes pending vocabulary and stops listening on pagehide", async () => {
+    await boot();
+    window.dispatchEvent(new Event("pagehide"));
+
+    expect(stopVocabulary).toHaveBeenCalledTimes(1);
+    expect(vocabulary.dispose).toHaveBeenCalledTimes(1);
   });
 });

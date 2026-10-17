@@ -5,6 +5,7 @@ import {
   isLanguageDirection,
   type Settings,
 } from "../settings.ts";
+import type { WordMark, WordStatus } from "../vocabulary.ts";
 
 const STYLE_ID = "streamfluent-overlay";
 
@@ -120,6 +121,13 @@ function ensureStyles(): void {
     .sf-panel-btn:hover {
       background: #1a3a5c;
     }
+    .sf-panel-legend {
+      display: flex;
+      gap: 12px;
+      font-size: 12px;
+      font-weight: 700;
+      margin: 2px 0 4px;
+    }
     .sf-panel-hint {
       font-size: 11px;
       color: #666;
@@ -145,6 +153,10 @@ function ensureStyles(): void {
       cursor: pointer;
       transition: background 0.15s, transform 0.1s;
     }
+    /* Light tints: they stay readable inside the dark outline. */
+    .sf-word-new, .sf-legend-new { color: #8ecbff; }
+    .sf-word-difficult, .sf-legend-difficult { color: #ff8a80; }
+    .sf-word-marked, .sf-legend-marked { color: #ffd54f; }
     .sf-word:hover {
       background: rgba(0, 212, 170, 0.35);
       transform: translateY(-1px);
@@ -224,6 +236,29 @@ function ensureStyles(): void {
     }
     .sf-card-btn:hover {
       opacity: 0.85;
+    }
+    .sf-card-actions {
+      display: flex;
+      flex-wrap: wrap;
+      align-items: center;
+      gap: 6px;
+    }
+    .sf-card-mark {
+      padding: 6px 10px;
+      border: 1px solid currentColor;
+      border-radius: 6px;
+      background: transparent;
+      font-size: 13px;
+      font-weight: 600;
+      cursor: pointer;
+    }
+    .sf-card-mark.sf-mark-difficult { color: #ff8a80; }
+    .sf-card-mark.sf-mark-marked { color: #ffd54f; }
+    .sf-card-mark.sf-active {
+      background: currentColor;
+    }
+    .sf-card-mark.sf-active span {
+      color: #1a1a2e;
     }
     .sf-card-btn.sf-saved {
       background: #555;
@@ -315,7 +350,20 @@ export interface CardContent {
   /** e.g. "EN -> PT", so it is obvious which way the lookup went. */
   directionLabel: string;
   state: "loading" | "ready" | "error";
+  /** The colour the user already gave this word, if any. */
+  mark?: WordMark | null;
 }
+
+const STATUS_CLASSES: Record<WordStatus, string> = {
+  new: "sf-word-new",
+  difficult: "sf-word-difficult",
+  marked: "sf-word-marked",
+};
+
+const MARK_BUTTONS: ReadonlyArray<readonly [WordMark, string]> = [
+  ["difficult", "Hard"],
+  ["marked", "Mark"],
+];
 
 export interface OverlayOptions {
   onWordSelect: (word: string, sentence: string) => void;
@@ -323,14 +371,22 @@ export interface OverlayOptions {
   settings: Settings;
   onSettingsChange: (patch: Partial<Settings>) => void;
   onOpenLibrary: () => void;
+  /** Colour for a word on screen, or null to leave it plain. */
+  getWordStatus?: (word: string) => WordStatus | null;
 }
 
 export function createSubtitleOverlay(options: OverlayOptions): {
   update: (text: string | null) => void;
   setTranslation: (sourceText: string, translation: string) => void;
   applySettings: (settings: Settings) => void;
+  /** Re-reads every word's colour, e.g. after a mark changed. */
+  refreshWordStatuses: () => void;
   hideCard: () => void;
-  showCard: (content: CardContent, onSave: () => void) => void;
+  showCard: (
+    content: CardContent,
+    onSave: () => void,
+    onMark?: (mark: WordMark | null) => void
+  ) => void;
   destroy: () => void;
 } {
   // Destroy previous overlay if one exists (only one instance allowed)
@@ -371,18 +427,32 @@ export function createSubtitleOverlay(options: OverlayOptions): {
       <input type="checkbox" data-sf="translation" />
     </label>
     <label class="sf-panel-row">
+      <span>Colour new words</span>
+      <input type="checkbox" data-sf="new-words" />
+    </label>
+    <div class="sf-panel-legend">
+      <span class="sf-legend-new">new</span>
+      <span class="sf-legend-difficult">hard</span>
+      <span class="sf-legend-marked">marked</span>
+    </div>
+    <label class="sf-panel-row">
       <select data-sf="direction">
         <option value="en-pt">${DIRECTION_LABELS["en-pt"]}</option>
         <option value="pt-en">${DIRECTION_LABELS["pt-en"]}</option>
       </select>
     </label>
     <button class="sf-panel-btn" data-sf="library">My Phrases</button>
-    <div class="sf-panel-hint">Drag the subtitle up or down to move it.</div>
+    <div class="sf-panel-hint">Click a word to mark it as hard or marked. Drag the subtitle up or down to move it.</div>
   `;
   document.body.appendChild(panel);
 
   const translationInput = panel.querySelector<HTMLInputElement>('[data-sf="translation"]');
   const directionSelect = panel.querySelector<HTMLSelectElement>('[data-sf="direction"]');
+  const newWordsInput = panel.querySelector<HTMLInputElement>('[data-sf="new-words"]');
+
+  newWordsInput?.addEventListener("change", () => {
+    options.onSettingsChange({ highlightNewWords: newWordsInput.checked });
+  });
 
   translationInput?.addEventListener("change", () => {
     options.onSettingsChange({ showTranslation: translationInput.checked });
@@ -488,6 +558,13 @@ export function createSubtitleOverlay(options: OverlayOptions): {
   document.addEventListener("keydown", handleKeydown);
   document.addEventListener("click", handleClick);
 
+  const applyWordStatus = (span: HTMLElement): void => {
+    const status = options.getWordStatus?.(span.textContent ?? "") ?? null;
+    for (const [value, className] of Object.entries(STATUS_CLASSES)) {
+      span.classList.toggle(className, value === status);
+    }
+  };
+
   const instance = {
     update(text: string | null): void {
       sourceLine.innerHTML = "";
@@ -509,6 +586,7 @@ export function createSubtitleOverlay(options: OverlayOptions): {
         const span = document.createElement("span");
         span.className = "sf-word";
         span.textContent = w;
+        applyWordStatus(span);
         span.addEventListener("click", (e) => {
           e.stopPropagation();
           handleWordClick(w);
@@ -529,8 +607,13 @@ export function createSubtitleOverlay(options: OverlayOptions): {
       targetLine.textContent = translation;
     },
 
+    refreshWordStatuses(): void {
+      sourceLine.querySelectorAll<HTMLElement>(".sf-word").forEach(applyWordStatus);
+    },
+
     applySettings(settings: Settings): void {
       if (translationInput) translationInput.checked = settings.showTranslation;
+      if (newWordsInput) newWordsInput.checked = settings.highlightNewWords;
       if (directionSelect) directionSelect.value = settings.direction;
       // Turning it off should take effect now, not at the next subtitle.
       if (!settings.showTranslation) targetLine.textContent = "";
@@ -542,7 +625,11 @@ export function createSubtitleOverlay(options: OverlayOptions): {
       card.classList.add("sf-hidden");
     },
 
-    showCard(content: CardContent, onSave: () => void): void {
+    showCard(
+      content: CardContent,
+      onSave: () => void,
+      onMark?: (mark: WordMark | null) => void
+    ): void {
       card.classList.remove("sf-hidden");
 
       const wordEl = document.querySelector(".sf-word.sf-selected");
@@ -585,10 +672,45 @@ export function createSubtitleOverlay(options: OverlayOptions): {
               )}"</div>`
             : ""
         }
-        <button class="sf-card-btn${isError ? " sf-error" : ""}">
-          ${isLoading ? "Loading..." : isError ? "Error" : "Save Phrase"}
-        </button>
+        <div class="sf-card-actions">
+          <button class="sf-card-btn${isError ? " sf-error" : ""}">
+            ${isLoading ? "Loading..." : isError ? "Error" : "Save Phrase"}
+          </button>
+          ${
+            onMark
+              ? MARK_BUTTONS.map(
+                  ([mark, label]) =>
+                    `<button class="sf-card-mark sf-mark-${mark}" data-mark="${mark}"><span>${label}</span></button>`
+                ).join("")
+              : ""
+          }
+        </div>
       `;
+
+      // Marking works while the translation is still loading: it does not
+      // depend on it, and waiting for a slow provider would only get in the way.
+      if (onMark) {
+        let currentMark = content.mark ?? null;
+        const markButtons = card.querySelectorAll<HTMLButtonElement>(".sf-card-mark");
+        const syncMarkButtons = () => {
+          markButtons.forEach((btn) => {
+            btn.classList.toggle("sf-active", btn.dataset.mark === currentMark);
+          });
+        };
+        syncMarkButtons();
+
+        markButtons.forEach((btn) => {
+          btn.addEventListener("click", (e) => {
+            e.stopPropagation();
+            const entry = MARK_BUTTONS.find(([mark]) => mark === btn.dataset.mark);
+            if (!entry) return;
+            // Clicking the active colour again clears it.
+            currentMark = currentMark === entry[0] ? null : entry[0];
+            syncMarkButtons();
+            onMark(currentMark);
+          });
+        });
+      }
 
       if (!isLoading) {
         const btn = card.querySelector<HTMLButtonElement>(".sf-card-btn");

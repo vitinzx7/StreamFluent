@@ -1,4 +1,5 @@
 import type { Settings } from "./settings.ts";
+import type { VocabularyData } from "./vocabulary.ts";
 
 export interface SavedPhrase {
   id: string;
@@ -38,4 +39,5 @@ export interface StreamingAdapter {
 export interface StorageSchema {
   phrases: SavedPhrase[];
   settings: Settings;
+  vocabulary: VocabularyData;
 }

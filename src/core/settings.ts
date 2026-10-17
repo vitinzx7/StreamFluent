@@ -9,6 +9,8 @@ export interface Settings {
   showTranslation: boolean;
   /** Vertical position of the subtitle, as a percentage from the bottom. */
   subtitleBottom: number;
+  /** Colour words the first time they ever appear in a subtitle. */
+  highlightNewWords: boolean;
 }
 
 export const SETTINGS_KEY: keyof StorageSchema = "settings";
@@ -17,6 +19,7 @@ export const DEFAULT_SETTINGS: Settings = {
   direction: "en-pt",
   showTranslation: true,
   subtitleBottom: 12,
+  highlightNewWords: true,
 };
 
 /** Keeps a dragged subtitle on screen whatever the storage said. */
@@ -48,10 +51,11 @@ export function getLangPair(direction: LanguageDirection): { source: string; tar
 /** Settings read back from storage are untrusted: fall back per-field. */
 export function normalizeSettings(raw: unknown): Settings {
   if (!raw || typeof raw !== "object") return { ...DEFAULT_SETTINGS };
-  const { direction, showTranslation, subtitleBottom } = raw as {
+  const { direction, showTranslation, subtitleBottom, highlightNewWords } = raw as {
     direction?: unknown;
     showTranslation?: unknown;
     subtitleBottom?: unknown;
+    highlightNewWords?: unknown;
   };
   return {
     direction: isLanguageDirection(direction) ? direction : DEFAULT_SETTINGS.direction,
@@ -63,6 +67,10 @@ export function normalizeSettings(raw: unknown): Settings {
       typeof subtitleBottom === "number" && Number.isFinite(subtitleBottom)
         ? clampSubtitleBottom(subtitleBottom)
         : DEFAULT_SETTINGS.subtitleBottom,
+    highlightNewWords:
+      typeof highlightNewWords === "boolean"
+        ? highlightNewWords
+        : DEFAULT_SETTINGS.highlightNewWords,
   };
 }
 

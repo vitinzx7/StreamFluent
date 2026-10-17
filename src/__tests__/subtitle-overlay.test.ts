@@ -2,12 +2,19 @@
  * @vitest-environment jsdom
  */
 import { describe, it, expect, afterEach, vi } from "vitest";
-import { createSubtitleOverlay } from "../core/ui/subtitle-overlay.ts";
+import {
+  createSubtitleOverlay,
+  type CardContent,
+  type OverlayOptions,
+} from "../core/ui/subtitle-overlay.ts";
 import { DEFAULT_SETTINGS, type Settings } from "../core/settings.ts";
 
 let overlay: ReturnType<typeof createSubtitleOverlay> | null = null;
 
-function create(settings: Partial<Settings> = {}) {
+function create(
+  settings: Partial<Settings> = {},
+  getWordStatus?: OverlayOptions["getWordStatus"]
+) {
   const onWordSelect = vi.fn();
   const onSettingsChange = vi.fn();
   const onOpenLibrary = vi.fn();
@@ -16,6 +23,7 @@ function create(settings: Partial<Settings> = {}) {
     onWordSelect,
     onSettingsChange,
     onOpenLibrary,
+    getWordStatus,
     settings: { ...DEFAULT_SETTINGS, ...settings },
   });
 
@@ -215,5 +223,124 @@ describe("dragging the subtitle", () => {
     word.click();
 
     expect(onWordSelect).toHaveBeenCalledWith("One", "One more please");
+  });
+});
+
+describe("word colours", () => {
+  const wordEl = (text: string) =>
+    Array.from(document.querySelectorAll<HTMLElement>(".sf-word")).find((w) => w.textContent === text)!;
+
+  it("colours each word by the status it is given", () => {
+    const statuses: Record<string, "new" | "difficult" | "marked"> = { fear: "difficult", fitting: "new" };
+    create({}, (word) => statuses[word] ?? null).overlay.update("your fear of not fitting");
+
+    expect(wordEl("fear").classList.contains("sf-word-difficult")).toBe(true);
+    expect(wordEl("fitting").classList.contains("sf-word-new")).toBe(true);
+    expect(wordEl("your").className).toBe("sf-word");
+  });
+
+  it("re-reads colours in place when asked, without rebuilding the line", () => {
+    const statuses: Record<string, "new" | "difficult" | "marked" | null> = { fear: "new" };
+    const { overlay: o } = create({}, (word) => statuses[word] ?? null);
+    o.update("your fear");
+    const before = wordEl("fear");
+
+    statuses.fear = "marked";
+    o.refreshWordStatuses();
+
+    expect(wordEl("fear")).toBe(before);
+    expect(before.classList.contains("sf-word-marked")).toBe(true);
+    expect(before.classList.contains("sf-word-new")).toBe(false);
+
+    statuses.fear = null;
+    o.refreshWordStatuses();
+    expect(before.className).toBe("sf-word");
+  });
+
+  it("leaves words plain when no status function is given", () => {
+    create().overlay.update("your fear");
+
+    expect(wordEl("fear").className).toBe("sf-word");
+  });
+});
+
+describe("marking from the card", () => {
+  const content = (patch: Partial<CardContent> = {}): CardContent => ({
+    word: "fear",
+    translation: "medo",
+    definition: "",
+    sentence: "your fear",
+    sentenceTranslation: "",
+    directionLabel: "EN → PT",
+    state: "ready",
+    mark: null,
+    ...patch,
+  });
+  const button = (label: string) =>
+    Array.from(document.querySelectorAll<HTMLElement>(".sf-card-mark")).find(
+      (b) => b.textContent === label
+    )!;
+
+  it("shows the word's current mark as active", () => {
+    create().overlay.showCard(content({ mark: "difficult" }), vi.fn(), vi.fn());
+
+    expect(button("Hard").classList.contains("sf-active")).toBe(true);
+    expect(button("Mark").classList.contains("sf-active")).toBe(false);
+  });
+
+  it("switches between marks and clears one when clicked again", () => {
+    const onMark = vi.fn();
+    create().overlay.showCard(content(), vi.fn(), onMark);
+
+    button("Mark").click();
+    expect(onMark).toHaveBeenLastCalledWith("marked");
+    expect(button("Mark").classList.contains("sf-active")).toBe(true);
+
+    button("Hard").click();
+    expect(onMark).toHaveBeenLastCalledWith("difficult");
+    expect(button("Mark").classList.contains("sf-active")).toBe(false);
+    expect(button("Hard").classList.contains("sf-active")).toBe(true);
+
+    button("Hard").click();
+    expect(onMark).toHaveBeenLastCalledWith(null);
+    expect(button("Hard").classList.contains("sf-active")).toBe(false);
+  });
+
+  it("can mark while the translation is still loading", () => {
+    const onMark = vi.fn();
+    create().overlay.showCard(content({ state: "loading", translation: "" }), vi.fn(), onMark);
+
+    button("Hard").click();
+
+    expect(onMark).toHaveBeenCalledWith("difficult");
+  });
+
+  it("keeps the card open after marking", () => {
+    create().overlay.showCard(content(), vi.fn(), vi.fn());
+
+    button("Mark").click();
+
+    expect(document.querySelector(".sf-card")?.classList.contains("sf-hidden")).toBe(false);
+  });
+
+  it("offers no mark buttons when the caller cannot save marks", () => {
+    create().overlay.showCard(content(), vi.fn());
+
+    expect(document.querySelectorAll(".sf-card-mark").length).toBe(0);
+  });
+});
+
+describe("new-word colour option", () => {
+  it("reflects the setting and reports a change", () => {
+    const { overlay: o, onSettingsChange } = create({ highlightNewWords: true });
+    const input = panel().querySelector<HTMLInputElement>('[data-sf="new-words"]')!;
+    expect(input.checked).toBe(true);
+
+    input.checked = false;
+    input.dispatchEvent(new Event("change"));
+    expect(onSettingsChange).toHaveBeenCalledWith({ highlightNewWords: false });
+
+    o.applySettings({ ...DEFAULT_SETTINGS, highlightNewWords: false });
+    expect(input.checked).toBe(false);
   });
 });

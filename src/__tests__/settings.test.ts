@@ -61,6 +61,12 @@ describe("normalizeSettings", () => {
     expect(normalizeSettings({ subtitleBottom: NaN }).subtitleBottom).toBe(12);
   });
 
+  it("keeps highlightNewWords only when it is a boolean, defaulting to on", () => {
+    expect(normalizeSettings({ highlightNewWords: false }).highlightNewWords).toBe(false);
+    expect(normalizeSettings({ highlightNewWords: "no" }).highlightNewWords).toBe(true);
+    expect(normalizeSettings({}).highlightNewWords).toBe(true);
+  });
+
   it("keeps showTranslation only when it is a boolean", () => {
     expect(normalizeSettings({ showTranslation: false }).showTranslation).toBe(false);
     expect(normalizeSettings({ showTranslation: "no" }).showTranslation).toBe(true);
@@ -72,6 +78,7 @@ describe("normalizeSettings", () => {
       direction: "pt-en",
       showTranslation: true,
       subtitleBottom: 12,
+      highlightNewWords: true,
     });
   });
 
@@ -80,6 +87,7 @@ describe("normalizeSettings", () => {
       direction: "pt-en",
       showTranslation: true,
       subtitleBottom: 12,
+      highlightNewWords: true,
     });
   });
 });
@@ -112,11 +120,13 @@ describe("SettingsRepository", () => {
       direction: "pt-en",
       showTranslation: true,
       subtitleBottom: 12,
+      highlightNewWords: true,
     });
     expect(await SettingsRepository.get()).toEqual({
       direction: "pt-en",
       showTranslation: true,
       subtitleBottom: 12,
+      highlightNewWords: true,
     });
   });
 
@@ -134,6 +144,7 @@ describe("SettingsRepository", () => {
       direction: "pt-en",
       showTranslation: false,
       subtitleBottom: 12,
+      highlightNewWords: true,
     });
   });
 
