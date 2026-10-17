@@ -25,7 +25,26 @@ function ensureStyles(): void {
       user-select: none;
       max-width: 80%;
       text-align: center;
-      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+      /* Typography is set here, not on .sf-word: the spaces between words are
+         text nodes of this container, so they must share the words' font for
+         the gap to be one real space. */
+      /* Netflix's own cue stack, so on netflix.com this picks up Netflix Sans
+         (already loaded by the page) and degrades elsewhere the way theirs does. */
+      font-family: "Netflix Sans", "Helvetica Neue", Helvetica, Arial, sans-serif;
+      /* 700, not 500: most installed fonts ship only Regular and Bold, and 500
+         silently falls back to Regular, which is what made the line look thin. */
+      font-weight: 700;
+      /* Scales with the picture like the players' cues: about 4.6% of a 16:9
+         video's height, whether the window letterboxes or pillarboxes it. */
+      font-size: clamp(18px, min(4.6vh, 2.6vw), 60px);
+      line-height: 1.25;
+      color: #ffffff;
+      /* A tight dark edge plus a soft drop: readable over bright scenes too. */
+      text-shadow:
+        0 0 0.05em #000,
+        0 0 0.08em #000,
+        0 0 0.12em #000,
+        0 0.04em 0.25em rgba(0, 0, 0, 0.7);
     }
     .sf-overlay.sf-hidden {
       display: none;
@@ -108,28 +127,23 @@ function ensureStyles(): void {
       line-height: 1.4;
     }
     .sf-line-target {
-      margin-top: 2px;
+      margin-top: 0.15em;
       color: #7ee8d0;
-      font-size: 17px;
-      font-weight: 500;
-      text-shadow: 1px 1px 3px rgba(0,0,0,0.9);
-      line-height: 1.4;
+      font-size: 0.8em;
     }
     .sf-line-target:empty {
       display: none;
     }
     .sf-word {
       display: inline-block;
-      padding: 2px 6px;
-      margin: 0 2px;
-      border-radius: 4px;
+      /* The highlight reaches past the word without widening the gap: the
+         negative margin gives back exactly what the padding takes, so words
+         sit one ordinary space apart, as in the player's own subtitles. */
+      padding: 0.04em 0.14em;
+      margin: 0 -0.14em;
+      border-radius: 0.18em;
       cursor: pointer;
-      color: #ffffff;
-      font-size: 20px;
-      font-weight: 500;
-      text-shadow: 1px 1px 3px rgba(0,0,0,0.8);
       transition: background 0.15s, transform 0.1s;
-      line-height: 1.5;
     }
     .sf-word:hover {
       background: rgba(0, 212, 170, 0.35);
