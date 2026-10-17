@@ -442,7 +442,7 @@ export function createSubtitleOverlay(options: OverlayOptions): {
       </select>
     </label>
     <button class="sf-panel-btn" data-sf="library">My Phrases</button>
-    <div class="sf-panel-hint">Click a word to mark it as hard or marked. Drag the subtitle up or down to move it.</div>
+    <div class="sf-panel-hint">Press A to go back to the previous line. Click a word to mark it as hard or marked. Drag the subtitle up or down to move it.</div>
   `;
   document.body.appendChild(panel);
 

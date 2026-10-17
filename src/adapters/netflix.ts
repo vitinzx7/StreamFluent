@@ -9,6 +9,7 @@ import {
   restoreNativeSubtitles,
   findSubtitleRoot,
 } from "../core/dom-utils.ts";
+import { requestNetflixSeek } from "../core/netflix-bridge.ts";
 
 const SUBTITLE_SELECTORS = [
   "[data-testid='player-timedtext-text-container']",
@@ -115,6 +116,19 @@ export class NetflixAdapter implements StreamingAdapter {
     }
 
     return cleanup;
+  }
+
+  getVideo(): HTMLVideoElement | null {
+    return document.querySelector("video");
+  }
+
+  /**
+   * Netflix's player errors out (M7375) when the <video> time is set directly,
+   * so this goes through its own player API, reachable only from the page's
+   * JavaScript world — see src/core/netflix-bridge.ts.
+   */
+  seekTo(seconds: number): Promise<boolean> {
+    return requestNetflixSeek(seconds);
   }
 
   getMediaMetadata(): MediaMetadata | null {

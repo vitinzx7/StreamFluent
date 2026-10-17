@@ -34,6 +34,13 @@ export interface StreamingAdapter {
   isSupportedPage(): boolean;
   observeSubtitles(onCue: (cue: SubtitleCue | null) => void): () => void;
   getMediaMetadata(): MediaMetadata | null;
+  /** The video element playing the episode, read for the playback position. */
+  getVideo?(): HTMLVideoElement | null;
+  /**
+   * Moves playback to `seconds`. Resolves false when the platform did not take
+   * it — and must never fall back to anything that can break its player.
+   */
+  seekTo?(seconds: number): Promise<boolean>;
 }
 
 export interface StorageSchema {

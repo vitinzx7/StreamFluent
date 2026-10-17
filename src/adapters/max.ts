@@ -112,6 +112,18 @@ export class MaxAdapter implements StreamingAdapter {
     return cleanup;
   }
 
+  getVideo(): HTMLVideoElement | null {
+    return document.querySelector("video");
+  }
+
+  /** Assumes Max's player tolerates a direct seek — not verified on the real site. */
+  async seekTo(seconds: number): Promise<boolean> {
+    const video = this.getVideo();
+    if (!video || !Number.isFinite(seconds)) return false;
+    video.currentTime = Math.max(0, seconds);
+    return true;
+  }
+
   getMediaMetadata(): MediaMetadata | null {
     const title = document.title;
     const clean = title

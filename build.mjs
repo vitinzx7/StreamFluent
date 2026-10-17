@@ -20,6 +20,8 @@ const entries = {
   content: "src/content/content.ts",
   background: "src/background/background.ts",
   "player-test": "src/content/player-test.ts",
+  // Runs in Netflix's page world to reach its player API; see netflix-bridge.ts.
+  "netflix-main": "src/content/netflix-main.ts",
 };
 
 if (watch) {

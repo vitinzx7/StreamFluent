@@ -16,6 +16,7 @@ const mocks = vi.hoisted(() => ({
   observeHtml5Player: vi.fn(),
   createTimedSubtitles: vi.fn(),
   createVocabularyStore: vi.fn(),
+  createLineNavigation: vi.fn(),
 }));
 
 vi.mock("../adapters/registry.ts", () => ({ getAdapter: mocks.getAdapter }));
@@ -29,6 +30,7 @@ vi.mock("../core/settings.ts", () => ({
   getLangPair: (direction: string) =>
     direction === "pt-en" ? { source: "pt-BR", target: "en" } : { source: "en", target: "pt-BR" },
 }));
+vi.mock("../core/line-navigation.ts", () => ({ createLineNavigation: mocks.createLineNavigation }));
 vi.mock("../core/vocabulary.ts", () => ({
   createVocabularyStore: mocks.createVocabularyStore,
   wordKey: (word: string) => word.toLowerCase().replace(/[^\p{L}']/gu, ""),
@@ -51,6 +53,7 @@ let vocabulary: {
   dispose: ReturnType<typeof vi.fn>;
 };
 let stopVocabulary: ReturnType<typeof vi.fn>;
+let navigation: { cueChanged: ReturnType<typeof vi.fn>; stop: ReturnType<typeof vi.fn> };
 
 function deferred<T>() {
   let resolve!: (value: T) => void;
@@ -82,6 +85,8 @@ beforeEach(() => {
     dispose: vi.fn(),
   };
   mocks.createVocabularyStore.mockReturnValue(vocabulary);
+  navigation = { cueChanged: vi.fn(), stop: vi.fn() };
+  mocks.createLineNavigation.mockReturnValue(navigation);
   mocks.getSettings.mockResolvedValue({ ...defaults });
   mocks.onSettingsChange.mockImplementation((listener) => { settingsChanged = listener; return unsubscribe; });
   mocks.getAdapter.mockReturnValue({
@@ -300,5 +305,30 @@ describe("word colours", () => {
 
     expect(stopVocabulary).toHaveBeenCalledTimes(1);
     expect(vocabulary.dispose).toHaveBeenCalledTimes(1);
+  });
+});
+
+describe("line navigation", () => {
+  it("learns line times from every cue, including the end of a line", async () => {
+    await boot();
+
+    emit("I am student in TI");
+    cue(null);
+    emit("and you");
+
+    expect(navigation.cueChanged.mock.calls).toEqual([["I am student in TI"], [null], ["and you"]]);
+  });
+
+  it("is given the platform adapter so it can seek with it", async () => {
+    await boot();
+
+    expect(mocks.createLineNavigation).toHaveBeenCalledWith(mocks.getAdapter.mock.results[0].value);
+  });
+
+  it("stops listening for the key on pagehide", async () => {
+    await boot();
+    window.dispatchEvent(new Event("pagehide"));
+
+    expect(navigation.stop).toHaveBeenCalledTimes(1);
   });
 });

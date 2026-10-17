@@ -26,7 +26,7 @@ There is no lint script and no CI config in this repo — `typecheck` and `test`
 
 ## Architecture
 
-`build.mjs` bundles `src/content/content.ts`, `src/background/background.ts` and the controlled test page entry `src/content/player-test.ts`. The content script is injected into Netflix/Max and the explicit Cinetaro host allowlist. The background worker performs bounded provider requests to avoid page CORS restrictions; it validates exact provider hosts and paths, omits credentials and rejects redirects. `popup.js` and `library.js` in `public/` are plain (unbundled, untyped) JS loaded directly by their HTML pages — they are **not** part of the TypeScript/esbuild pipeline and duplicate small bits of logic (e.g. the storage key and CRUD, host detection) that live in `src/core` for the TS side. When changing storage schema or platform-detection logic, update both the TS core and these public/*.js duplicates.
+`build.mjs` bundles `src/content/content.ts`, `src/background/background.ts`, the controlled test page entry `src/content/player-test.ts`, and `src/content/netflix-main.ts`, which runs in Netflix's page world (see "Back one line" below). The content script is injected into Netflix/Max and the explicit Cinetaro host allowlist. The background worker performs bounded provider requests to avoid page CORS restrictions; it validates exact provider hosts and paths, omits credentials and rejects redirects. `popup.js` and `library.js` in `public/` are plain (unbundled, untyped) JS loaded directly by their HTML pages — they are **not** part of the TypeScript/esbuild pipeline and duplicate small bits of logic (e.g. the storage key and CRUD, host detection) that live in `src/core` for the TS side. When changing storage schema or platform-detection logic, update both the TS core and these public/*.js duplicates.
 
 ### Streaming adapter pattern
 
@@ -79,6 +79,18 @@ The overlay is dragged vertically by mousedown anywhere on it; `subtitleBottom` 
 
 Settings changes flow one way: a panel control calls `onSettingsChange` → `SettingsRepository.save` → `chrome.storage.onChanged` → `overlay.applySettings`. The panel never updates itself directly, so the popup and the panel cannot drift apart.
 
+### Back one line (the A key)
+
+[src/core/line-navigation.ts](src/core/line-navigation.ts) makes `A` jump to the start of the previous subtitle line instead of the player's fixed 10-second rewind. The Netflix/Max adapters never see the subtitle file, only the line on screen, so [src/core/line-timeline.ts](src/core/line-timeline.ts) **learns line times while watching**: `content.ts` forwards every cue (`navigation.cueChanged`), and the time each line appears and disappears is read from the platform's `<video>`. Rules worth knowing before changing it:
+
+- During a line, A goes to the line before it; in the silence after a line — from the instant it disappears — A replays that line (someone pressing right after a line ended just missed it).
+- It lands `PRE_ROLL` (0.25s) before the recorded start, since lines are recorded ~0.1s late, but never before the end of the line before (back-to-back lines would otherwise show the wrong one, very visible when paused).
+- It only goes back over video that was actually played (`played()` stretches from `timeupdate`; jumps don't count). After skipping ahead, the previous *known* line can be minutes back with unseen lines in between, so it restarts the line on screen instead.
+- A second press before the first seek lands steps back from the pending target, not from the video's not-yet-updated time.
+- A changed `<video>` or URL path is a new episode: the timeline is cleared. Typing in a field, modifier keys and key repeat are ignored.
+
+**Netflix must not be seeked by writing `video.currentTime`** — its player errors out (M7375). `NetflixAdapter.seekTo` goes through Netflix's own (undocumented) player API, `netflix.appContext.state.playerApp.getAPI().videoPlayer`, which exists only in the page's JavaScript world. [src/core/netflix-bridge.ts](src/core/netflix-bridge.ts) carries the request over DOM `CustomEvent`s with JSON-string details (only strings cross between the isolated and page worlds intact) to `netflix-main.js`, declared in the manifest with `"world": "MAIN"`. That script has no extension privileges and only performs seeks, which any page script could already do; requests are validated, and a missing API or no answer within 1s resolves `false` — it never falls back to writing `currentTime`. `MaxAdapter.seekTo` writes `currentTime` directly; that is unverified against the real Max player.
+
 ### Word colours (vocabulary)
 
 [src/core/vocabulary.ts](src/core/vocabulary.ts) keeps, per source language (`getLangPair(direction).source`), the words ever seen in a subtitle and the user's marks (`difficult` | `marked`), under the `vocabulary` key in `chrome.storage.local`. None of it leaves the machine. "New" means **first appearance ever**: `content.ts` calls `observeLine()` once per incoming cue and keeps the returned set for that line, so a re-render (e.g. a direction change) keeps the colours instead of re-recording the line. Until the stored words have loaded, `observeLine()` reports nothing as new — otherwise every word on the first line would look new. A user mark wins over "new"; `highlightNewWords` turns off only the automatic colour, never the marks.
@@ -99,7 +111,7 @@ The overlay replaces the native cues, so `hideNativeSubtitles()` ([src/core/dom-
 
 ## Notable fragility
 
-Subtitle/player/episode CSS selectors in `netflix.ts` and `max.ts` are guesses at third-party DOM structure (`[data-testid=...]`, `[class*=...]` substring matches) and are expected to break silently when Netflix/Max change their markup — this is a known, accepted limitation, not a bug to "fix" by hardening the selectors further without evidence they're wrong.
+Netflix's player API used for seeking is undocumented and can change without notice; when it does, `A` stops working (seeks resolve `false`) rather than breaking playback. Subtitle/player/episode CSS selectors in `netflix.ts` and `max.ts` are guesses at third-party DOM structure (`[data-testid=...]`, `[class*=...]` substring matches) and are expected to break silently when Netflix/Max change their markup — this is a known, accepted limitation, not a bug to "fix" by hardening the selectors further without evidence they're wrong.
 
 
 ### Timed HTML5 subtitles

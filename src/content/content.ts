@@ -5,6 +5,7 @@ import { createSubtitleOverlay } from "../core/ui/subtitle-overlay.ts";
 import { PhraseRepository } from "../core/storage.ts";
 import { SettingsRepository, DIRECTION_LABELS, getLangPair } from "../core/settings.ts";
 import { createVocabularyStore, wordKey, type WordStatus } from "../core/vocabulary.ts";
+import { createLineNavigation } from "../core/line-navigation.ts";
 import {
   translateWord,
   translateSentence,
@@ -194,10 +195,15 @@ async function boot(): Promise<void> {
     if ((wasOff || directionChanged) && next.showTranslation && currentLine) showLineTranslation(currentLine);
   });
 
+  // "A" jumps back to the previous subtitle line; it learns line times from
+  // the same cues the overlay shows.
+  const navigation = createLineNavigation(adapter);
+
   const stopObserving = adapter.observeSubtitles((cue) => {
     lineRequestId++;
     const text = cue?.text ?? null;
     currentLine = text;
+    navigation.cueChanged(text);
     newWords = text ? vocabulary.observeLine(text, sourceLanguage()) : new Set();
     overlay.update(text);
 
@@ -209,6 +215,7 @@ async function boot(): Promise<void> {
     lineRequestId++;
     lookupId++;
     stopObserving();
+    navigation.stop();
     unsubscribe();
     stopVocabulary();
     vocabulary.dispose();

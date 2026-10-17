@@ -27,6 +27,12 @@
       "run_at": "document_idle"
     },
     {
+      "matches": ["*://*.netflix.com/*"],
+      "js": ["netflix-main.js"],
+      "run_at": "document_idle",
+      "world": "MAIN"
+    },
+    {
       "matches": ["https://cinextream.cc/*"],
       "js": ["content.js"],
       "all_frames": true,
