@@ -1,5 +1,5 @@
 import { createWordRenderer, WORD_STYLES } from "./word-renderer.ts";
-import { createWordCard, CARD_STYLES, type CardContent } from "./word-card.ts";
+import { createWordCard, placeCard, CARD_STYLES, type CardContent } from "./word-card.ts";
 export type { CardContent } from "./word-card.ts";
 import { EXTENSION_MARKER } from "../dom-utils.ts";
 import { createIdleFade, isolatePointer, IDLE_CLASS } from "./idle-fade.ts";
@@ -203,117 +203,17 @@ function ensureStyles(): void {
     .sf-word-new, .sf-legend-new { color: #8ECBFF; }
     .sf-word-difficult, .sf-legend-difficult { color: #FF8A80; }
     .sf-word-learned, .sf-legend-learned { color: #81C784; }
+    /* A light veil, not a coloured block: the word keeps its own colour. */
     .sf-word:hover {
-      background: rgba(0, 212, 170, 0.35);
+      background: rgba(255, 255, 255, 0.14);
       transform: translateY(-1px);
     }
     .sf-word.sf-selected {
-      background: rgba(0, 212, 170, 0.6);
+      background: rgba(255, 255, 255, 0.22);
     }
     .sf-card {
       position: fixed;
       z-index: 100000;
-      background: #1a1a2e;
-      border: 1px solid rgba(0, 212, 170, 0.3);
-      border-radius: 10px;
-      padding: 14px 18px;
-      min-width: 220px;
-      max-width: 360px;
-      box-shadow: 0 8px 32px rgba(0, 0, 0, 0.6);
-      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
-      color: #e0e0e0;
-    }
-    .sf-card.sf-hidden {
-      display: none;
-    }
-    .sf-card-head {
-      display: flex;
-      align-items: baseline;
-      justify-content: space-between;
-      gap: 10px;
-      margin-bottom: 6px;
-    }
-    .sf-card-word {
-      font-size: 18px;
-      font-weight: 600;
-      color: #00d4aa;
-    }
-    .sf-card-dir {
-      font-size: 11px;
-      font-weight: 600;
-      letter-spacing: 0.4px;
-      color: #6d7a86;
-      white-space: nowrap;
-    }
-    .sf-card-translation {
-      font-size: 16px;
-      color: #f0f0f0;
-      margin-bottom: 8px;
-    }
-    .sf-card-definition {
-      font-size: 13px;
-      color: #999;
-      margin-bottom: 10px;
-      line-height: 1.45;
-    }
-    .sf-card-sentence {
-      font-size: 13px;
-      color: #999;
-      border-top: 1px solid rgba(255,255,255,0.1);
-      padding-top: 8px;
-      margin-bottom: 4px;
-    }
-    .sf-card-sentence-translation {
-      font-size: 13px;
-      color: #7ee8d0;
-      margin-bottom: 10px;
-    }
-    .sf-card-btn {
-      display: inline-block;
-      padding: 6px 14px;
-      border: none;
-      border-radius: 6px;
-      background: #00d4aa;
-      color: #1a1a2e;
-      font-size: 13px;
-      font-weight: 600;
-      cursor: pointer;
-      transition: opacity 0.15s;
-    }
-    .sf-card-btn:hover {
-      opacity: 0.85;
-    }
-    .sf-card-actions {
-      display: flex;
-      flex-wrap: wrap;
-      align-items: center;
-      gap: 6px;
-    }
-    .sf-card-mark {
-      padding: 6px 10px;
-      border: 1px solid currentColor;
-      border-radius: 6px;
-      background: transparent;
-      font-size: 13px;
-      font-weight: 600;
-      cursor: pointer;
-    }
-    .sf-card-mark.sf-mark-difficult { color: #FF8A80; }
-    .sf-card-mark.sf-mark-learned { color: #81C784; }
-    .sf-card-mark.sf-active {
-      background: currentColor;
-    }
-    .sf-card-mark.sf-active span {
-      color: #1a1a2e;
-    }
-    .sf-card-btn.sf-saved {
-      background: #555;
-      color: #999;
-      cursor: default;
-    }
-    .sf-card-btn.sf-error {
-      background: #e74c3c;
-      color: #fff;
     }
     .sf-fab {
       position: fixed;
@@ -347,20 +247,6 @@ function ensureStyles(): void {
     }
     .sf-fab.sf-hidden {
       display: none;
-    }
-    .sf-loading {
-      display: inline-block;
-      width: 14px;
-      height: 14px;
-      border: 2px solid #555;
-      border-top-color: #00d4aa;
-      border-radius: 50%;
-      animation: sf-spin 0.6s linear infinite;
-      vertical-align: middle;
-      margin-right: 6px;
-    }
-    @keyframes sf-spin {
-      to { transform: rotate(360deg); }
     }
   `;
   document.head.appendChild(style);
@@ -700,13 +586,10 @@ export function createSubtitleOverlay(options: OverlayOptions): {
     },
 
     showCard(content: CardContent, onSave: () => void | string | Promise<void | string>, onMark?: (mark: WordMark | null) => void | Promise<void>): void {
-      const wordEl = sourceLine.querySelector(".sf-word.sf-selected");
-      const rect = wordEl?.getBoundingClientRect();
-      // Clear of the settings button's strip on the right edge.
-      card.style.left = rect ? `${Math.max(8, Math.min(rect.left, window.innerWidth - 370 - 64))}px` : "50%";
-      card.style.top = rect ? `${Math.max(8, rect.top - 200)}px` : "30%";
-      card.style.transform = rect ? "" : "translateX(-50%)";
       wordCard.show(content, onSave, onMark);
+      // Placed after the content is in, so its real height decides above or below.
+      const rect = sourceLine.querySelector(".sf-word.sf-selected")?.getBoundingClientRect();
+      placeCard(card, rect, { width: window.innerWidth, height: window.innerHeight });
     },
     /** Shows the level question; it closes itself once a level is chosen. */
     askLevel(): void {

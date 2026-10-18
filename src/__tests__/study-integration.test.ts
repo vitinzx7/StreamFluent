@@ -146,7 +146,8 @@ describe("colour lifecycle of one word", () => {
     await flush();
     expect(colour("ambiguous")).toBe("learned");
 
-    cardButton("").click();
+    // Pressing the active mark again removes it.
+    cardButton("learned").click();
     await flush();
     expect(colour("ambiguous")).toBe("special");
 
@@ -208,7 +209,7 @@ describe("colour lifecycle of one word", () => {
     await flush();
 
     const links = [...document.querySelectorAll<HTMLAnchorElement>(".sf-card-links a")];
-    expect(links.map((link) => link.textContent)).toEqual(["Linguee", "WordReference", "Reverso Context", "Cambridge"]);
+    expect(links.map((link) => link.textContent)).toEqual(["Linguee", "WordReference", "Reverso", "Cambridge"]);
     expect(links[1].href).toBe("https://www.wordreference.com/enpt/ran");
     expect(links.every((link) => link.target === "_blank" && link.rel === "noopener noreferrer")).toBe(true);
     const types = worker.sendMessage.mock.calls.map(([message]) => (message as { type: string }).type);

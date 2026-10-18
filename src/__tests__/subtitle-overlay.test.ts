@@ -289,7 +289,7 @@ describe("marking from the card", () => {
     expect(button("Aprendida").classList.contains("sf-active")).toBe(false);
   });
 
-  it("switches between marks and removes one explicitly", async () => {
+  it("switches between marks and removes one by pressing it again", async () => {
     const onMark = vi.fn();
     create().overlay.showCard(content(), vi.fn(), onMark);
 
@@ -304,10 +304,20 @@ describe("marking from the card", () => {
     expect(button("Aprendida").classList.contains("sf-active")).toBe(false);
     expect(button("Difícil").classList.contains("sf-active")).toBe(true);
 
-    button("Remover marcação").click();
+    button("Difícil").click();
     await Promise.resolve();
     expect(onMark).toHaveBeenLastCalledWith(null);
     expect(button("Difícil").classList.contains("sf-active")).toBe(false);
+    expect(button("Difícil").getAttribute("aria-pressed")).toBe("false");
+  });
+
+  it("does not repeat the line already on screen, nor the language pair", () => {
+    create().overlay.showCard(content({ sentence: "your fear", sentenceTranslation: "seu medo" }), vi.fn(), vi.fn());
+
+    const text = document.querySelector(".sf-card")!.textContent!;
+    expect(text).not.toContain("your fear");
+    expect(text).not.toContain("seu medo");
+    expect(text).not.toContain("EN → PT");
   });
 
   it("can mark while the translation is still loading", async () => {
@@ -333,6 +343,52 @@ describe("marking from the card", () => {
     create().overlay.showCard(content(), vi.fn());
 
     expect(document.querySelectorAll(".sf-card-mark:not([hidden])").length).toBe(0);
+  });
+});
+
+describe("card placement", () => {
+  const rect = (left: number, top: number, width = 60, height = 30) =>
+    ({ left, top, width, height, right: left + width, bottom: top + height, x: left, y: top, toJSON: () => ({}) }) as DOMRect;
+  const showOn = (word: DOMRect, size = { width: 280, height: 120 }) => {
+    const { overlay: o } = create();
+    o.update("Hello there");
+    const el = document.querySelector<HTMLElement>(".sf-word")!;
+    el.classList.add("sf-selected");
+    el.getBoundingClientRect = () => word;
+    const card = document.querySelector<HTMLElement>(".sf-card")!;
+    Object.defineProperty(card, "offsetWidth", { configurable: true, value: size.width });
+    Object.defineProperty(card, "offsetHeight", { configurable: true, value: size.height });
+    o.showCard({ word: "Hello", translation: "Olá", definition: "", sentence: "Hello there", sentenceTranslation: "", directionLabel: "EN → PT", state: "ready" }, vi.fn());
+    return card;
+  };
+
+  it("sits just above the clicked word, centred on it, and grows upwards", () => {
+    window.innerWidth = 1280; window.innerHeight = 720;
+    const card = showOn(rect(500, 600));
+
+    // Bottom edge 10px above the word: a later, longer translation pushes it up, not over the word.
+    expect(card.style.bottom).toBe(`${720 - 600 + 10}px`);
+    expect(card.style.top).toBe("auto");
+    expect(card.style.left).toBe(`${530 - 140}px`);
+    expect(card.style.getPropertyValue("--sf-tip")).toBe("140px");
+    expect(card.classList.contains("sf-card-below")).toBe(false);
+  });
+
+  it("goes below the word when the subtitle was dragged to the top", () => {
+    window.innerWidth = 1280; window.innerHeight = 720;
+    const card = showOn(rect(500, 60));
+
+    expect(card.classList.contains("sf-card-below")).toBe(true);
+    expect(card.style.top).toBe(`${90 + 10}px`);
+    expect(card.style.bottom).toBe("auto");
+  });
+
+  it("stays on screen and clear of the settings button near the right edge, still pointing at the word", () => {
+    window.innerWidth = 1280; window.innerHeight = 720;
+    const card = showOn(rect(1180, 600));
+
+    expect(card.style.left).toBe(`${1280 - 64 - 280}px`);
+    expect(card.style.getPropertyValue("--sf-tip")).toBe(`${280 - 14}px`);
   });
 });
 

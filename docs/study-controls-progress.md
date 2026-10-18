@@ -96,4 +96,10 @@ Pedido do usuário: fundo cinza, opções menos genéricas e separadas, compreen
 
 Verificação: typecheck, **551 testes em 36 arquivos** (5 novos: abas, fechar, mapa de cores, esmaecer/nível, e cada tecla desenhada conferida contra `commandFor`), build; capturas das três abas no Chrome headless; página com forma de Netflix de novo **20/20**. Não visto na Netflix real (o CSS da Netflix pode afetar botões dentro do contêiner em tela cheia).
 
+### Cartão da palavra mais compacto
+
+Pedido do usuário: "o dicionário ainda tá ruim, diminui um pouco, ele precisa ficar acima da palavra quando clicar na palavra, tente não deixar muito poluído visualmente". O cartão passou a ter 280 px, fundo cinza como o painel, e abre logo acima da palavra clicada, centrado nela, com uma ponta apontando para ela (`placeCard()` em `ui/word-card.ts`, usado pelas duas camadas). Fica ancorado pela borda de baixo, então a tradução que chega depois o faz crescer para cima, sem cobrir a palavra; só vai para baixo quando não cabe em cima (legenda arrastada para o alto). Saíram a fala e a tradução da fala (já estão na tela logo abaixo), o "EN → PT" e o botão "Remover marcação" (clicar de novo na marcação ativa remove); "Salvar palavra + frase" virou "Salvar"; a definição fica em até 3 linhas; os dicionários ficam numa linha discreta no rodapé ("Reverso Context" → "Reverso"). A palavra selecionada ganhou um véu claro no lugar do bloco verde-água, que escondia a cor dela.
+
+Verificação: typecheck, **555 testes** (posição acima, abaixo, perto da borda direita; sem repetir a fala; remover clicando de novo), build, `git diff --check`; capturas no Chrome headless com viewport fixa de 1280×720; página com forma de Netflix **20/20** e `player-test.html` **17/17**. Não visto na Netflix real.
+
 O que ficou para depois está em [proximos-passos.md](proximos-passos.md).

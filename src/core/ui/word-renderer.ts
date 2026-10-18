@@ -5,7 +5,7 @@ export const WORD_STYLES = `
 .sf-word:focus-visible, button:focus-visible, a:focus-visible, input:focus-visible, select:focus-visible { outline:2px solid #8ECBFF; outline-offset:3px; }
 .sf-word-new { color:#8ECBFF; } .sf-word-special { color:#C4A5FF; }
 .sf-word-difficult { color:#FF8A80; } .sf-word-learned { color:#81C784; }
-.sf-word:hover,.sf-selected { background:#00d4aa40; }
+.sf-word:hover { background:#ffffff24; } .sf-selected { background:#ffffff38; }
 `;
 export function createWordRenderer(container: HTMLElement, options: {
   status(word: string): WordStatus | null;

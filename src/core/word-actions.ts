@@ -24,7 +24,7 @@ export function dictionaryLinks(word: string, direction: LanguageDirection): Arr
   return [
     { label: "Linguee", url: `https://www.linguee.com/${english ? "english-portuguese" : "portuguese-english"}/search?query=${query}` },
     { label: "WordReference", url: `https://www.wordreference.com/${english ? "enpt" : "pten"}/${query}` },
-    { label: "Reverso Context", url: `https://context.reverso.net/traducao/${english ? "ingles-portugues" : "portugues-ingles"}/${query}` },
+    { label: "Reverso", url: `https://context.reverso.net/traducao/${english ? "ingles-portugues" : "portugues-ingles"}/${query}` },
     { label: "Cambridge", url: `https://dictionary.cambridge.org/dictionary/${english ? "english-portuguese" : "portuguese-english"}/${query}` },
   ];
 }

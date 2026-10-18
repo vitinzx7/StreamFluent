@@ -19,7 +19,7 @@ import { installShortcuts } from "../keyboard-shortcuts.ts";
 import { createTimedAutoPause, overlapGroups, type CueGroup } from "../auto-pause.ts";
 import { createWordActions } from "../word-actions.ts";
 import { createWordRenderer, WORD_STYLES } from "./word-renderer.ts";
-import { createWordCard, CARD_STYLES } from "./word-card.ts";
+import { createWordCard, placeCard, CARD_STYLES } from "./word-card.ts";
 import { createIdleFade, isolatePointer, IDLE_CLASS } from "./idle-fade.ts";
 import { CEFR_LEVELS, LEVEL_LABELS, isCefrLevel } from "../cefr.ts";
 
@@ -174,8 +174,8 @@ export function createTimedSubtitles(): { updatePlayer(state: PlayerSnapshot): v
     sessionId: studySession,
     isAlive: alive,
     showCard: (content, onSave, onMark) => {
-      positionCard();
       card.show(content, onSave, onMark);
+      positionCard();
     },
     refresh: () => renderer.refresh(),
     feedback: showFeedback,
@@ -190,10 +190,7 @@ export function createTimedSubtitles(): { updatePlayer(state: PlayerSnapshot): v
   function positionCard(): void {
     const rect = sourceLine.querySelector(".sf-selected")?.getBoundingClientRect();
     const view = currentDocument.defaultView;
-    const width = view?.innerWidth ?? 800;
-    cardElement.style.left = rect ? `${Math.max(8, Math.min(rect.left, width - 370 - 64))}px` : "50%";
-    cardElement.style.top = rect ? `${Math.max(8, rect.top - 220)}px` : "20%";
-    cardElement.style.transform = rect ? "" : "translateX(-50%)";
+    placeCard(cardElement, rect, { width: view?.innerWidth ?? 800, height: view?.innerHeight ?? 600 });
   }
 
   const video = (): HTMLVideoElement | null => snapshot?.video ?? null;

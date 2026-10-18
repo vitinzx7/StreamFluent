@@ -27,7 +27,7 @@ Na primeira instalação abre uma página que pergunta o seu nível de inglês (
 
 | Ação | Resultado |
 |---|---|
-| Clique esquerdo numa palavra | Abre o cartão com tradução, definição (inglês, quando a API tiver) e as opções **Difícil**, **Aprendida**, **Remover marcação** e **Salvar palavra + frase**. Marcar e salvar funcionam mesmo sem tradução. |
+| Clique esquerdo numa palavra | Abre um cartão pequeno logo acima da palavra, com tradução, definição (inglês, quando a API tiver) e os botões **Difícil**, **Aprendida** e **Salvar** (palavra + frase). Clicar de novo na marcação ativa a remove. Marcar e salvar funcionam mesmo sem tradução. |
 | Clique direito numa palavra | Marca como **difícil** na hora, sem abrir o cartão, sem tradução e sem internet. Fora das palavras o menu normal do navegador continua. |
 
 | Cor | Significado |
@@ -69,7 +69,7 @@ Ligada por `Q` ou pelo painel/popup (começa desligada e a escolha fica salva). 
 
 ### Cartão de palavra
 
-Além da tradução e da definição, o cartão tem **Ver em: Linguee · WordReference · Reverso Context · Cambridge**, que abrem a palavra nesses dicionários numa aba nova. O Linguee e o Reverso mostram a palavra em frases reais traduzidas, o que ajuda quando a tradução de uma palavra solta fica literal demais. A palavra só vai para esses sites se você clicar.
+Além da tradução e da definição, o cartão tem, no rodapé, **Linguee · WordReference · Reverso · Cambridge**, que abrem a palavra nesses dicionários numa aba nova. O Linguee e o Reverso mostram a palavra em frases reais traduzidas, o que ajuda quando a tradução de uma palavra solta fica literal demais. A palavra só vai para esses sites se você clicar.
 
 ### Biblioteca e seus dados
 
