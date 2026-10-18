@@ -9,6 +9,7 @@ import {
 import { STUDY_PREFIX, type StudyAction, type StudyReply } from "./study-messages.ts";
 import type { PersonalMark, StorageSchema, WordDetails } from "./types.ts";
 import { wordKey } from "./word-normalization.ts";
+import { createIndexedDbSeenStore, type SeenStore } from "./seen-store.ts";
 
 const KEYS = ["vocabulary", "phrases", "settings", "studyRevision"] as const;
 const ACTIONS = new Set<StudyAction>(["read", "observe", "set-mark", "save-phrase", "remove-phrase", "clear-phrases", "patch-settings", "toggle-auto-pause"]);
@@ -122,9 +123,22 @@ function validatePayload(action: StudyAction, value: unknown): Record<string, un
 export interface StudyStorageService {
   handle(message: unknown, sender: chrome.runtime.MessageSender): Promise<StudyReply<unknown>>;
 }
-/** The entire read/migrate/apply/write transaction is queued, including reads. */
-export function createStudyStorageService(storage: Pick<chrome.storage.LocalStorageArea, "get" | "set"> = chrome.storage.local): StudyStorageService {
+/**
+ * The entire read/migrate/apply/write transaction is queued, including reads.
+ * The seen-word history lives apart, in `seenWords` (IndexedDB in the
+ * worker): once storage holds no legacy history, a subtitle line costs no
+ * storage read or write at all, only new words are written.
+ */
+export function createStudyStorageService(
+  storage: Pick<chrome.storage.LocalStorageArea, "get" | "set"> = chrome.storage.local,
+  seenWords: SeenStore = createIndexedDbSeenStore(),
+): StudyStorageService {
   let queue: Promise<void> = Promise.resolve();
+  /** Storage was read, any legacy history moved out, and the result committed. */
+  let migrated = false;
+  let revision = 0;
+  const observed = (payload: Record<string, unknown>): Promise<string[]> =>
+    seenWords.add(payload.language as string, (payload.keys as string[]).map(wordKey));
   return {
     async handle(message, sender) {
       const requestId = isRecord(message) && typeof own(message, "requestId") === "string" ? own(message, "requestId") as string : "";
@@ -142,25 +156,27 @@ export function createStudyStorageService(storage: Pick<chrome.storage.LocalStor
         payload = validatePayload(action, own(message, "payload"));
       } catch (error) { return fail(error); }
       const result = queue.then(async (): Promise<StudyReply<unknown>> => {
+        if (action === "observe" && migrated) {
+          return { ok: true, requestId, revision, data: { freshKeys: await observed(payload) } };
+        }
         const raw = await storage.get([...KEYS]);
         const state: StorageSchema = {
           vocabulary: normalizeVocabulary(raw.vocabulary), phrases: normalizePhrases(raw.phrases),
           settings: normalizeSettings(raw.settings),
           studyRevision: typeof raw.studyRevision === "number" && Number.isSafeInteger(raw.studyRevision) && raw.studyRevision >= 0 ? raw.studyRevision : 0,
         };
+        // A history still inside `vocabulary` (older versions) moves to the seen
+        // store: written there before it is dropped here, so a failure in
+        // between only means migrating again — nothing is lost.
+        for (const [language, entry] of Object.entries(state.vocabulary.languages)) {
+          if (!entry.seen.length) continue;
+          await seenWords.add(language, entry.seen);
+          entry.seen = [];
+        }
         let data: unknown;
         switch (action) {
           case "read": data = { vocabulary: state.vocabulary, phrases: state.phrases, settings: state.settings }; break;
-          case "observe": {
-            const language = payload.language as string;
-            const entry = state.vocabulary.languages[language] ??= newLanguageVocabulary();
-            const seen = new Set(entry.seen);
-            const freshKeys: string[] = [];
-            for (const key of new Set((payload.keys as string[]).map(wordKey))) {
-              if (!seen.has(key)) { freshKeys.push(key); seen.add(key); }
-            }
-            entry.seen = [...seen]; data = { freshKeys }; break;
-          }
+          case "observe": data = { freshKeys: await observed(payload) }; break;
           case "set-mark": {
             const entry = state.vocabulary.languages[payload.language as string] ??= newLanguageVocabulary();
             const key = wordKey(payload.word as string);
@@ -178,7 +194,8 @@ export function createStudyStorageService(storage: Pick<chrome.storage.LocalStor
                 details.markedAt = existing ? existing.markedAt : now;
                 details.updatedAt = now;
                 entry.marks[key] = mark; entry.details[key] = details;
-                if (!entry.seen.includes(key)) entry.seen.push(key);
+                // A marked word has been seen.
+                await seenWords.add(payload.language as string, [key]);
               }
             }
             data = { vocabulary: state.vocabulary, changed }; break;
@@ -215,6 +232,8 @@ export function createStudyStorageService(storage: Pick<chrome.storage.LocalStor
           changes.studyRevision = ++state.studyRevision;
           await storage.set(changes);
         }
+        revision = state.studyRevision;
+        migrated = true;
         return { ok: true, requestId, revision: state.studyRevision, data };
       });
       queue = result.then(() => undefined, () => undefined);

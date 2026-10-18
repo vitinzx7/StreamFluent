@@ -1,5 +1,6 @@
 import { vi } from "vitest";
 import { createStudyStorageService } from "../../core/study-storage.ts";
+import { createMemorySeenStore } from "../../core/seen-store.ts";
 
 type Listener = (changes: Record<string, chrome.storage.StorageChange>, area: string) => void;
 
@@ -21,7 +22,10 @@ export function installStudyWorker(initial: Record<string, unknown> = {}) {
     }),
   };
   const extensionId = "a".repeat(32);
-  let service = createStudyStorageService(local as unknown as Pick<chrome.storage.LocalStorageArea, "get" | "set">);
+  // The seen history survives restarts like the worker's IndexedDB does.
+  const seen = createMemorySeenStore();
+  const create = () => createStudyStorageService(local as unknown as Pick<chrome.storage.LocalStorageArea, "get" | "set">, seen);
+  let service = create();
   const sendMessage = vi.fn(async (message: unknown) => service.handle(message, {
     id: extensionId, url: `chrome-extension://${extensionId}/library.html`, frameId: 0,
   }));
@@ -32,7 +36,8 @@ export function installStudyWorker(initial: Record<string, unknown> = {}) {
   return {
     storage, local, sendMessage,
     failNextWrite(error = new Error("QUOTA_BYTES quota exceeded")) { failure = error; },
-    restart() { service = createStudyStorageService(local as unknown as Pick<chrome.storage.LocalStorageArea, "get" | "set">); },
+    seen,
+    restart() { service = create(); },
     emit(changes: Record<string, chrome.storage.StorageChange>) { listeners.forEach((listener) => listener(changes, "local")); },
   };
 }

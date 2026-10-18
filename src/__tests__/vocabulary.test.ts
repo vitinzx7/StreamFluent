@@ -60,7 +60,7 @@ describe("confirmed personal marks", () => {
     expect(store.getMark("hello", "en")).toBe("learned");
     await store.setMark("hello", "en", null);
     expect(store.getMark("hello", "en")).toBeNull();
-    expect(stored().en.seen).toEqual(["hello"]);
+    expect((await worker.seen.all()).en).toEqual(["hello"]);
     expect(stored().en.details).toEqual({});
   });
   it("migrates legacy marks and drops malformed values", async () => {
@@ -82,10 +82,10 @@ describe("confirmed personal marks", () => {
   });
   it("retries failed seen history with the next useful cue", async () => {
     const store = create(); await store.ready;
-    worker.failNextWrite();
+    worker.seen.failNextWrite();
     await expect(store.observeLine("hello", "en", "one")).rejects.toThrow();
     await store.observeLine("world", "en", "two");
-    expect(new Set(stored().en.seen)).toEqual(new Set(["hello", "world"]));
+    expect(new Set((await worker.seen.all()).en)).toEqual(new Set(["hello", "world"]));
   });
 });
 

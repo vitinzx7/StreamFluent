@@ -79,7 +79,7 @@ describe("serialized operations", () => {
     expect((worker.storage.vocabulary as VocabularyV2).languages.en.marks.world).toBe("difficult");
     expect(worker.storage.settings).toBeDefined();
     await requestStudy("set-mark", { language: "en", word: "world", mark: null });
-    expect((worker.storage.vocabulary as VocabularyV2).languages.en.seen).toContain("world");
+    expect((await worker.seen.all()).en).toContain("world");
   });
   it("is idempotent for identical marks and retains details when changing status", async () => {
     await requestStudy("set-mark", { language: "en", word: "hello", mark: "difficult", details: { translation: "olá", displayWord: "Hello" } });
@@ -130,5 +130,56 @@ describe("local protocol boundary", () => {
       ["run-code", {}],
     ]) expect((await service.handle({ type: `sf:study:${action}`, requestId: "id", payload }, sender)).ok).toBe(false);
     expect(worker.local.set).not.toHaveBeenCalled();
+  });
+});
+
+describe("seen history outside chrome.storage", () => {
+  it("moves a legacy history into the seen store, keeping marks, and never writes it back", async () => {
+    worker.storage.vocabulary = { en: { seen: ["hello", "world"], marks: { world: "marked" } }, "pt-BR": { seen: ["olá"], marks: {} } };
+
+    const { data } = await requestStudy<{ vocabulary: VocabularyV2 }>("read");
+
+    expect(await worker.seen.all()).toEqual({ en: ["hello", "world"], "pt-BR": ["olá"] });
+    expect(data.vocabulary.languages.en).toMatchObject({ seen: [], marks: { world: "learned" } });
+    expect((worker.storage.vocabulary as VocabularyV2).languages.en.seen).toEqual([]);
+    const fresh = await requestStudy<{ freshKeys: string[] }>("observe", { language: "en", keys: ["hello", "again"], occurrenceId: "1" });
+    expect(fresh.data.freshKeys).toEqual(["again"]);
+    expect((worker.storage.vocabulary as VocabularyV2).languages.en.seen).toEqual([]);
+  });
+
+  it("keeps the legacy history in storage when the migration write fails, and finishes later", async () => {
+    worker.storage.vocabulary = { en: { seen: ["hello"], marks: {} } };
+    worker.failNextWrite();
+
+    await expect(requestStudy("read")).rejects.toThrow();
+    expect((worker.storage.vocabulary as { en: { seen: string[] } }).en.seen).toEqual(["hello"]);
+    expect((await worker.seen.all()).en).toEqual(["hello"]);
+
+    await requestStudy("read");
+    expect((worker.storage.vocabulary as VocabularyV2).languages.en.seen).toEqual([]);
+  });
+
+  it("answers a subtitle line without touching chrome.storage once migrated", async () => {
+    await requestStudy("read");
+    const reads = worker.local.get.mock.calls.length;
+    const writes = worker.local.set.mock.calls.length;
+
+    for (let i = 0; i < 20; i++) {
+      await requestStudy("observe", { language: "en", keys: ["word", `new${"x".repeat(i + 1)}`], occurrenceId: String(i) });
+    }
+
+    expect(worker.local.get.mock.calls.length).toBe(reads);
+    expect(worker.local.set.mock.calls.length).toBe(writes);
+    expect((await worker.seen.all()).en).toHaveLength(21);
+  });
+
+  it("reads storage again after a worker restart before trusting its fast path", async () => {
+    await requestStudy("read");
+    worker.restart();
+    worker.storage.vocabulary = { en: { seen: ["legacy"], marks: {} } };
+
+    const fresh = await requestStudy<{ freshKeys: string[] }>("observe", { language: "en", keys: ["legacy"], occurrenceId: "1" });
+
+    expect(fresh.data.freshKeys).toEqual([]);
   });
 });

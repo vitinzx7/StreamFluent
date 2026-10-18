@@ -153,7 +153,7 @@ describe("colour lifecycle of one word", () => {
     const en = vocabulary().languages.en;
     expect(en.marks).toEqual({});
     expect(en.details).toEqual({});
-    expect(en.seen).toContain("ambiguous");
+    expect((await worker.seen.all()).en).toContain("ambiguous");
     expect(phrases()).toEqual([]);
   });
 
@@ -381,7 +381,8 @@ describe("S02: nothing new leaves the machine", () => {
       "https://api.mymemory.translated.net/*",
       "https://clients5.google.com/*",
     ]);
-    expect(manifest.permissions).toEqual(["storage"]);
+    // unlimitedStorage lifts the 10 MB cap and keeps IndexedDB from eviction; it shows no install warning.
+    expect(manifest.permissions).toEqual(["storage", "unlimitedStorage"]);
     for (const url of [
       "https://linglify.com/pt-BR/learn/en/blog/hard-english-words",
       "https://www.oxfordlearnersdictionaries.com/definition/english/ambiguous",
