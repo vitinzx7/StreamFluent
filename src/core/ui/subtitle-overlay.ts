@@ -3,13 +3,10 @@ import { createWordCard, CARD_STYLES, type CardContent } from "./word-card.ts";
 export type { CardContent } from "./word-card.ts";
 import { EXTENSION_MARKER } from "../dom-utils.ts";
 import { createIdleFade, isolatePointer, IDLE_CLASS } from "./idle-fade.ts";
+import { bindPanel, PANEL_HTML, PANEL_STYLES } from "./settings-panel.ts";
 import { CEFR_LEVELS, LEVEL_LABELS, isCefrLevel } from "../cefr.ts";
-
-/** Constant markup: the six levels for a <select>. */
-const LEVEL_OPTIONS = CEFR_LEVELS.map((level) => `<option value="${level}">${LEVEL_LABELS[level]}</option>`).join("");
 import {
   clampSubtitleBottom,
-  DIRECTION_LABELS,
   isLanguageDirection,
   type Settings,
 } from "../settings.ts";
@@ -23,7 +20,7 @@ function ensureStyles(): void {
 
   const style = document.createElement("style");
   style.id = STYLE_ID;
-  style.textContent = WORD_STYLES + CARD_STYLES + `
+  style.textContent = WORD_STYLES + CARD_STYLES + PANEL_STYLES + `
     .sf-overlay {
       position: fixed;
       bottom: 12%;
@@ -64,63 +61,9 @@ function ensureStyles(): void {
     .sf-overlay.sf-dragging .sf-word {
       cursor: grabbing;
     }
-    /* Mid-height on the right edge: clear of the player's bottom bar (play,
-       volume, fullscreen) and of its top-left back arrow. */
-    .sf-panel {
-      position: fixed;
-      top: 50%;
-      right: 68px;
-      transform: translateY(-50%);
-      max-height: calc(100vh - 32px);
-      overflow: auto;
-      z-index: 100001;
-      width: 232px;
-      padding: 14px;
-      border-radius: 10px;
-      background: #1a1a2e;
-      border: 1px solid rgba(0, 212, 170, 0.3);
-      box-shadow: 0 8px 32px rgba(0, 0, 0, 0.6);
-      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
-      color: #e0e0e0;
-      font-size: 13px;
-    }
-    .sf-panel.sf-hidden {
-      display: none;
-    }
-    .sf-panel-title {
-      font-size: 11px;
-      font-weight: 600;
-      letter-spacing: 0.5px;
-      text-transform: uppercase;
-      color: #00d4aa;
-      margin-bottom: 12px;
-    }
-    .sf-panel-row {
-      display: flex;
-      align-items: center;
-      justify-content: space-between;
-      gap: 10px;
-      margin-bottom: 10px;
-      cursor: pointer;
-    }
-    .sf-panel-row input[type="checkbox"] {
-      width: 15px;
-      height: 15px;
-      accent-color: #00d4aa;
-      cursor: pointer;
-      flex: none;
-    }
-    .sf-panel-row select {
-      flex: 1;
-      min-width: 0;
-      padding: 5px 6px;
-      border: 1px solid #2a3a5c;
-      border-radius: 5px;
-      background: #16213e;
-      color: #e0e0e0;
-      font-size: 12px;
-      cursor: pointer;
-    }
+    /* The panel itself is styled in settings-panel.ts (mid-height on the right
+       edge, clear of the player's bottom bar and of its top-left back arrow).
+       This plain button is also the copy box's "Fechar". */
     .sf-panel-btn {
       display: block;
       width: 100%;
@@ -135,26 +78,6 @@ function ensureStyles(): void {
     }
     .sf-panel-btn:hover {
       background: #1a3a5c;
-    }
-    .sf-panel-legend {
-      display: flex;
-      gap: 12px;
-      font-size: 12px;
-      font-weight: 700;
-      margin: 2px 0 4px;
-    }
-    .sf-panel-hint {
-      font-size: 11px;
-      color: #8a94a6;
-      margin-top: 10px;
-      line-height: 1.4;
-    }
-    .sf-panel-actions {
-      display: flex;
-      gap: 6px;
-    }
-    .sf-panel-actions .sf-panel-btn {
-      margin-top: 8px;
     }
     .sf-feedback {
       position: fixed;
@@ -537,48 +460,11 @@ export function createSubtitleOverlay(options: OverlayOptions): {
   const panel = document.createElement("div");
   panel.className = "sf-panel sf-hidden";
   markElement(panel);
-  panel.innerHTML = `
-    <div class="sf-panel-title">StreamFluent</div>
-    <label class="sf-panel-row">
-      <span>Translated line</span>
-      <input type="checkbox" data-sf="translation" />
-    </label>
-    <label class="sf-panel-row">
-      <span>Colour new words</span>
-      <input type="checkbox" data-sf="new-words" />
-    </label>
-    <label class="sf-panel-row sf-panel-level">
-      <span>Meu nível de inglês</span>
-      <select data-sf="level"><option value="">Escolher…</option>${LEVEL_OPTIONS}</select>
-    </label>
-    <label class="sf-panel-row"><span>Destacar palavras acima do meu nível (inglês)</span><input type="checkbox" data-sf="special-words" /></label>
-    <label class="sf-panel-row"><span>Pausa automática</span><input type="checkbox" data-sf="auto-pause" /></label>
-    <div class="sf-panel-legend">
-      <span class="sf-legend-new">Nova</span>
-      <span class="sf-legend-difficult">Difícil</span>
-      <span class="sf-legend-learned">Aprendida</span>
-      <span class="sf-legend-special">Acima do nível</span>
-    </div>
-    <label class="sf-panel-row">
-      <select data-sf="direction">
-        <option value="en-pt">${DIRECTION_LABELS["en-pt"]}</option>
-        <option value="pt-en">${DIRECTION_LABELS["pt-en"]}</option>
-      </select>
-    </label>
-    <div class="sf-panel-actions">
-      <button class="sf-panel-btn" data-sf="copy-line">Copiar fala</button>
-      <button class="sf-panel-btn" data-sf="save-line">Salvar fala</button>
-    </div>
-    <button class="sf-panel-btn" data-sf="library">Frases salvas</button>
-    <button class="sf-panel-btn" data-sf="difficult-library">Palavras difíceis</button>
-    <div class="sf-panel-hint">
-      A: fala anterior · S: repetir fala · D: avançar 5 s · Espaço: reproduzir/pausar ·
-      Q: pausa automática · R: salvar fala · Ctrl/⌘+C: copiar fala.
-      Clique numa palavra para consultar; botão direito marca como difícil.
-      Arraste a legenda para cima ou para baixo para movê-la.
-    </div>
-  `;
+  panel.setAttribute("role", "dialog");
+  panel.setAttribute("aria-label", "Painel do StreamFluent");
+  panel.innerHTML = PANEL_HTML;
   document.body.appendChild(panel);
+  const panelView = bindPanel(panel, () => panel.classList.add("sf-hidden"));
 
   const translationInput = panel.querySelector<HTMLInputElement>('[data-sf="translation"]');
   const directionSelect = panel.querySelector<HTMLSelectElement>('[data-sf="direction"]');
@@ -643,7 +529,7 @@ export function createSubtitleOverlay(options: OverlayOptions): {
   const fab = document.createElement("button");
   fab.className = "sf-fab";
   fab.textContent = "Aa";
-  fab.title = "StreamFluent settings";
+  fab.title = "Ajustes, cores e teclas do StreamFluent";
   markElement(fab);
   fab.setAttribute("aria-label", "Configurações do StreamFluent");
   fab.addEventListener("click", (e) => {
@@ -802,6 +688,7 @@ export function createSubtitleOverlay(options: OverlayOptions): {
       if (levelSelect) levelSelect.value = settings.level ?? "";
       chosenLevel = settings.level;
       if (settings.level) hideLevelPrompt();
+      panelView.apply(settings);
       // Turning it off should take effect now, not at the next subtitle.
       if (!settings.showTranslation) targetLine.textContent = "";
       // Skip while dragging: the change we just saved would fight the cursor.

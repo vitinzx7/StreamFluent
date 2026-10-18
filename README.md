@@ -101,7 +101,7 @@ Um deslocamento fixo não resolve descompasso crescente ou legendas de outra edi
 
 ## Netflix e Max
 
-Habilite as legendas no site. A camada StreamFluent substitui as legendas do player, com as palavras clicáveis e a tradução da fala por baixo. O botão **Aa** abre o painel: tradução da fala, cores, pausa automática, direção, copiar/salvar fala e links da biblioteca. Arraste a legenda para mudar a posição. A biblioteca abre pelo service worker.
+Habilite as legendas no site. A camada StreamFluent substitui as legendas do player, com as palavras clicáveis e a tradução da fala por baixo. O botão **Aa** abre o painel, em três abas: **Ajustes** (tradução da fala, idioma, nível, pausa automática, copiar/salvar fala e biblioteca), **Cores** (o que cada cor quer dizer, com as chaves para ligar o azul e o lilás) e **Teclas** (o mapa das teclas e do mouse). Arraste a legenda para mudar a posição. A biblioteca abre pelo service worker.
 
 Na Netflix, saltos e play/pause passam pela API do próprio player (não documentada), nunca por `video.currentTime`, que quebra o player dela (M7375). Se essa API mudar, os saltos falham sem afetar a reprodução e o Espaço volta para a Netflix. Na Max, os comandos usam o elemento de vídeo diretamente (não verificado no site real).
 

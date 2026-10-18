@@ -8,6 +8,7 @@ import {
   type OverlayOptions,
 } from "../core/ui/subtitle-overlay.ts";
 import { DEFAULT_SETTINGS, type Settings } from "../core/settings.ts";
+import { commandFor } from "../core/keyboard-shortcuts.ts";
 
 let overlay: ReturnType<typeof createSubtitleOverlay> | null = null;
 
@@ -332,6 +333,67 @@ describe("marking from the card", () => {
     create().overlay.showCard(content(), vi.fn());
 
     expect(document.querySelectorAll(".sf-card-mark:not([hidden])").length).toBe(0);
+  });
+});
+
+describe("panel tabs and guides", () => {
+  const tab = (id: string) => panel().querySelector<HTMLButtonElement>(`[data-tab="${id}"]`)!;
+  const tabPanel = (id: string) => panel().querySelector<HTMLElement>(`[data-tabpanel="${id}"]`)!;
+  const row = (color: string) => panel().querySelector<HTMLElement>(`.sf-color-row[data-color="${color}"]`)!;
+
+  it("opens on the settings tab and shows one tab at a time", () => {
+    create();
+    fab().click();
+    expect(tab("settings").getAttribute("aria-selected")).toBe("true");
+    expect([tabPanel("settings").hidden, tabPanel("colors").hidden, tabPanel("keys").hidden]).toEqual([false, true, true]);
+
+    tab("keys").click();
+
+    expect(tab("keys").getAttribute("aria-selected")).toBe("true");
+    expect(tab("settings").getAttribute("aria-selected")).toBe("false");
+    expect([tabPanel("settings").hidden, tabPanel("colors").hidden, tabPanel("keys").hidden]).toEqual([true, true, false]);
+  });
+
+  it("closes from its own button", () => {
+    create();
+    fab().click();
+
+    panel().querySelector<HTMLButtonElement>('[data-sf="panel-close"]')!.click();
+
+    expect(panel().classList.contains("sf-hidden")).toBe(true);
+  });
+
+  it("maps every word colour with the subtitle's own colour classes", () => {
+    create();
+    const colors = [...panel().querySelectorAll<HTMLElement>(".sf-color-row")].map((r) => r.dataset.color);
+    expect(colors).toEqual(["normal", "new", "special", "difficult", "learned", "translation"]);
+    expect(row("new").querySelector(".sf-chip")!.classList.contains("sf-legend-new")).toBe(true);
+    // The colour switches live in the map, next to the colour they turn on.
+    expect(row("new").querySelector('[data-sf="new-words"]')).not.toBeNull();
+    expect(row("special").querySelector('[data-sf="special-words"]')).not.toBeNull();
+  });
+
+  it("fades a colour that is switched off and names the chosen level", () => {
+    const { overlay: o } = create({ highlightNewWords: false, highlightSpecialWords: true, level: null });
+    expect(row("new").classList.contains("sf-off")).toBe(true);
+    expect(row("special").classList.contains("sf-off")).toBe(false);
+    expect(row("special").textContent).toContain("Escolha o seu nível");
+
+    o.applySettings({ ...DEFAULT_SETTINGS, highlightNewWords: true, highlightSpecialWords: false, level: "B1" });
+
+    expect(row("new").classList.contains("sf-off")).toBe(false);
+    expect(row("special").classList.contains("sf-off")).toBe(true);
+    expect(row("special").textContent).toContain("B1 · Intermediário");
+  });
+
+  it("draws each shortcut key with the command the keyboard really runs", () => {
+    create();
+    const keys = [...panel().querySelectorAll<HTMLElement>(".sf-key[data-command]")];
+
+    expect(keys.map((k) => k.dataset.command).sort()).toEqual(["auto-pause", "forward", "previous", "repeat", "save-line", "toggle"]);
+    for (const key of keys) {
+      expect(commandFor(new KeyboardEvent("keydown", { key: key.dataset.key! }))).toBe(key.dataset.command);
+    }
   });
 });
 

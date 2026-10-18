@@ -90,4 +90,10 @@ O usuário usou a versão dos blocos 1–10 na **Netflix real** (episódio do Gu
   - biblioteca: **4/4** — exportação baixa `streamfluent-backup-AAAA-MM-DD.json`, "Apagar todos os dados" esvazia storage e IndexedDB mantendo o nível, importar o arquivo pelo seletor restaura marcas, frases e histórico.
 - Não verificado: Netflix real com estas mudanças, Max e Cinetaro reais, tempo real de resposta dos tradutores (a rede estava bloqueada), e se os sites de dicionário abrem com as URLs geradas (eles bloqueiam acesso automatizado; o Linguee respondeu 200).
 
+### Painel do player redesenhado
+
+Pedido do usuário: fundo cinza, opções menos genéricas e separadas, compreensível para leigo, com um mapa de cores e um de teclas. O painel do **Aa** (Netflix/Max) virou `ui/settings-panel.ts`: fundo cinza neutro, três abas (**Ajustes**, **Cores**, **Teclas**), seções com título, chaves no lugar das caixas de seleção, textos em português sem jargão ("Idioma da legenda: Inglês (traduzir para português)" no lugar de "EN → PT"). Cores: cada cor numa faixa escura, como na legenda, com o significado; as chaves do azul e do lilás ficam na linha da cor, que esmaece quando desligada, e o lilás diz o nível escolhido. Teclas: mini teclado na posição real (Q W E R / A S D / Espaço), outras teclas e ações do mouse. Os `data-sf` e handlers não mudaram. O painel do HTML5 (Cinetaro) não foi alterado.
+
+Verificação: typecheck, **551 testes em 36 arquivos** (5 novos: abas, fechar, mapa de cores, esmaecer/nível, e cada tecla desenhada conferida contra `commandFor`), build; capturas das três abas no Chrome headless; página com forma de Netflix de novo **20/20**. Não visto na Netflix real (o CSS da Netflix pode afetar botões dentro do contêiner em tela cheia).
+
 O que ficou para depois está em [proximos-passos.md](proximos-passos.md).
