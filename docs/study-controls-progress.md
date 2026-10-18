@@ -30,4 +30,4 @@ Em 18/10/2026, após o pedido de passagem para outra IA:
 - Node.js 24.19.0; npm 11.9.0.
 - Nenhum player real Netflix/Max/Cinetaro foi validado nesta implementação. Não houve teste de browser da fixture nesta etapa.
 
-Esses resultados validam o código presente e os testes controlados, não a conclusão das funcionalidades ainda sem integração. O guia de retomada será salvo em `docs/CONTINUAR-AQUI.md` com a especificação integral no mesmo repositório.
+Esses resultados validam o código presente e os testes controlados, não a conclusão das funcionalidades ainda sem integração. O guia de retomada está em `docs/CONTINUAR-AQUI.md`, e a especificação integral foi preservada em `docs/StreamFluent-especificacao-implementacao.md`. Checkpoint do código parcial do bloco 5: `c20091b074460ea831706a84eca8631fbb12fe2f`.

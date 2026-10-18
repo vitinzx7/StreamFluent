@@ -2,6 +2,10 @@
 
 This file provides guidance to Codex (Codex.ai/code) when working with code in this repository.
 
+## Active study-controls checkpoint
+
+Implementation is paused after blocks 1–4 and an initial block 5 WIP. Read [docs/CONTINUAR-AQUI.md](docs/CONTINUAR-AQUI.md), [the full specification](docs/StreamFluent-especificacao-implementacao.md), and [progress](docs/study-controls-progress.md) before continuing. Some architecture sections below still describe the original baseline (including `marked`, distributed writes, and the old HTML5 limitations); reconcile them with the actual checkpoint code. Full documentation cleanup is pending block 10.
+
 ## What this is
 
 StreamFluent is a Chrome Manifest V3 extension that overlays interactive subtitles on Netflix and Max, letting users click a subtitle word to look up its definition (via the free Dictionary API) and save the word+sentence as a "phrase" for later review in a library page.
