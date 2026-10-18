@@ -1,9 +1,10 @@
-import { getLangPair, DIRECTION_LABELS } from "./settings.ts";
+import { getLangPair, DIRECTION_LABELS, type LanguageDirection } from "./settings.ts";
 import { PhraseRepository } from "./storage.ts";
 import { wordContext, type StudySnapshot } from "./study-context.ts";
 import { translateWord, type TranslationResult } from "./translation.ts";
 import type { CardContent } from "./ui/word-card.ts";
 import type { VocabularyStore, WordMark } from "./vocabulary.ts";
+import { wordKey } from "./word-normalization.ts";
 
 /** Phonetic + definition + example, collapsed into the card's second line. */
 export function formatDefinition(result: TranslationResult): string {
@@ -11,6 +12,21 @@ export function formatDefinition(result: TranslationResult): string {
   const phonetic = result.phonetic ? `${result.phonetic} ` : "";
   const example = result.example ? ` e.g. "${result.example}"` : "";
   return `${phonetic}${result.definition}${example}`;
+}
+
+/**
+ * Reliable bilingual dictionaries for the clicked word. Only links: nothing
+ * is fetched or scraped, and the word reaches a site only if the user opens it.
+ */
+export function dictionaryLinks(word: string, direction: LanguageDirection): Array<{ label: string; url: string }> {
+  const query = encodeURIComponent(word);
+  const english = direction === "en-pt";
+  return [
+    { label: "Linguee", url: `https://www.linguee.com/${english ? "english-portuguese" : "portuguese-english"}/search?query=${query}` },
+    { label: "WordReference", url: `https://www.wordreference.com/${english ? "enpt" : "pten"}/${query}` },
+    { label: "Reverso Context", url: `https://context.reverso.net/traducao/${english ? "ingles-portugues" : "portugues-ingles"}/${query}` },
+    { label: "Cambridge", url: `https://dictionary.cambridge.org/dictionary/${english ? "english-portuguese" : "portuguese-english"}/${query}` },
+  ];
 }
 
 export interface WordActionsOptions {
@@ -81,6 +97,7 @@ export function createWordActions(options: WordActionsOptions) {
         directionLabel: DIRECTION_LABELS[direction],
         state,
         mark: options.vocabulary.getMark(word, language),
+        links: dictionaryLinks(wordKey(word) || word, direction),
       }, save, mark);
 
       // The card and its mark buttons are usable while the lookup runs.

@@ -115,10 +115,42 @@ async function fetchMyMemoryTranslation(
   return trimmed;
 }
 
-async function fetchTranslation(text: string, direction: LanguageDirection): Promise<string> {
-  const google = await fetchGoogleTranslation(text, direction).catch(() => "");
-  if (google) return google;
-  return fetchMyMemoryTranslation(text, direction).catch(() => "");
+/**
+ * Google is preferred, but it can hang for seconds. Past this, MyMemory is
+ * asked too and the first useful answer wins; a Google failure asks MyMemory
+ * at once instead of waiting for its 10 s timeout. MyMemory's anonymous quota
+ * is small, so it is not asked for lines Google answers quickly.
+ */
+export const HEDGE_MS = 1200;
+
+function fetchTranslation(text: string, direction: LanguageDirection): Promise<string> {
+  return new Promise((resolve) => {
+    let settled = false;
+    let pending = 0;
+    let fallbackStarted = false;
+    const finish = (value: string): void => {
+      if (settled) return;
+      pending--;
+      // Done on the first translation, or once every provider asked came back empty.
+      if (value || (pending === 0 && fallbackStarted)) {
+        settled = true;
+        clearTimeout(timer);
+        resolve(value);
+      }
+    };
+    const fallback = (): void => {
+      if (fallbackStarted || settled) return;
+      fallbackStarted = true;
+      pending++;
+      void fetchMyMemoryTranslation(text, direction).catch(() => "").then(finish);
+    };
+    pending++;
+    void fetchGoogleTranslation(text, direction).catch(() => "").then((google) => {
+      if (!google) fallback();
+      finish(google);
+    });
+    const timer = setTimeout(fallback, HEDGE_MS);
+  });
 }
 
 function remember(key: string, result: TranslationResult): void {

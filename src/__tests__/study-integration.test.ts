@@ -196,6 +196,25 @@ describe("colour lifecycle of one word", () => {
     expect(phrases()).toEqual([expect.objectContaining({ kind: "word", sentence: "Hello world", selectedWord: "world" })]);
   });
 
+  it("offers dictionary links in the card that open in a new tab, without fetching them", async () => {
+    worker = installStudyWorker();
+    const p = player();
+    await boot();
+    await p.ready();
+    p.line("They ran away");
+    await flush();
+
+    word("ran").click();
+    await flush();
+
+    const links = [...document.querySelectorAll<HTMLAnchorElement>(".sf-card-links a")];
+    expect(links.map((link) => link.textContent)).toEqual(["Linguee", "WordReference", "Reverso Context", "Cambridge"]);
+    expect(links[1].href).toBe("https://www.wordreference.com/enpt/ran");
+    expect(links.every((link) => link.target === "_blank" && link.rel === "noopener noreferrer")).toBe(true);
+    const types = worker.sendMessage.mock.calls.map(([message]) => (message as { type: string }).type);
+    expect(types.every((type) => type.startsWith("sf:study:"))).toBe(true);
+  });
+
   it("S01: subtitle text that looks like HTML is shown as text", async () => {
     worker = installStudyWorker();
     const p = player();

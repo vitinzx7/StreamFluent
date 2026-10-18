@@ -250,3 +250,68 @@ describe("translateWord", () => {
     expect((await translateWord("run", "en-pt")).error).toBe("Translation unavailable.");
   });
 });
+
+describe("a slow provider does not hold the translated line", () => {
+  /** fetch whose providers answer after the given delays (ms), or fail when null. */
+  function timedFetch(delays: { google: number | null; mymemory: number | null }) {
+    const reply = (ok: boolean, body: unknown) => ({ ok, json: async () => body });
+    const fn = vi.fn((url: string) => {
+      const google = url.includes("clients5.google.com");
+      const delay = google ? delays.google : delays.mymemory;
+      const body = google ? [["Olá do Google"]] : myMemoryOk("Olá do MyMemory");
+      return new Promise((resolve) => setTimeout(() => resolve(delay === null ? reply(false, {}) : reply(true, body)), delay ?? 0));
+    });
+    vi.stubGlobal("fetch", fn);
+    return fn;
+  }
+  const asked = (fn: ReturnType<typeof vi.fn>, host: string) => fn.mock.calls.filter(([url]) => String(url).includes(host)).length;
+
+  it("uses Google alone when it answers quickly", async () => {
+    vi.useFakeTimers();
+    const fn = timedFetch({ google: 300, mymemory: 0 });
+
+    const result = translateSentence("Hello", "en-pt");
+    await vi.advanceTimersByTimeAsync(300);
+
+    expect(await result).toBe("Olá do Google");
+    await vi.advanceTimersByTimeAsync(5000);
+    expect(asked(fn, "mymemory")).toBe(0);
+    vi.useRealTimers();
+  });
+
+  it("asks MyMemory after 1.2 s and takes its answer while Google still hangs", async () => {
+    vi.useFakeTimers();
+    const fn = timedFetch({ google: 8000, mymemory: 200 });
+
+    const result = translateSentence("Hello", "en-pt");
+    await vi.advanceTimersByTimeAsync(1199);
+    expect(asked(fn, "mymemory")).toBe(0);
+    await vi.advanceTimersByTimeAsync(201);
+
+    expect(await result).toBe("Olá do MyMemory");
+    vi.useRealTimers();
+  });
+
+  it("asks MyMemory at once when Google fails", async () => {
+    vi.useFakeTimers();
+    const fn = timedFetch({ google: null, mymemory: 100 });
+
+    const result = translateSentence("Hello", "en-pt");
+    await vi.advanceTimersByTimeAsync(100);
+
+    expect(asked(fn, "mymemory")).toBe(1);
+    expect(await result).toBe("Olá do MyMemory");
+    vi.useRealTimers();
+  });
+
+  it("reports no translation when both fail", async () => {
+    vi.useFakeTimers();
+    timedFetch({ google: null, mymemory: null });
+
+    const result = translateSentence("Hello", "en-pt");
+    await vi.advanceTimersByTimeAsync(2000);
+
+    expect(await result).toBe("");
+    vi.useRealTimers();
+  });
+});

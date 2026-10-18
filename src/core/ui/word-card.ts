@@ -4,6 +4,8 @@ export interface CardContent {
   directionLabel: string; state: "loading" | "ready" | "error"; mark?: WordMark | null;
   /** A new click supplies a new identity; translation updates reuse it. */
   identity?: string;
+  /** Dictionary sites for this word, opened in a new tab only when clicked. */
+  links?: Array<{ label: string; url: string }>;
 }
 export const CARD_STYLES = `
 .sf-card { pointer-events:auto; background:#1a1a2e; color:#e0e0e0; border:1px solid #00d4aa55; border-radius:10px; padding:14px 18px; max-width:360px; font:14px/1.5 system-ui,sans-serif; box-shadow:0 8px 32px #0009; white-space:normal; user-select:text; }
@@ -14,10 +16,12 @@ export const CARD_STYLES = `
 .sf-card button { color:inherit; background:#26344c; border:1px solid #536078; border-radius:5px; padding:6px; cursor:pointer; font:inherit; }
 .sf-card .sf-active { outline:2px solid currentColor; } .sf-card .sf-mark-difficult { color:#FF8A80; } .sf-card .sf-mark-learned { color:#81C784; }
 .sf-card-feedback { font-size:12px; min-height:1.5em; }
+.sf-card-links { font-size:12px; margin:8px 0 0; color:#9aa3b5; } .sf-card-links:empty { display:none; }
+.sf-card-links a { color:#8ECBFF; margin-right:8px; }
 `;
 export function createWordCard(card: HTMLElement, onClose?: () => void) {
   // Static shell only; all untrusted content is assigned through textContent.
-  card.innerHTML = `<div class="sf-card-head"><span class="sf-card-word"></span><span class="sf-card-dir"></span><button type="button" class="sf-card-close" aria-label="Fechar cartão">×</button></div><div class="sf-card-translation"></div><div class="sf-card-definition"></div><div class="sf-card-sentence"></div><div class="sf-card-sentence-translation"></div><div class="sf-card-actions"><button type="button" class="sf-card-btn">Salvar palavra + frase</button><button type="button" class="sf-card-mark sf-mark-difficult" data-mark="difficult">Difícil</button><button type="button" class="sf-card-mark sf-mark-learned" data-mark="learned">Aprendida</button><button type="button" class="sf-card-mark" data-mark="">Remover marcação</button></div><div class="sf-card-feedback" role="status" aria-live="polite"></div>`;
+  card.innerHTML = `<div class="sf-card-head"><span class="sf-card-word"></span><span class="sf-card-dir"></span><button type="button" class="sf-card-close" aria-label="Fechar cartão">×</button></div><div class="sf-card-translation"></div><div class="sf-card-definition"></div><div class="sf-card-sentence"></div><div class="sf-card-sentence-translation"></div><div class="sf-card-actions"><button type="button" class="sf-card-btn">Salvar palavra + frase</button><button type="button" class="sf-card-mark sf-mark-difficult" data-mark="difficult">Difícil</button><button type="button" class="sf-card-mark sf-mark-learned" data-mark="learned">Aprendida</button><button type="button" class="sf-card-mark" data-mark="">Remover marcação</button></div><div class="sf-card-links"></div><div class="sf-card-feedback" role="status" aria-live="polite"></div>`;
   const find = <T extends HTMLElement>(name: string) => card.querySelector<T>(name)!;
   const feedback = find(".sf-card-feedback");
   const saveButton = find<HTMLButtonElement>(".sf-card-btn");
@@ -64,6 +68,19 @@ export function createWordCard(card: HTMLElement, onClose?: () => void) {
         ".sf-card-translation": content.state === "loading" ? "Traduzindo…" : content.translation || "Tradução indisponível; você pode marcar e salvar o original.",
         ".sf-card-definition": content.definition, ".sf-card-sentence": content.sentence, ".sf-card-sentence-translation": content.sentenceTranslation };
       for (const [selector, text] of Object.entries(fields)) find(selector).textContent = text;
+      const links = find(".sf-card-links");
+      links.replaceChildren();
+      if (content.links?.length) {
+        links.append(card.ownerDocument.createTextNode("Ver em: "));
+        for (const link of content.links) {
+          const anchor = card.ownerDocument.createElement("a");
+          anchor.textContent = link.label;
+          anchor.href = link.url;
+          anchor.target = "_blank";
+          anchor.rel = "noopener noreferrer";
+          links.append(anchor);
+        }
+      }
       markButtons.forEach(button => { button.hidden = !mark; }); showMark(confirmed);
       card.classList.remove("sf-hidden");
     }, hide,
