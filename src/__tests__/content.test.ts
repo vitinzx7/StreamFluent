@@ -239,7 +239,7 @@ describe("word colours", () => {
     await boot();
 
     emit("Hello world");
-    await Promise.resolve();
+    await new Promise((resolve) => setTimeout(resolve, 0));
 
     expect(vocabulary.observeLine).toHaveBeenCalledWith("Hello world", "en", expect.any(String));
     expect(options.getWordStatus?.("Hello")).toBe("new");
@@ -252,7 +252,7 @@ describe("word colours", () => {
     emit("Hello");
 
     // A position change preserves the same occurrence.
-    await Promise.resolve();
+    await new Promise((resolve) => setTimeout(resolve, 0));
     settingsChanged({ ...defaults, subtitleBottom: 40 });
 
     expect(vocabulary.observeLine).toHaveBeenCalledTimes(1);
@@ -481,6 +481,7 @@ describe("auto-pause on DOM subtitles", () => {
     return { video, pause, resume };
   }
 
+  // The translated line is off here: these lines go up at once, as they would without it.
   const settle = () => new Promise((resolve) => setTimeout(resolve, 10));
   const shownLines = () => overlay.update.mock.calls.map(([text]) => text);
   const observed = () => vocabulary.observeLine.mock.calls.map(([text]) => text);
@@ -489,7 +490,7 @@ describe("auto-pause on DOM subtitles", () => {
 
   it("A02: pauses when the line is replaced and keeps the line that ended on screen", async () => {
     const { pause } = playingAdapter();
-    mocks.getSettings.mockResolvedValue({ ...defaults, autoPause: true });
+    mocks.getSettings.mockResolvedValue({ ...defaults, autoPause: true, showTranslation: false });
     await boot();
 
     emit("Where were you?");
@@ -504,7 +505,7 @@ describe("auto-pause on DOM subtitles", () => {
 
   it("R and copy work on the retained line, not on the hidden live one", async () => {
     playingAdapter();
-    mocks.getSettings.mockResolvedValue({ ...defaults, autoPause: true });
+    mocks.getSettings.mockResolvedValue({ ...defaults, autoPause: true, showTranslation: false });
     mocks.savePhrase.mockResolvedValue({ phrase: {}, duplicate: false });
     await boot();
     emit("Where were you?");
@@ -520,7 +521,7 @@ describe("auto-pause on DOM subtitles", () => {
 
   it("A03: resuming shows the live line and records its words then", async () => {
     const { pause, resume } = playingAdapter();
-    mocks.getSettings.mockResolvedValue({ ...defaults, autoPause: true });
+    mocks.getSettings.mockResolvedValue({ ...defaults, autoPause: true, showTranslation: false });
     await boot();
     emit("Where were you?");
     emit("At home.");
@@ -535,7 +536,7 @@ describe("auto-pause on DOM subtitles", () => {
 
   it("A06: switching auto-pause off while paused keeps the video paused and the line retained", async () => {
     const { video } = playingAdapter();
-    mocks.getSettings.mockResolvedValue({ ...defaults, autoPause: true });
+    mocks.getSettings.mockResolvedValue({ ...defaults, autoPause: true, showTranslation: false });
     await boot();
     emit("Where were you?");
     emit("At home.");
@@ -549,7 +550,7 @@ describe("auto-pause on DOM subtitles", () => {
 
   it("a seek releases the retained line", async () => {
     const { video } = playingAdapter();
-    mocks.getSettings.mockResolvedValue({ ...defaults, autoPause: true });
+    mocks.getSettings.mockResolvedValue({ ...defaults, autoPause: true, showTranslation: false });
     await boot();
     emit("Where were you?");
     emit("At home.");
@@ -562,6 +563,7 @@ describe("auto-pause on DOM subtitles", () => {
 
   it("stays off by default", async () => {
     const { pause } = playingAdapter();
+    mocks.getSettings.mockResolvedValue({ ...defaults, showTranslation: false });
     await boot();
 
     emit("Where were you?");
@@ -570,6 +572,100 @@ describe("auto-pause on DOM subtitles", () => {
 
     expect(pause).not.toHaveBeenCalled();
     expect(shownLines()).toEqual(["Where were you?", "At home."]);
+  });
+});
+
+describe("the line and its translation appear together", () => {
+  const ticks = () => new Promise((resolve) => setTimeout(resolve, 0));
+  const lastShown = () => overlay.update.mock.calls[overlay.update.mock.calls.length - 1]?.[0];
+
+  afterEach(() => vi.useRealTimers());
+
+  it("holds the original until its translation arrives, then shows both at once", async () => {
+    const request = deferred<string>();
+    mocks.translateSentence.mockReturnValue(request.promise);
+    await boot();
+
+    emit("Hello");
+    expect(overlay.update).not.toHaveBeenCalledWith("Hello");
+    expect(vocabulary.observeLine).not.toHaveBeenCalled();
+
+    request.resolve("Olá");
+    await ticks();
+
+    expect(lastShown()).toBe("Hello");
+    expect(overlay.setTranslation).toHaveBeenCalledWith("Hello", "Olá");
+    const order = overlay.update.mock.invocationCallOrder;
+    expect(order[order.length - 1]).toBeLessThan(overlay.setTranslation.mock.invocationCallOrder[0]);
+    expect(vocabulary.observeLine).toHaveBeenCalledWith("Hello", "en", expect.any(String));
+  });
+
+  it("takes the previous line off at once, without the new one", async () => {
+    mocks.translateSentence.mockResolvedValueOnce("Olá").mockReturnValue(new Promise(() => {}));
+    await boot();
+    emit("Hello");
+    await ticks();
+
+    emit("Goodbye");
+
+    expect(lastShown()).toBeNull();
+  });
+
+  it("puts the original up alone after the wait, and the translation joins it later", async () => {
+    vi.useFakeTimers();
+    const request = deferred<string>();
+    mocks.translateSentence.mockReturnValue(request.promise);
+    await boot();
+    emit("Hello");
+
+    await vi.advanceTimersByTimeAsync(999);
+    expect(overlay.update).not.toHaveBeenCalledWith("Hello");
+    await vi.advanceTimersByTimeAsync(1);
+    expect(lastShown()).toBe("Hello");
+    expect(overlay.setTranslation).not.toHaveBeenCalled();
+
+    request.resolve("Olá");
+    await vi.advanceTimersByTimeAsync(0);
+    expect(overlay.setTranslation).toHaveBeenCalledWith("Hello", "Olá");
+    // The translation joins the line already up; the line is not drawn again.
+    expect(overlay.update.mock.calls.filter(([text]) => text === "Hello")).toHaveLength(1);
+  });
+
+  it("shows the original at once when the translation fails", async () => {
+    mocks.translateSentence.mockResolvedValue("");
+    await boot();
+
+    emit("Hello");
+    await ticks();
+
+    expect(lastShown()).toBe("Hello");
+    expect(overlay.setTranslation).not.toHaveBeenCalled();
+  });
+
+  it("shows the original at once when the translated line is turned off, or is off", async () => {
+    mocks.translateSentence.mockReturnValue(new Promise(() => {}));
+    await boot();
+    emit("Hello");
+
+    settingsChanged({ ...defaults, showTranslation: false });
+    expect(lastShown()).toBe("Hello");
+
+    emit("Goodbye");
+    expect(lastShown()).toBe("Goodbye");
+  });
+
+  it("never shows a line that ended before its translation arrived", async () => {
+    const request = deferred<string>();
+    mocks.translateSentence.mockReturnValue(request.promise);
+    await boot();
+    emit("Hello");
+
+    cue(null);
+    request.resolve("Olá");
+    await ticks();
+
+    expect(overlay.update).not.toHaveBeenCalledWith("Hello");
+    expect(overlay.setTranslation).not.toHaveBeenCalled();
   });
 });
 

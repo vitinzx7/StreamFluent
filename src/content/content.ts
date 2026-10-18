@@ -20,6 +20,8 @@ import type { StreamingAdapter } from "../core/types.ts";
 import { translateSentence } from "../core/translation.ts";
 
 const NO_WORDS: ReadonlySet<string> = new Set();
+/** How long a new line waits for its translation before going up alone. */
+const TOGETHER_WAIT_MS = 1000;
 
 /** Seeks, play and pause go through the platform adapter; a missing one just fails. */
 function adapterDriver(adapter: StreamingAdapter, getSessionId: () => string): PlaybackDriver {
@@ -84,6 +86,8 @@ async function boot(): Promise<void> {
   let levelAsked = false;
   /** The occurrence currently rendered in the overlay. */
   let shownOccurrence = "";
+  /** A line held back until its translation arrives, so both appear together. */
+  let waiting: { occurrenceId: string; timer: ReturnType<typeof setTimeout> } | null = null;
 
   // An episode is the URL path plus the <video> playing it. Anything pending
   // for the previous one is dropped when either changes.
@@ -162,10 +166,12 @@ async function boot(): Promise<void> {
     const direction = settings.direction;
     void translateSentence(shown.text, direction).then((translation) => {
       if (!alive() || id !== lineRequestId || page !== location.href) return;
-      if (!settings.showTranslation || settings.direction !== direction || !translation) return;
+      if (!settings.showTranslation || settings.direction !== direction) return;
       if (context.study?.occurrenceId !== shown.occurrenceId) return;
-      context.translate(shown.occurrenceId, translation);
-      overlay.setTranslation(shown.text, translation);
+      if (translation) context.translate(shown.occurrenceId, translation);
+      // A failed request does not keep the original waiting.
+      if (waiting?.occurrenceId === shown.occurrenceId) reveal();
+      else if (translation) overlay.setTranslation(shown.text, translation);
     });
   };
 
@@ -181,21 +187,44 @@ async function boot(): Promise<void> {
       .catch(() => overlay.showFeedback("Não foi possível registrar o histórico desta fala."));
   };
 
+  const stopWaiting = (): void => {
+    if (waiting) clearTimeout(waiting.timer);
+    waiting = null;
+  };
+
+  /** Puts the study line on screen, with its translation when there is one. */
+  const reveal = (): void => {
+    stopWaiting();
+    const shown = context.study;
+    overlay.update(shown?.text ?? null);
+    if (!shown) return;
+    observeWords(shown);
+    if (shown.translation) overlay.setTranslation(shown.text, shown.translation);
+  };
+
   /** Renders the study line when it changed; same occurrence, same colours. */
   const present = (): void => {
     const shown = context.study;
     const occurrence = shown?.occurrenceId ?? "";
     if (occurrence === shownOccurrence) {
-      overlay.refreshWordStatuses();
+      // Still waiting for its translation: it goes up when that arrives.
+      if (waiting?.occurrenceId !== occurrence) overlay.refreshWordStatuses();
       return;
     }
     shownOccurrence = occurrence;
     lineRequestId++;
-    overlay.update(shown?.text ?? null);
-    if (!shown) return;
-    observeWords(shown);
-    if (shown.translation) overlay.setTranslation(shown.text, shown.translation);
-    else if (settings.showTranslation) translateLine(shown);
+    stopWaiting();
+    if (!shown || shown.translation || !settings.showTranslation) {
+      reveal();
+      return;
+    }
+    // The original and its translation appear together: the line waits for
+    // the translation (a cached one is back at once). Past the wait it goes
+    // up alone and the translation joins it, as before. The previous line
+    // ended in the video, so it leaves now.
+    overlay.update(null);
+    waiting = { occurrenceId: occurrence, timer: setTimeout(reveal, TOGETHER_WAIT_MS) };
+    translateLine(shown);
   };
 
   const endSession = (): void => {
@@ -299,6 +328,8 @@ async function boot(): Promise<void> {
     if (directionChanged || settings.showTranslation !== next.showTranslation) lineRequestId++;
     settings = next;
     overlay.applySettings(next);
+    // Nothing left to wait for: show the line now.
+    if (waiting && (!next.showTranslation || directionChanged)) reveal();
     if (highlightChanged) overlay.refreshWordStatuses();
     if (directionChanged) {
       // Another language is another study context: the same text on screen,
@@ -365,6 +396,7 @@ async function boot(): Promise<void> {
 
   stopContent = () => {
     lineRequestId++;
+    stopWaiting();
     words.cancel();
     stopObserving();
     stopShortcuts();

@@ -226,6 +226,7 @@ describe("colour lifecycle of one word", () => {
     await p.ready();
 
     p.line("<img src=x onerror=alert(1)> hi");
+    await flush();
 
     expect(document.querySelector(".sf-overlay img")).toBeNull();
     expect(document.querySelector(".sf-line-source")!.textContent).toBe("<img src=x onerror=alert(1)> hi");
