@@ -9,3 +9,5 @@ Antes da implementação: checkout limpo; typecheck e build aprovados; 298 teste
 1. Concluído: schema V2, migração idempotente, fila de persistência no worker e clientes. Verificados migração/falhas/reinício/concorrência, settings, vocabulário, protocolo de páginas públicas, integração content/overlay e boundaries de background/frames. Typecheck e build aprovados. As chaves de estudo só são gravadas pelo serviço central.
 
 Os resultados de players reais serão registrados separadamente dos testes controlados. Nenhuma publicação ou push faz parte desta implementação.
+
+2. Concluído: lista canônica de 100 palavras, fontes locais, resolvedor de prioridade pessoal/especial/nova, controles de especiais e cores aprendidas. 84 testes direcionados passaram; typecheck/build aprovados. Commit anterior: `a46e7c2`.

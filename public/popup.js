@@ -17,7 +17,7 @@ chrome.tabs.query({ active: true, currentWindow: true }, (tabs) => {
     statusEl.textContent = "Max detected. Open a video to start.";
   } else if (host === "cinetaro.to" || host === "www.cinetaro.to") {
     statusEl.textContent = "Cinetaro: use o painel StreamFluent no player para importar SRT/VTT, traduzir e ajustar o tempo. Frames externos podem estar indisponíveis.";
-    document.querySelectorAll(".field").forEach((field) => { field.hidden = true; });
+    ["direction", "showTranslation"].forEach(id => { document.getElementById(id).closest(".field").hidden = true; });
   } else {
     statusEl.textContent = "Abra Netflix, Max ou Cinetaro para usar StreamFluent.";
   }
@@ -39,6 +39,7 @@ async function initSettings() {
   function apply(settings) {
     select.value = settings.direction;
     toggle.checked = settings.showTranslation;
+    for (const key of ["highlightNewWords", "highlightSpecialWords", "autoPause"]) document.getElementById(key).checked = settings[key];
   }
   try { apply((await studyRequest("read")).settings); }
   catch { hint.textContent = "Não foi possível carregar. Reabra o popup para tentar novamente."; }
@@ -48,6 +49,10 @@ async function initSettings() {
       apply(await studyRequest("patch-settings", { patch }));
       hint.textContent = "Preferência salva.";
     } catch { hint.textContent = "Não foi possível salvar. Tente novamente."; }
+  }
+  for (const key of ["highlightNewWords", "highlightSpecialWords", "autoPause"]) {
+    const input = document.getElementById(key);
+    input.addEventListener("change", () => void persist({ [key]: input.checked }));
   }
   select.addEventListener("change", () => void persist({ direction: select.value }));
   toggle.addEventListener("change", () => void persist({ showTranslation: toggle.checked }));

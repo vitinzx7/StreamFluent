@@ -1,10 +1,11 @@
+import { resolveWordStatus } from "../core/word-status.ts";
 import { getAdapter } from "../adapters/registry.ts";
 import { startCinetaroTop, startEmbeddedPlayer } from "./cinetaro-session.ts";
 import { isCinetaroUrl, isEmbeddedPlayerUrl } from "../core/frame-messages.ts";
 import { createSubtitleOverlay } from "../core/ui/subtitle-overlay.ts";
 import { PhraseRepository } from "../core/storage.ts";
 import { SettingsRepository, DIRECTION_LABELS, getLangPair } from "../core/settings.ts";
-import { createVocabularyStore, wordKey, type WordStatus } from "../core/vocabulary.ts";
+import { createVocabularyStore, type WordStatus } from "../core/vocabulary.ts";
 import { createLineNavigation } from "../core/line-navigation.ts";
 import {
   translateWord,
@@ -74,8 +75,8 @@ async function boot(): Promise<void> {
   const sourceLanguage = (): string => getLangPair(settings.direction).source;
   const wordStatus = (word: string): WordStatus | null => {
     const mark = vocabulary.getMark(word, sourceLanguage());
-    if (mark) return mark;
-    return settings.highlightNewWords && newWordsLanguage === sourceLanguage() && newWords.has(wordKey(word)) ? "new" : null;
+    const status = resolveWordStatus(word, sourceLanguage(), mark, newWordsLanguage === sourceLanguage() ? newWords : new Set(), settings);
+    return status === "normal" ? null : status;
   };
 
   const showLineTranslation = (line: string): void => {
@@ -185,7 +186,7 @@ async function boot(): Promise<void> {
   unsubscribe = SettingsRepository.onChange((next) => {
     const wasOff = !settings.showTranslation;
     const directionChanged = settings.direction !== next.direction;
-    const highlightChanged = settings.highlightNewWords !== next.highlightNewWords;
+    const highlightChanged = settings.highlightNewWords !== next.highlightNewWords || settings.highlightSpecialWords !== next.highlightSpecialWords;
     if (directionChanged || settings.showTranslation !== next.showTranslation) lineRequestId++;
     settings = next;
     overlay.applySettings(next);

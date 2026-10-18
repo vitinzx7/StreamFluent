@@ -5,7 +5,7 @@ import type { PersonalMark, VocabularyV2, WordDetails } from "./types.ts";
 
 export { wordKey } from "./word-normalization.ts";
 export type WordMark = PersonalMark;
-export type WordStatus = WordMark | "new";
+export type WordStatus = WordMark | "new" | "special";
 export type VocabularyData = VocabularyV2;
 export const VOCABULARY_KEY = "vocabulary";
 export const isWordMark = (value: unknown): value is WordMark => value === "difficult" || value === "learned";

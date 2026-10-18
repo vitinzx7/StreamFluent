@@ -154,6 +154,7 @@ function ensureStyles(): void {
       transition: background 0.15s, transform 0.1s;
     }
     /* Light tints: they stay readable inside the dark outline. */
+    .sf-word-special, .sf-legend-special { color: #C4A5FF; }
     .sf-word-new, .sf-legend-new { color: #8ecbff; }
     .sf-word-difficult, .sf-legend-difficult { color: #ff8a80; }
     .sf-word-learned, .sf-legend-learned { color: #69db7c; }
@@ -356,6 +357,7 @@ export interface CardContent {
 
 const STATUS_CLASSES: Record<WordStatus, string> = {
   new: "sf-word-new",
+  special: "sf-word-special",
   difficult: "sf-word-difficult",
   learned: "sf-word-learned",
 };
@@ -430,10 +432,13 @@ export function createSubtitleOverlay(options: OverlayOptions): {
       <span>Colour new words</span>
       <input type="checkbox" data-sf="new-words" />
     </label>
+    <label class="sf-panel-row"><span>Destacar palavras especiais (inglês)</span><input type="checkbox" data-sf="special-words" /></label>
+    <label class="sf-panel-row"><span>Pausa automática</span><input type="checkbox" data-sf="auto-pause" /></label>
     <div class="sf-panel-legend">
-      <span class="sf-legend-new">new</span>
-      <span class="sf-legend-difficult">hard</span>
-      <span class="sf-legend-learned">learned</span>
+      <span class="sf-legend-new">Nova</span>
+      <span class="sf-legend-difficult">Difícil</span>
+      <span class="sf-legend-learned">Aprendida</span>
+      <span class="sf-legend-special">Especial</span>
     </div>
     <label class="sf-panel-row">
       <select data-sf="direction">
@@ -449,6 +454,11 @@ export function createSubtitleOverlay(options: OverlayOptions): {
   const translationInput = panel.querySelector<HTMLInputElement>('[data-sf="translation"]');
   const directionSelect = panel.querySelector<HTMLSelectElement>('[data-sf="direction"]');
   const newWordsInput = panel.querySelector<HTMLInputElement>('[data-sf="new-words"]');
+
+  const specialInput = panel.querySelector<HTMLInputElement>('[data-sf="special-words"]');
+  const autoPauseInput = panel.querySelector<HTMLInputElement>('[data-sf="auto-pause"]');
+  specialInput?.addEventListener("change", () => options.onSettingsChange({ highlightSpecialWords: specialInput.checked }));
+  autoPauseInput?.addEventListener("change", () => options.onSettingsChange({ autoPause: autoPauseInput.checked }));
 
   newWordsInput?.addEventListener("change", () => {
     options.onSettingsChange({ highlightNewWords: newWordsInput.checked });
@@ -614,6 +624,8 @@ export function createSubtitleOverlay(options: OverlayOptions): {
     applySettings(settings: Settings): void {
       if (translationInput) translationInput.checked = settings.showTranslation;
       if (newWordsInput) newWordsInput.checked = settings.highlightNewWords;
+      if (specialInput) specialInput.checked = settings.highlightSpecialWords;
+      if (autoPauseInput) autoPauseInput.checked = settings.autoPause;
       if (directionSelect) directionSelect.value = settings.direction;
       // Turning it off should take effect now, not at the next subtitle.
       if (!settings.showTranslation) targetLine.textContent = "";

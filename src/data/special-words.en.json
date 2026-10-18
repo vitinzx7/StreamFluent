@@ -1,0 +1,511 @@
+{
+  "schemaVersion": 1,
+  "listId": "linglify-oxford-special-en-100-v1",
+  "language": "en",
+  "verifiedOn": "2026-10-17",
+  "count": 100,
+  "sourceUrl": "https://linglify.com/pt-BR/learn/en/blog/hard-english-words",
+  "oxford5000AdditionalSourceUrl": "https://www.oxfordlearnersdictionaries.com/external/pdf/wordlists/oxford-3000-5000/The_Oxford_5000.pdf",
+  "entries": [
+    {
+      "word": "accommodate",
+      "oxfordUrl": "https://www.oxfordlearnersdictionaries.com/definition/english/accommodate",
+      "oxford5000Additional": {
+        "level": "B2",
+        "page": 1
+      }
+    },
+    {
+      "word": "acquaintance",
+      "oxfordUrl": "https://www.oxfordlearnersdictionaries.com/definition/english/acquaintance"
+    },
+    {
+      "word": "acquit",
+      "oxfordUrl": "https://www.oxfordlearnersdictionaries.com/definition/english/acquit"
+    },
+    {
+      "word": "adverse",
+      "oxfordUrl": "https://www.oxfordlearnersdictionaries.com/definition/english/adverse",
+      "oxford5000Additional": {
+        "level": "C1",
+        "page": 1
+      }
+    },
+    {
+      "word": "algorithm",
+      "oxfordUrl": "https://www.oxfordlearnersdictionaries.com/definition/english/algorithm",
+      "oxford5000Additional": {
+        "level": "C1",
+        "page": 1
+      }
+    },
+    {
+      "word": "ambiguous",
+      "oxfordUrl": "https://www.oxfordlearnersdictionaries.com/definition/english/ambiguous"
+    },
+    {
+      "word": "ameliorate",
+      "oxfordUrl": "https://www.oxfordlearnersdictionaries.com/definition/english/ameliorate"
+    },
+    {
+      "word": "amendment",
+      "oxfordUrl": "https://www.oxfordlearnersdictionaries.com/definition/english/amendment",
+      "oxford5000Additional": {
+        "level": "C1",
+        "page": 1
+      }
+    },
+    {
+      "word": "anachronism",
+      "oxfordUrl": "https://www.oxfordlearnersdictionaries.com/definition/english/anachronism"
+    },
+    {
+      "word": "anomaly",
+      "oxfordUrl": "https://www.oxfordlearnersdictionaries.com/definition/english/anomaly"
+    },
+    {
+      "word": "antithesis",
+      "oxfordUrl": "https://www.oxfordlearnersdictionaries.com/definition/english/antithesis"
+    },
+    {
+      "word": "arbitrary",
+      "oxfordUrl": "https://www.oxfordlearnersdictionaries.com/definition/english/arbitrary"
+    },
+    {
+      "word": "bellicose",
+      "oxfordUrl": "https://www.oxfordlearnersdictionaries.com/definition/english/bellicose"
+    },
+    {
+      "word": "bureaucracy",
+      "oxfordUrl": "https://www.oxfordlearnersdictionaries.com/definition/english/bureaucracy"
+    },
+    {
+      "word": "capricious",
+      "oxfordUrl": "https://www.oxfordlearnersdictionaries.com/definition/english/capricious"
+    },
+    {
+      "word": "catharsis",
+      "oxfordUrl": "https://www.oxfordlearnersdictionaries.com/definition/english/catharsis"
+    },
+    {
+      "word": "cognizant",
+      "oxfordUrl": "https://www.oxfordlearnersdictionaries.com/definition/english/cognizant"
+    },
+    {
+      "word": "collateral",
+      "oxfordUrl": "https://www.oxfordlearnersdictionaries.com/definition/english/collateral_1"
+    },
+    {
+      "word": "colonel",
+      "oxfordUrl": "https://www.oxfordlearnersdictionaries.com/definition/english/colonel"
+    },
+    {
+      "word": "conflagration",
+      "oxfordUrl": "https://www.oxfordlearnersdictionaries.com/definition/english/conflagration"
+    },
+    {
+      "word": "conscience",
+      "oxfordUrl": "https://www.oxfordlearnersdictionaries.com/definition/english/conscience",
+      "oxford5000Additional": {
+        "level": "C1",
+        "page": 2
+      }
+    },
+    {
+      "word": "consensus",
+      "oxfordUrl": "https://www.oxfordlearnersdictionaries.com/definition/english/consensus",
+      "oxford5000Additional": {
+        "level": "C1",
+        "page": 2
+      }
+    },
+    {
+      "word": "conundrum",
+      "oxfordUrl": "https://www.oxfordlearnersdictionaries.com/definition/english/conundrum"
+    },
+    {
+      "word": "credible",
+      "oxfordUrl": "https://www.oxfordlearnersdictionaries.com/definition/english/credible",
+      "oxford5000Additional": {
+        "level": "C1",
+        "page": 2
+      }
+    },
+    {
+      "word": "debris",
+      "oxfordUrl": "https://www.oxfordlearnersdictionaries.com/definition/english/debris",
+      "oxford5000Additional": {
+        "level": "C1",
+        "page": 2
+      }
+    },
+    {
+      "word": "deleterious",
+      "oxfordUrl": "https://www.oxfordlearnersdictionaries.com/definition/english/deleterious"
+    },
+    {
+      "word": "depreciation",
+      "oxfordUrl": "https://www.oxfordlearnersdictionaries.com/definition/english/depreciation"
+    },
+    {
+      "word": "deteriorate",
+      "oxfordUrl": "https://www.oxfordlearnersdictionaries.com/definition/english/deteriorate",
+      "oxford5000Additional": {
+        "level": "C1",
+        "page": 3
+      }
+    },
+    {
+      "word": "dichotomy",
+      "oxfordUrl": "https://www.oxfordlearnersdictionaries.com/definition/english/dichotomy"
+    },
+    {
+      "word": "dilemma",
+      "oxfordUrl": "https://www.oxfordlearnersdictionaries.com/definition/english/dilemma",
+      "oxford5000Additional": {
+        "level": "C1",
+        "page": 3
+      }
+    },
+    {
+      "word": "discrete",
+      "oxfordUrl": "https://www.oxfordlearnersdictionaries.com/definition/english/discrete"
+    },
+    {
+      "word": "disinterested",
+      "oxfordUrl": "https://www.oxfordlearnersdictionaries.com/definition/english/disinterested"
+    },
+    {
+      "word": "dividend",
+      "oxfordUrl": "https://www.oxfordlearnersdictionaries.com/definition/english/dividend",
+      "oxford5000Additional": {
+        "level": "C1",
+        "page": 3
+      }
+    },
+    {
+      "word": "ebullient",
+      "oxfordUrl": "https://www.oxfordlearnersdictionaries.com/definition/english/ebullient"
+    },
+    {
+      "word": "elicit",
+      "oxfordUrl": "https://www.oxfordlearnersdictionaries.com/definition/english/elicit"
+    },
+    {
+      "word": "eloquent",
+      "oxfordUrl": "https://www.oxfordlearnersdictionaries.com/definition/english/eloquent"
+    },
+    {
+      "word": "empirical",
+      "oxfordUrl": "https://www.oxfordlearnersdictionaries.com/definition/english/empirical"
+    },
+    {
+      "word": "enigma",
+      "oxfordUrl": "https://www.oxfordlearnersdictionaries.com/definition/english/enigma"
+    },
+    {
+      "word": "ephemeral",
+      "oxfordUrl": "https://www.oxfordlearnersdictionaries.com/definition/english/ephemeral"
+    },
+    {
+      "word": "esoteric",
+      "oxfordUrl": "https://www.oxfordlearnersdictionaries.com/definition/english/esoteric"
+    },
+    {
+      "word": "exacerbate",
+      "oxfordUrl": "https://www.oxfordlearnersdictionaries.com/definition/english/exacerbate"
+    },
+    {
+      "word": "exaggerate",
+      "oxfordUrl": "https://www.oxfordlearnersdictionaries.com/definition/english/exaggerate",
+      "oxford5000Additional": {
+        "level": "C1",
+        "page": 3
+      }
+    },
+    {
+      "word": "fastidious",
+      "oxfordUrl": "https://www.oxfordlearnersdictionaries.com/definition/english/fastidious"
+    },
+    {
+      "word": "fiduciary",
+      "oxfordUrl": "https://www.oxfordlearnersdictionaries.com/definition/english/fiduciary_1"
+    },
+    {
+      "word": "gregarious",
+      "oxfordUrl": "https://www.oxfordlearnersdictionaries.com/definition/english/gregarious"
+    },
+    {
+      "word": "hegemony",
+      "oxfordUrl": "https://www.oxfordlearnersdictionaries.com/definition/english/hegemony"
+    },
+    {
+      "word": "hierarchy",
+      "oxfordUrl": "https://www.oxfordlearnersdictionaries.com/definition/english/hierarchy",
+      "oxford5000Additional": {
+        "level": "C1",
+        "page": 4
+      }
+    },
+    {
+      "word": "hypothesis",
+      "oxfordUrl": "https://www.oxfordlearnersdictionaries.com/definition/english/hypothesis",
+      "oxford5000Additional": {
+        "level": "B2",
+        "page": 4
+      }
+    },
+    {
+      "word": "idiosyncratic",
+      "oxfordUrl": "https://www.oxfordlearnersdictionaries.com/definition/english/idiosyncratic"
+    },
+    {
+      "word": "impetuous",
+      "oxfordUrl": "https://www.oxfordlearnersdictionaries.com/definition/english/impetuous"
+    },
+    {
+      "word": "ineffable",
+      "oxfordUrl": "https://www.oxfordlearnersdictionaries.com/definition/english/ineffable"
+    },
+    {
+      "word": "inevitable",
+      "oxfordUrl": "https://www.oxfordlearnersdictionaries.com/definition/english/inevitable",
+      "oxford5000Additional": {
+        "level": "B2",
+        "page": 4
+      }
+    },
+    {
+      "word": "irresistible",
+      "oxfordUrl": "https://www.oxfordlearnersdictionaries.com/definition/english/irresistible"
+    },
+    {
+      "word": "jurisdiction",
+      "oxfordUrl": "https://www.oxfordlearnersdictionaries.com/definition/english/jurisdiction",
+      "oxford5000Additional": {
+        "level": "C1",
+        "page": 4
+      }
+    },
+    {
+      "word": "juxtaposition",
+      "oxfordUrl": "https://www.oxfordlearnersdictionaries.com/definition/english/juxtaposition"
+    },
+    {
+      "word": "laconic",
+      "oxfordUrl": "https://www.oxfordlearnersdictionaries.com/definition/english/laconic"
+    },
+    {
+      "word": "legislation",
+      "oxfordUrl": "https://www.oxfordlearnersdictionaries.com/definition/english/legislation",
+      "oxford5000Additional": {
+        "level": "C1",
+        "page": 4
+      }
+    },
+    {
+      "word": "loquacious",
+      "oxfordUrl": "https://www.oxfordlearnersdictionaries.com/definition/english/loquacious"
+    },
+    {
+      "word": "lugubrious",
+      "oxfordUrl": "https://www.oxfordlearnersdictionaries.com/definition/english/lugubrious"
+    },
+    {
+      "word": "magnanimous",
+      "oxfordUrl": "https://www.oxfordlearnersdictionaries.com/definition/english/magnanimous"
+    },
+    {
+      "word": "maintenance",
+      "oxfordUrl": "https://www.oxfordlearnersdictionaries.com/definition/english/maintenance",
+      "oxford5000Additional": {
+        "level": "C1",
+        "page": 5
+      }
+    },
+    {
+      "word": "mendacious",
+      "oxfordUrl": "https://www.oxfordlearnersdictionaries.com/definition/english/mendacious"
+    },
+    {
+      "word": "mischievous",
+      "oxfordUrl": "https://www.oxfordlearnersdictionaries.com/definition/english/mischievous"
+    },
+    {
+      "word": "nebulous",
+      "oxfordUrl": "https://www.oxfordlearnersdictionaries.com/definition/english/nebulous"
+    },
+    {
+      "word": "nonchalant",
+      "oxfordUrl": "https://www.oxfordlearnersdictionaries.com/definition/english/nonchalant"
+    },
+    {
+      "word": "obfuscate",
+      "oxfordUrl": "https://www.oxfordlearnersdictionaries.com/definition/english/obfuscate"
+    },
+    {
+      "word": "obsequious",
+      "oxfordUrl": "https://www.oxfordlearnersdictionaries.com/definition/english/obsequious"
+    },
+    {
+      "word": "occurrence",
+      "oxfordUrl": "https://www.oxfordlearnersdictionaries.com/definition/english/occurrence",
+      "oxford5000Additional": {
+        "level": "C1",
+        "page": 5
+      }
+    },
+    {
+      "word": "paradigm",
+      "oxfordUrl": "https://www.oxfordlearnersdictionaries.com/definition/english/paradigm"
+    },
+    {
+      "word": "paradox",
+      "oxfordUrl": "https://www.oxfordlearnersdictionaries.com/definition/english/paradox"
+    },
+    {
+      "word": "pathogen",
+      "oxfordUrl": "https://www.oxfordlearnersdictionaries.com/definition/english/pathogen"
+    },
+    {
+      "word": "perfunctory",
+      "oxfordUrl": "https://www.oxfordlearnersdictionaries.com/definition/english/perfunctory"
+    },
+    {
+      "word": "perseverance",
+      "oxfordUrl": "https://www.oxfordlearnersdictionaries.com/definition/english/perseverance"
+    },
+    {
+      "word": "pragmatic",
+      "oxfordUrl": "https://www.oxfordlearnersdictionaries.com/definition/english/pragmatic"
+    },
+    {
+      "word": "precarious",
+      "oxfordUrl": "https://www.oxfordlearnersdictionaries.com/definition/english/precarious"
+    },
+    {
+      "word": "precedent",
+      "oxfordUrl": "https://www.oxfordlearnersdictionaries.com/definition/english/precedent",
+      "oxford5000Additional": {
+        "level": "C1",
+        "page": 5
+      }
+    },
+    {
+      "word": "privilege",
+      "oxfordUrl": "https://www.oxfordlearnersdictionaries.com/definition/english/privilege_1",
+      "oxford5000Additional": {
+        "level": "C1",
+        "page": 6
+      }
+    },
+    {
+      "word": "prognosis",
+      "oxfordUrl": "https://www.oxfordlearnersdictionaries.com/definition/english/prognosis"
+    },
+    {
+      "word": "prolific",
+      "oxfordUrl": "https://www.oxfordlearnersdictionaries.com/definition/english/prolific"
+    },
+    {
+      "word": "quagmire",
+      "oxfordUrl": "https://www.oxfordlearnersdictionaries.com/definition/english/quagmire"
+    },
+    {
+      "word": "quintessential",
+      "oxfordUrl": "https://www.oxfordlearnersdictionaries.com/definition/english/quintessential"
+    },
+    {
+      "word": "recalcitrant",
+      "oxfordUrl": "https://www.oxfordlearnersdictionaries.com/definition/english/recalcitrant"
+    },
+    {
+      "word": "resilient",
+      "oxfordUrl": "https://www.oxfordlearnersdictionaries.com/definition/english/resilient"
+    },
+    {
+      "word": "reticent",
+      "oxfordUrl": "https://www.oxfordlearnersdictionaries.com/definition/english/reticent"
+    },
+    {
+      "word": "rhetoric",
+      "oxfordUrl": "https://www.oxfordlearnersdictionaries.com/definition/english/rhetoric",
+      "oxford5000Additional": {
+        "level": "C1",
+        "page": 6
+      }
+    },
+    {
+      "word": "sanguine",
+      "oxfordUrl": "https://www.oxfordlearnersdictionaries.com/definition/english/sanguine"
+    },
+    {
+      "word": "scrutinize",
+      "oxfordUrl": "https://www.oxfordlearnersdictionaries.com/definition/english/scrutinize"
+    },
+    {
+      "word": "soliloquy",
+      "oxfordUrl": "https://www.oxfordlearnersdictionaries.com/definition/english/soliloquy"
+    },
+    {
+      "word": "subpoena",
+      "oxfordUrl": "https://www.oxfordlearnersdictionaries.com/definition/english/subpoena_1"
+    },
+    {
+      "word": "surreptitious",
+      "oxfordUrl": "https://www.oxfordlearnersdictionaries.com/definition/english/surreptitious"
+    },
+    {
+      "word": "surveillance",
+      "oxfordUrl": "https://www.oxfordlearnersdictionaries.com/definition/english/surveillance",
+      "oxford5000Additional": {
+        "level": "C1",
+        "page": 7
+      }
+    },
+    {
+      "word": "tenacious",
+      "oxfordUrl": "https://www.oxfordlearnersdictionaries.com/definition/english/tenacious"
+    },
+    {
+      "word": "threshold",
+      "oxfordUrl": "https://www.oxfordlearnersdictionaries.com/definition/english/threshold",
+      "oxford5000Additional": {
+        "level": "C1",
+        "page": 7
+      }
+    },
+    {
+      "word": "truculent",
+      "oxfordUrl": "https://www.oxfordlearnersdictionaries.com/definition/english/truculent"
+    },
+    {
+      "word": "ubiquitous",
+      "oxfordUrl": "https://www.oxfordlearnersdictionaries.com/definition/english/ubiquitous"
+    },
+    {
+      "word": "unanimous",
+      "oxfordUrl": "https://www.oxfordlearnersdictionaries.com/definition/english/unanimous"
+    },
+    {
+      "word": "unprecedented",
+      "oxfordUrl": "https://www.oxfordlearnersdictionaries.com/definition/english/unprecedented",
+      "oxford5000Additional": {
+        "level": "C1",
+        "page": 7
+      }
+    },
+    {
+      "word": "verbose",
+      "oxfordUrl": "https://www.oxfordlearnersdictionaries.com/definition/english/verbose"
+    },
+    {
+      "word": "volatile",
+      "oxfordUrl": "https://www.oxfordlearnersdictionaries.com/definition/english/volatile"
+    },
+    {
+      "word": "withhold",
+      "oxfordUrl": "https://www.oxfordlearnersdictionaries.com/definition/english/withhold"
+    }
+  ]
+}
