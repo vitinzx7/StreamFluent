@@ -284,11 +284,11 @@ describe("marking from the card", () => {
   it("shows the word's current mark as active", () => {
     create().overlay.showCard(content({ mark: "difficult" }), vi.fn(), vi.fn());
 
-    expect(button("Hard").classList.contains("sf-active")).toBe(true);
+    expect(button("Difícil").classList.contains("sf-active")).toBe(true);
     expect(button("Aprendida").classList.contains("sf-active")).toBe(false);
   });
 
-  it("switches between marks and clears one when clicked again", async () => {
+  it("switches between marks and removes one explicitly", async () => {
     const onMark = vi.fn();
     create().overlay.showCard(content(), vi.fn(), onMark);
 
@@ -297,23 +297,23 @@ describe("marking from the card", () => {
     expect(onMark).toHaveBeenLastCalledWith("learned");
     expect(button("Aprendida").classList.contains("sf-active")).toBe(true);
 
-    button("Hard").click();
+    button("Difícil").click();
     await Promise.resolve();
     expect(onMark).toHaveBeenLastCalledWith("difficult");
     expect(button("Aprendida").classList.contains("sf-active")).toBe(false);
-    expect(button("Hard").classList.contains("sf-active")).toBe(true);
+    expect(button("Difícil").classList.contains("sf-active")).toBe(true);
 
-    button("Hard").click();
+    button("Remover marcação").click();
     await Promise.resolve();
     expect(onMark).toHaveBeenLastCalledWith(null);
-    expect(button("Hard").classList.contains("sf-active")).toBe(false);
+    expect(button("Difícil").classList.contains("sf-active")).toBe(false);
   });
 
   it("can mark while the translation is still loading", async () => {
     const onMark = vi.fn();
     create().overlay.showCard(content({ state: "loading", translation: "" }), vi.fn(), onMark);
 
-    button("Hard").click();
+    button("Difícil").click();
     await Promise.resolve();
 
     expect(onMark).toHaveBeenCalledWith("difficult");
@@ -331,7 +331,7 @@ describe("marking from the card", () => {
   it("offers no mark buttons when the caller cannot save marks", () => {
     create().overlay.showCard(content(), vi.fn());
 
-    expect(document.querySelectorAll(".sf-card-mark").length).toBe(0);
+    expect(document.querySelectorAll(".sf-card-mark:not([hidden])").length).toBe(0);
   });
 });
 
@@ -347,5 +347,58 @@ describe("new-word colour option", () => {
 
     o.applySettings({ ...DEFAULT_SETTINGS, highlightNewWords: false });
     expect(input.checked).toBe(false);
+  });
+});
+
+describe("quick marking and durable card actions", () => {
+  it("keeps punctuation, spaces and line breaks and only intercepts valid word context menus", () => {
+    const difficult = vi.fn(), select = vi.fn();
+    overlay = createSubtitleOverlay({ settings: DEFAULT_SETTINGS, onSettingsChange: vi.fn(), onOpenLibrary: vi.fn(), onWordSelect: select, onWordDifficult: difficult });
+    const text = "  Don’t—stop,\nwell-known! ...";
+    overlay.update(text);
+    expect(document.querySelector(".sf-line-source")?.textContent).toBe(text);
+    const word = document.querySelector(".sf-word")!;
+    const event = new MouseEvent("contextmenu", { bubbles: true, cancelable: true, button: 2 });
+    word.dispatchEvent(event);
+    expect(event.defaultPrevented).toBe(true);
+    expect(difficult).toHaveBeenCalledWith("Don’t", text);
+    expect(select).not.toHaveBeenCalled();
+    const outside = new MouseEvent("contextmenu", { bubbles: true, cancelable: true });
+    document.querySelector(".sf-line-source")!.dispatchEvent(outside);
+    expect(outside.defaultPrevented).toBe(false);
+  });
+  it("lets keyboard activate a word without dragging or losing text", () => {
+    const { onWordSelect, overlay: o } = create(); o.update("Hello!");
+    const word = document.querySelector<HTMLElement>(".sf-word")!;
+    expect(word.tabIndex).toBe(0); word.focus();
+    word.dispatchEvent(new KeyboardEvent("keydown", { key: " ", bubbles: true, cancelable: true }));
+    expect(onWordSelect).toHaveBeenCalledWith("Hello", "Hello!");
+  });
+  it("saves originals while translation loads and never announces a rejected save", async () => {
+    const { overlay: o } = create();
+    let reject!: (error: Error) => void;
+    const save = vi.fn(() => new Promise<void>((_, fail) => { reject = fail; }));
+    o.showCard({ word: "hello", sentence: "hello world", translation: "", definition: "", sentenceTranslation: "", directionLabel: "EN → PT", state: "loading" }, save);
+    document.querySelector<HTMLButtonElement>(".sf-card-btn")!.click();
+    expect(save).toHaveBeenCalledOnce();
+    expect(document.querySelector(".sf-card-feedback")?.textContent).toBe("Salvando…");
+    reject(new Error("quota")); await Promise.resolve(); await Promise.resolve();
+    expect(document.querySelector(".sf-card-feedback")?.textContent).toContain("Não foi possível");
+    expect(document.querySelector<HTMLButtonElement>(".sf-card-btn")!.disabled).toBe(false);
+  });
+  it("keeps focus when translation arrives and ignores an old failed marking response", async () => {
+    const { overlay: o } = create();
+    let reject!: (error: Error) => void;
+    const mark = vi.fn().mockImplementationOnce(() => new Promise<void>((_, fail) => { reject = fail; })).mockResolvedValue(undefined);
+    const card: CardContent = { identity: "click-1", word: "hello", sentence: "hello", translation: "", definition: "", sentenceTranslation: "", directionLabel: "EN → PT", state: "loading" };
+    o.showCard(card, vi.fn(), mark);
+    const hard = document.querySelector<HTMLButtonElement>('[data-mark="difficult"]')!;
+    hard.focus(); hard.click();
+    o.showCard({ ...card, translation: "olá", state: "ready" }, vi.fn(), mark);
+    expect(document.activeElement).toBe(hard);
+    const learned = document.querySelector<HTMLButtonElement>('[data-mark="learned"]')!; learned.click();
+    await Promise.resolve(); reject(new Error("old")); await Promise.resolve(); await Promise.resolve();
+    expect(learned.getAttribute("aria-pressed")).toBe("true");
+    expect(document.querySelector(".sf-card-feedback")?.textContent).toContain("aprendida");
   });
 });

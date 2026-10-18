@@ -23,7 +23,7 @@ vi.mock("../adapters/registry.ts", () => ({ getAdapter: mocks.getAdapter }));
 vi.mock("../adapters/html5-player.ts", () => ({ observeHtml5Player: mocks.observeHtml5Player }));
 vi.mock("../core/ui/timed-subtitles.ts", () => ({ createTimedSubtitles: mocks.createTimedSubtitles }));
 vi.mock("../core/ui/subtitle-overlay.ts", () => ({ createSubtitleOverlay: mocks.createOverlay }));
-vi.mock("../core/storage.ts", () => ({ PhraseRepository: { save: mocks.savePhrase } }));
+vi.mock("../core/storage.ts", () => ({ PhraseRepository: { save: mocks.savePhrase, saveResult: mocks.savePhrase } }));
 vi.mock("../core/settings.ts", () => ({
   SettingsRepository: { get: mocks.getSettings, save: mocks.saveSettings, onChange: mocks.onSettingsChange },
   DIRECTION_LABELS: { "en-pt": "EN → PT", "pt-en": "PT → EN" },
@@ -43,7 +43,7 @@ let settingsChanged: (value: Settings) => void;
 let options: OverlayOptions;
 let stopObserving: ReturnType<typeof vi.fn>;
 let unsubscribe: ReturnType<typeof vi.fn>;
-let overlay: Record<"update" | "setTranslation" | "applySettings" | "refreshWordStatuses" | "hideCard" | "showCard" | "destroy", ReturnType<typeof vi.fn>>;
+let overlay: Record<"update" | "setTranslation" | "applySettings" | "refreshWordStatuses" | "hideCard" | "showCard" | "showFeedback" | "destroy", ReturnType<typeof vi.fn>>;
 let vocabulary: {
   ready: Promise<void>;
   observeLine: ReturnType<typeof vi.fn>;
@@ -74,13 +74,13 @@ beforeEach(() => {
   window.history.replaceState({}, "", "/watch/first");
   stopObserving = vi.fn();
   unsubscribe = vi.fn();
-  overlay = { update: vi.fn(), setTranslation: vi.fn(), applySettings: vi.fn(), refreshWordStatuses: vi.fn(), hideCard: vi.fn(), showCard: vi.fn(), destroy: vi.fn() };
+  overlay = { update: vi.fn(), setTranslation: vi.fn(), applySettings: vi.fn(), refreshWordStatuses: vi.fn(), hideCard: vi.fn(), showCard: vi.fn(), showFeedback: vi.fn(), destroy: vi.fn() };
   stopVocabulary = vi.fn();
   vocabulary = {
     ready: Promise.resolve(),
     observeLine: vi.fn().mockResolvedValue(new Set()),
     getMark: vi.fn().mockReturnValue(null),
-    setMark: vi.fn(),
+    setMark: vi.fn().mockResolvedValue(undefined),
     onChange: vi.fn().mockReturnValue(stopVocabulary),
     dispose: vi.fn(),
   };
@@ -278,7 +278,7 @@ describe("word colours", () => {
     overlay.refreshWordStatuses.mockClear();
     await onMark("learned");
 
-    expect(vocabulary.setMark).toHaveBeenCalledWith("Hello", "en", "learned");
+    expect(vocabulary.setMark).toHaveBeenCalledWith("Hello", "en", "learned", expect.objectContaining({ context: expect.objectContaining({ sentence: "Hello world" }) }));
     expect(overlay.refreshWordStatuses).toHaveBeenCalledTimes(1);
   });
 
@@ -290,7 +290,7 @@ describe("word colours", () => {
     const onMark = overlay.showCard.mock.calls[0][2] as (mark: string | null) => void;
     await onMark("difficult");
 
-    expect(vocabulary.setMark).toHaveBeenCalledWith("Coração", "pt-BR", "difficult");
+    expect(vocabulary.setMark).toHaveBeenCalledWith("Coração", "pt-BR", "difficult", expect.any(Object));
   });
 
   it("shows the word's existing mark on the card", async () => {
@@ -332,5 +332,27 @@ describe("line navigation", () => {
     window.dispatchEvent(new Event("pagehide"));
 
     expect(navigation.stop).toHaveBeenCalledTimes(1);
+  });
+});
+
+describe("quick difficult marking", () => {
+  it("persists the clicked snapshot without any lookup or phrase request", async () => {
+    await boot(); emit("Hello world"); await Promise.resolve();
+    mocks.translateSentence.mockClear(); mocks.translateWord.mockClear();
+    options.onWordDifficult?.("Hello", "Hello world");
+    emit("Next line");
+    await Promise.resolve();
+    expect(vocabulary.setMark).toHaveBeenCalledWith("Hello", "en", "difficult", expect.objectContaining({ context: expect.objectContaining({ sentence: "Hello world", sourceLanguage: "en" }) }));
+    expect(mocks.translateWord).not.toHaveBeenCalled();
+    expect(mocks.translateSentence).not.toHaveBeenCalledWith("Hello world", expect.anything());
+    expect(mocks.savePhrase).not.toHaveBeenCalled();
+  });
+  it("does not reopen a closed card after a delayed lookup", async () => {
+    const pending = deferred<unknown>(); mocks.translateWord.mockReturnValue(pending.promise);
+    await boot(); void options.onWordSelect("Hello", "Hello world");
+    options.onCardClose?.();
+    pending.resolve({ word: "Hello", translation: "Olá", error: null });
+    await Promise.resolve();
+    expect(overlay.showCard).toHaveBeenCalledTimes(1);
   });
 });

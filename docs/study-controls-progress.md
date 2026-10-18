@@ -11,3 +11,5 @@ Antes da implementação: checkout limpo; typecheck e build aprovados; 298 teste
 Os resultados de players reais serão registrados separadamente dos testes controlados. Nenhuma publicação ou push faz parte desta implementação.
 
 2. Concluído: lista canônica de 100 palavras, fontes locais, resolvedor de prioridade pessoal/especial/nova, controles de especiais e cores aprendidas. 84 testes direcionados passaram; typecheck/build aprovados. Commit anterior: `a46e7c2`.
+
+3. Concluído: renderizador compartilhado sem perda de texto, clique direito offline, cartão persistente acessível com ações assíncronas e remoção explícita de marca. 53 testes de content/overlay aprovados; typecheck/build aprovados. Commit do bloco 2: `d733fd1`.

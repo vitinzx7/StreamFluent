@@ -64,6 +64,7 @@ async function boot(): Promise<void> {
   if (disposed || generation !== bootGeneration) return;
   let unsubscribe = () => {};
   let currentLine: string | null = null;
+  let currentTranslation = "";
   let lineRequestId = 0;
 
   // Words are coloured per source language: "new" means first appearance ever,
@@ -84,6 +85,7 @@ async function boot(): Promise<void> {
     const page = location.href;
     void translateSentence(line, settings.direction).then((translation) => {
       if (!disposed && id === lineRequestId && page === location.href && settings.showTranslation && translation) {
+        currentTranslation = translation;
         overlay.setTranslation(line, translation);
       }
     });
@@ -99,10 +101,20 @@ async function boot(): Promise<void> {
     onSettingsChange: (patch) => {
       // Storage is the source of truth: the write comes back through
       // onChange below, which refreshes `settings` and the panel controls.
-      void SettingsRepository.save(patch).catch((error) => console.warn("StreamFluent: não foi possível salvar a preferência.", error));
+      void SettingsRepository.save(patch).catch(() => overlay.showFeedback("Não foi possível salvar a preferência. Tente novamente."));
     },
     onOpenLibrary: () => {
       void chrome.runtime.sendMessage({ type: "sf:open-library" });
+    },
+    onCardClose: () => { lookupId++; },
+    onWordDifficult: (word, sentence) => {
+      const page = location.href, language = sourceLanguage(), metadata = adapter.getMediaMetadata();
+      const previous = vocabulary.getMark(word, language);
+      const context = { sentence, sentenceTranslation: currentLine === sentence ? currentTranslation : "", platform: adapter.name, mediaTitle: metadata?.title || "", season: metadata?.season ?? null, episode: metadata?.episode ?? null, sourceLanguage: language, targetLanguage: getLangPair(settings.direction).target, timeSeconds: adapter.getVideo?.()?.currentTime };
+      overlay.showFeedback("Salvando…");
+      void vocabulary.setMark(word, language, "difficult", { displayWord: word, context }).then(() => {
+        if (!disposed && page === location.href) { overlay.refreshWordStatuses(); overlay.showFeedback(previous === "difficult" ? "Já está nas difíceis" : "Adicionada às difíceis"); }
+      }).catch(() => { if (!disposed && page === location.href) overlay.showFeedback("Não foi possível salvar. Clique novamente para tentar."); });
     },
     onWordSelect: async (word, sentence) => {
       const direction = settings.direction;
@@ -111,68 +123,32 @@ async function boot(): Promise<void> {
       const page = location.href;
       const metadata = adapter.getMediaMetadata();
       const language = getLangPair(direction).source;
-      const mark = vocabulary.getMark(word, language);
-      const onMark = async (next: typeof mark): Promise<void> => {
-        if (disposed) return;
-        await vocabulary.setMark(word, language, next);
-        overlay.refreshWordStatuses();
+      const context = {
+        sentence, sentenceTranslation: currentLine === sentence ? currentTranslation : "",
+        platform: adapter.name, mediaTitle: metadata?.title || "", season: metadata?.season ?? null,
+        episode: metadata?.episode ?? null, sourceLanguage: language, targetLanguage: getLangPair(direction).target,
+        timeSeconds: adapter.getVideo?.()?.currentTime,
       };
-
-      overlay.showCard(
-        {
-          word,
-          translation: "",
-          definition: "",
-          sentence,
-          sentenceTranslation: "",
-          directionLabel,
-          state: "loading",
-          mark,
-        },
-        () => {},
-        onMark,
-      );
-
-      // Already resolved and cached for the line on screen, so this is free.
-      const [result, sentenceTranslation] = await Promise.all([
-        translateWord(word, direction),
-        translateSentence(sentence, direction),
-      ]);
-      if (disposed || id !== lookupId || page !== location.href) return;
-
-      const definition = formatDefinition(result);
-
-      overlay.showCard(
-        {
-          word: result.word,
-          translation: result.translation,
-          definition,
-          sentence,
-          sentenceTranslation,
-          directionLabel,
-          state: result.error ? "error" : "ready",
-          // Re-read: the user may have marked it while the lookup was in flight.
-          mark: vocabulary.getMark(word, language),
-        },
-        async () => {
-          if (disposed || page !== location.href) return;
-          await PhraseRepository.save({
-            kind: "word",
-            sourceLanguage: language,
-            targetLanguage: getLangPair(direction).target,
-            sentence,
-            sentenceTranslation,
-            selectedWord: word,
-            translation: result.translation,
-            definition,
-            platform: adapter.name,
-            mediaTitle: metadata?.title || "Unknown",
-            season: metadata?.season ?? null,
-            episode: metadata?.episode ?? null,
-          });
-        },
-        onMark,
-      );
+      const video = adapter.getVideo?.();
+      const valid = () => !disposed && id === lookupId && page === location.href && settings.direction === direction && video === adapter.getVideo?.();
+      let translation = "", definition = "";
+      const save = async () => {
+        const result = await PhraseRepository.saveResult({ kind: "word", ...context, selectedWord: word, translation, definition });
+        return result.duplicate ? "Já salvo" : "Salvo";
+      };
+      const onMark = async (next: "difficult" | "learned" | null): Promise<void> => {
+        await vocabulary.setMark(word, language, next, { displayWord: word, context, translation, definition });
+        if (valid()) overlay.refreshWordStatuses();
+      };
+      const show = (state: "loading" | "ready" | "error") => overlay.showCard({
+        identity: String(id), word, translation, definition, sentence, sentenceTranslation: context.sentenceTranslation,
+        directionLabel, state, mark: vocabulary.getMark(word, language),
+      }, save, onMark);
+      show("loading");
+      const result = await translateWord(word, direction);
+      if (!valid()) return;
+      translation = result.translation; definition = formatDefinition(result);
+      show(result.error ? "error" : "ready");
     },
   });
 
@@ -212,6 +188,7 @@ async function boot(): Promise<void> {
     const page = location.href;
     const language = sourceLanguage();
     currentLine = text;
+    currentTranslation = "";
     navigation.cueChanged(text);
     newWords = new Set();
     newWordsLanguage = language;
@@ -221,7 +198,7 @@ async function boot(): Promise<void> {
         if (disposed || occurrence !== occurrenceId || page !== location.href || generation !== bootGeneration) return;
         newWords = fresh;
         overlay.refreshWordStatuses();
-      }).catch((error) => console.warn("StreamFluent: não foi possível registrar o histórico desta fala.", error));
+      }).catch(() => overlay.showFeedback("Não foi possível registrar o histórico desta fala."));
     }
 
     if (!text || !settings.showTranslation) return;

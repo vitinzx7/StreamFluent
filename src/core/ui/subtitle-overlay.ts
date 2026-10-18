@@ -1,3 +1,6 @@
+import { createWordRenderer, WORD_STYLES } from "./word-renderer.ts";
+import { createWordCard, CARD_STYLES, type CardContent } from "./word-card.ts";
+export type { CardContent } from "./word-card.ts";
 import { EXTENSION_MARKER } from "../dom-utils.ts";
 import {
   clampSubtitleBottom,
@@ -14,7 +17,7 @@ function ensureStyles(): void {
 
   const style = document.createElement("style");
   style.id = STYLE_ID;
-  style.textContent = `
+  style.textContent = WORD_STYLES + CARD_STYLES + `
     .sf-overlay {
       position: fixed;
       bottom: 12%;
@@ -26,6 +29,7 @@ function ensureStyles(): void {
       user-select: none;
       max-width: 80%;
       text-align: center;
+      white-space: pre-wrap;
       /* Typography is set here, not on .sf-word: the spaces between words are
          text nodes of this container, so they must share the words' font for
          the gap to be one real space. */
@@ -315,60 +319,16 @@ function ensureStyles(): void {
   document.head.appendChild(style);
 }
 
-let currentSentence = "";
-let onWordSelect: ((word: string, sentence: string) => void) | null = null;
 let activeOverlay: ReturnType<typeof createSubtitleOverlay> | null = null;
-
-function handleWordClick(word: string): void {
-  document.querySelectorAll(".sf-word.sf-selected").forEach((el) => {
-    el.classList.remove("sf-selected");
-  });
-
-  const wordEls = document.querySelectorAll(".sf-word");
-  for (const el of wordEls) {
-    if (el.textContent === word) {
-      el.classList.add("sf-selected");
-      break;
-    }
-  }
-
-  onWordSelect?.(word, currentSentence);
-}
 
 function markElement(el: HTMLElement): void {
   el.setAttribute(EXTENSION_MARKER, "");
 }
 
-export interface CardContent {
-  word: string;
-  /** Main line: the word in the target language. */
-  translation: string;
-  /** Optional second line: phonetic + dictionary definition. */
-  definition: string;
-  sentence: string;
-  /** The whole subtitle line translated, when it has already resolved. */
-  sentenceTranslation: string;
-  /** e.g. "EN -> PT", so it is obvious which way the lookup went. */
-  directionLabel: string;
-  state: "loading" | "ready" | "error";
-  /** The colour the user already gave this word, if any. */
-  mark?: WordMark | null;
-}
-
-const STATUS_CLASSES: Record<WordStatus, string> = {
-  new: "sf-word-new",
-  special: "sf-word-special",
-  difficult: "sf-word-difficult",
-  learned: "sf-word-learned",
-};
-
-const MARK_BUTTONS: ReadonlyArray<readonly [WordMark, string]> = [
-  ["difficult", "Hard"],
-  ["learned", "Aprendida"],
-];
-
 export interface OverlayOptions {
   onWordSelect: (word: string, sentence: string) => void;
+  onWordDifficult?: (word: string, sentence: string) => void;
+  onCardClose?: () => void;
   /** Initial values for the in-player settings panel and subtitle position. */
   settings: Settings;
   onSettingsChange: (patch: Partial<Settings>) => void;
@@ -386,9 +346,10 @@ export function createSubtitleOverlay(options: OverlayOptions): {
   hideCard: () => void;
   showCard: (
     content: CardContent,
-    onSave: () => void | Promise<unknown>,
+    onSave: () => void | string | Promise<void | string>,
     onMark?: (mark: WordMark | null) => void | Promise<void>
   ) => void;
+  showFeedback: (message: string) => void;
   destroy: () => void;
 } {
   // Destroy previous overlay if one exists (only one instance allowed)
@@ -398,7 +359,7 @@ export function createSubtitleOverlay(options: OverlayOptions): {
   }
 
   ensureStyles();
-  onWordSelect = options.onWordSelect;
+  let currentSentence = "";
 
   const overlay = document.createElement("div");
   overlay.className = "sf-overlay sf-hidden";
@@ -418,6 +379,12 @@ export function createSubtitleOverlay(options: OverlayOptions): {
   card.className = "sf-card sf-hidden";
   markElement(card);
   document.body.appendChild(card);
+  const wordCard = createWordCard(card, options.onCardClose);
+  const renderer = createWordRenderer(sourceLine, { status: word => options.getWordStatus?.(word) ?? null, select: options.onWordSelect, difficult: options.onWordDifficult });
+  const feedback = document.createElement("div");
+  feedback.className = "sf-feedback"; feedback.setAttribute("role", "status"); feedback.setAttribute("aria-live", "polite"); markElement(feedback);
+  feedback.style.cssText = "position:fixed;bottom:22px;left:20px;z-index:100002;background:#1a1a2e;color:white;font:14px system-ui;padding:6px;border-radius:6px;pointer-events:none";
+  document.body.appendChild(feedback);
 
   const panel = document.createElement("div");
   panel.className = "sf-panel sf-hidden";
@@ -490,7 +457,7 @@ export function createSubtitleOverlay(options: OverlayOptions): {
 
   const handleKeydown = (e: KeyboardEvent) => {
     if (e.key === "Escape") {
-      card.classList.add("sf-hidden");
+      wordCard.hide();
       panel.classList.add("sf-hidden");
     }
     if (e.ctrlKey && e.shiftKey && e.key === "L") {
@@ -502,8 +469,8 @@ export function createSubtitleOverlay(options: OverlayOptions): {
   const handleClick = (e: MouseEvent) => {
     const target = e.target as HTMLElement;
     if (!card.contains(target) && !target.classList.contains("sf-word")) {
-      card.classList.add("sf-hidden");
-      document.querySelectorAll(".sf-word.sf-selected").forEach((el) => {
+      wordCard.hide();
+      sourceLine.querySelectorAll(".sf-word.sf-selected").forEach((el) => {
         el.classList.remove("sf-selected");
       });
     }
@@ -568,16 +535,9 @@ export function createSubtitleOverlay(options: OverlayOptions): {
   document.addEventListener("keydown", handleKeydown);
   document.addEventListener("click", handleClick);
 
-  const applyWordStatus = (span: HTMLElement): void => {
-    const status = options.getWordStatus?.(span.textContent ?? "") ?? null;
-    for (const [value, className] of Object.entries(STATUS_CLASSES)) {
-      span.classList.toggle(className, value === status);
-    }
-  };
-
   const instance = {
     update(text: string | null): void {
-      sourceLine.innerHTML = "";
+      renderer.update("");
       // The old line's translation must go immediately: leaving it up while the
       // next one is in flight pairs the wrong translation with the new subtitle.
       targetLine.textContent = "";
@@ -591,19 +551,7 @@ export function createSubtitleOverlay(options: OverlayOptions): {
       currentSentence = text;
       overlay.classList.remove("sf-hidden");
 
-      const words = text.split(/\s+/);
-      for (const w of words) {
-        const span = document.createElement("span");
-        span.className = "sf-word";
-        span.textContent = w;
-        applyWordStatus(span);
-        span.addEventListener("click", (e) => {
-          e.stopPropagation();
-          handleWordClick(w);
-        });
-        sourceLine.appendChild(span);
-        sourceLine.appendChild(document.createTextNode(" "));
-      }
+      renderer.update(text);
     },
 
     /**
@@ -618,7 +566,7 @@ export function createSubtitleOverlay(options: OverlayOptions): {
     },
 
     refreshWordStatuses(): void {
-      sourceLine.querySelectorAll<HTMLElement>(".sf-word").forEach(applyWordStatus);
+      renderer.refresh();
     },
 
     applySettings(settings: Settings): void {
@@ -634,127 +582,21 @@ export function createSubtitleOverlay(options: OverlayOptions): {
     },
 
     hideCard(): void {
-      card.classList.add("sf-hidden");
+      wordCard.hide();
     },
 
-    showCard(
-      content: CardContent,
-      onSave: () => void | Promise<unknown>,
-      onMark?: (mark: WordMark | null) => void | Promise<void>
-    ): void {
-      card.classList.remove("sf-hidden");
-
-      const wordEl = document.querySelector(".sf-word.sf-selected");
-      if (wordEl) {
-        const rect = wordEl.getBoundingClientRect();
-        card.style.left = `${Math.max(8, Math.min(rect.left, window.innerWidth - 370))}px`;
-        card.style.top = `${Math.max(8, rect.top - 160)}px`;
-        card.style.transform = "";
-      } else {
-        card.style.left = "50%";
-        card.style.top = "30%";
-        card.style.transform = "translateX(-50%)";
-      }
-
-      const isLoading = content.state === "loading";
-      const isError = content.state === "error";
-      const mainLine = isLoading
-        ? "Translating..."
-        : content.translation || "Translation unavailable.";
-
-      card.innerHTML = `
-        <div class="sf-card-head">
-          <span class="sf-card-word">${escapeHtml(content.word)}</span>
-          <span class="sf-card-dir">${escapeHtml(content.directionLabel)}</span>
-        </div>
-        <div class="sf-card-translation">
-          ${isLoading ? '<span class="sf-loading"></span>' : ""}
-          ${escapeHtml(mainLine)}
-        </div>
-        ${
-          content.definition
-            ? `<div class="sf-card-definition">${escapeHtml(content.definition)}</div>`
-            : ""
-        }
-        <div class="sf-card-sentence">"${escapeHtml(content.sentence)}"</div>
-        ${
-          content.sentenceTranslation
-            ? `<div class="sf-card-sentence-translation">"${escapeHtml(
-                content.sentenceTranslation
-              )}"</div>`
-            : ""
-        }
-        <div class="sf-card-actions">
-          <button class="sf-card-btn${isError ? " sf-error" : ""}">
-            ${isLoading ? "Loading..." : "Save Phrase"}
-          </button>
-          ${
-            onMark
-              ? MARK_BUTTONS.map(
-                  ([mark, label]) =>
-                    `<button class="sf-card-mark sf-mark-${mark}" data-mark="${mark}"><span>${label}</span></button>`
-                ).join("")
-              : ""
-          }
-        </div>
-      `;
-
-      // Marking works while the translation is still loading: it does not
-      // depend on it, and waiting for a slow provider would only get in the way.
-      if (onMark) {
-        let currentMark = content.mark ?? null;
-        let confirmedMark = currentMark;
-        let markOperation = 0;
-        const markButtons = card.querySelectorAll<HTMLButtonElement>(".sf-card-mark");
-        const syncMarkButtons = () => {
-          markButtons.forEach((btn) => {
-            btn.classList.toggle("sf-active", btn.dataset.mark === currentMark);
-          });
-        };
-        syncMarkButtons();
-
-        markButtons.forEach((btn) => {
-          btn.addEventListener("click", (e) => {
-            e.stopPropagation();
-            const entry = MARK_BUTTONS.find(([mark]) => mark === btn.dataset.mark);
-            if (!entry) return;
-            // Clicking the active colour again clears it.
-            currentMark = currentMark === entry[0] ? null : entry[0];
-            syncMarkButtons();
-            const requestedMark = currentMark;
-            const operation = ++markOperation;
-            btn.title = "Salvando…";
-            Promise.resolve().then(() => onMark(requestedMark)).then(() => {
-              if (operation !== markOperation) return;
-              confirmedMark = requestedMark;
-              btn.title = "Salvo";
-            }).catch(() => {
-              if (operation !== markOperation) return;
-              currentMark = confirmedMark;
-              syncMarkButtons();
-              btn.title = "Não foi possível salvar. Tente novamente.";
-            });
-          });
-        });
-      }
-
-      if (!isLoading) {
-        const btn = card.querySelector<HTMLButtonElement>(".sf-card-btn");
-        btn?.addEventListener("click", (e) => {
-          e.stopPropagation();
-          btn.disabled = true;
-          btn.textContent = "Salvando…";
-          Promise.resolve().then(onSave).then(() => {
-            btn.textContent = "Saved!";
-            btn.classList.add("sf-saved");
-          }).catch(() => {
-            btn.textContent = "Tentar salvar novamente";
-          }).finally(() => { btn.disabled = false; });
-        });
-      }
+    showCard(content: CardContent, onSave: () => void | string | Promise<void | string>, onMark?: (mark: WordMark | null) => void | Promise<void>): void {
+      const wordEl = sourceLine.querySelector(".sf-word.sf-selected");
+      const rect = wordEl?.getBoundingClientRect();
+      card.style.left = rect ? `${Math.max(8, Math.min(rect.left, window.innerWidth - 370))}px` : "50%";
+      card.style.top = rect ? `${Math.max(8, rect.top - 200)}px` : "30%";
+      card.style.transform = rect ? "" : "translateX(-50%)";
+      wordCard.show(content, onSave, onMark);
     },
+    showFeedback(message: string): void { feedback.textContent = message; },
 
     destroy(): void {
+      renderer.destroy(); wordCard.hide(); feedback.remove();
       document.removeEventListener("keydown", handleKeydown);
       document.removeEventListener("click", handleClick);
       document.removeEventListener("mousemove", handleDragMove);
@@ -763,7 +605,7 @@ export function createSubtitleOverlay(options: OverlayOptions): {
       card.remove();
       fab.remove();
       panel.remove();
-      onWordSelect = null;
+
       if (activeOverlay === instance) {
         activeOverlay = null;
       }
@@ -774,10 +616,4 @@ export function createSubtitleOverlay(options: OverlayOptions): {
 
   activeOverlay = instance;
   return instance;
-}
-
-function escapeHtml(str: string): string {
-  const div = document.createElement("div");
-  div.textContent = str;
-  return div.innerHTML;
 }
