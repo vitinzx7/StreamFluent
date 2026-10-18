@@ -11,6 +11,7 @@ import { createPlaybackController, type PlaybackDriver } from "../core/playback-
 import { createStudyContext, wordContext, type StudySnapshot } from "../core/study-context.ts";
 import { createStudyActions } from "../core/study-actions.ts";
 import { installShortcuts } from "../core/keyboard-shortcuts.ts";
+import { createDomAutoPause } from "../core/auto-pause.ts";
 import type { StreamingAdapter } from "../core/types.ts";
 import {
   translateWord,
@@ -107,8 +108,30 @@ async function boot(): Promise<void> {
       sessionSequence++;
       sessionHasLines = false;
       if (!first) endSession();
+      bindVideo(video);
     }
     return `${generation}:${sessionSequence}`;
+  };
+
+  // Resuming, or any seek, gives the screen back to the live line.
+  let boundVideo: HTMLVideoElement | null = null;
+  const releaseRetained = (): void => {
+    if (!context.retained && !context.held) return;
+    context.release();
+    present();
+  };
+  const onJump = (): void => {
+    autoPause.jumped();
+    releaseRetained();
+  };
+  const bindVideo = (video: HTMLVideoElement | null): void => {
+    boundVideo?.removeEventListener("play", releaseRetained);
+    boundVideo?.removeEventListener("seeking", onJump);
+    boundVideo?.removeEventListener("seeked", onJump);
+    boundVideo = video;
+    video?.addEventListener("play", releaseRetained);
+    video?.addEventListener("seeking", onJump);
+    video?.addEventListener("seeked", onJump);
   };
   syncSession();
   const shortcutsActive = (): boolean => {
@@ -180,6 +203,7 @@ async function boot(): Promise<void> {
     lookupId++;
     lineRequestId++;
     context.clear();
+    autoPause.reset();
     controller.invalidate();
     overlay.hideCard();
     present();
@@ -277,6 +301,28 @@ async function boot(): Promise<void> {
 
   const controller = createPlaybackController(adapterDriver(adapter, syncSession), {
     backTarget: (from) => navigation.backTarget(from),
+    // A, D and S release the retained line at once, before the seek lands.
+    onNavigate: onJump,
+  });
+
+  // Pauses when a line leaves the screen; the DOM gives no end time, so this
+  // is approximate by nature and never seeks back to make up for it.
+  const autoPause = createDomAutoPause({
+    enabled: () => settings.autoPause,
+    pause: () => controller.pause(),
+    hold: (snapshot) => {
+      context.hold(snapshot);
+      present();
+    },
+    retain: (snapshot) => {
+      context.retain(snapshot);
+      present();
+    },
+    failed: () => {
+      context.release();
+      present();
+      overlay.showFeedback("A pausa automática não conseguiu pausar o vídeo.");
+    },
   });
 
   const actions = createStudyActions({
@@ -317,6 +363,7 @@ async function boot(): Promise<void> {
       // without the old translation, colours or retained line.
       lookupId++;
       overlay.hideCard();
+      autoPause.reset();
       context.release();
       const live = context.live;
       if (live) {
@@ -361,7 +408,11 @@ async function boot(): Promise<void> {
         freshKeys: NO_WORDS,
       };
     }
+    // Captured before it is replaced: the line that ended is the one retained.
+    const previous = context.live;
     context.setLive(next);
+    if (previous) autoPause.lineEnded(previous, adapter.getVideo?.() ?? null);
+    if (next) autoPause.lineShown(next);
     present();
   });
 
@@ -370,6 +421,8 @@ async function boot(): Promise<void> {
     lookupId++;
     stopObserving();
     stopShortcuts();
+    autoPause.reset();
+    bindVideo(null);
     controller.stop();
     navigation.stop();
     unsubscribe();

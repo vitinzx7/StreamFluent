@@ -450,3 +450,125 @@ describe("study shortcuts", () => {
     expect(press("a").defaultPrevented).toBe(false);
   });
 });
+
+describe("auto-pause on DOM subtitles", () => {
+  function playingAdapter() {
+    const video = document.createElement("video");
+    let paused = false;
+    Object.defineProperty(video, "paused", { configurable: true, get: () => paused });
+    Object.defineProperty(video, "readyState", { configurable: true, get: () => 4 });
+    document.body.append(video);
+    const pause = vi.fn(async () => {
+      paused = true;
+      video.dispatchEvent(new Event("pause"));
+      return true;
+    });
+    mocks.getAdapter.mockReturnValue({
+      name: "Netflix",
+      isSupportedPage: () => true,
+      getMediaMetadata: () => ({ title: "Episode one", season: 1, episode: 1 }),
+      observeSubtitles: (listener: typeof cue) => { cue = listener; return stopObserving; },
+      getVideo: () => video,
+      seekTo: vi.fn().mockResolvedValue(true),
+      play: vi.fn().mockResolvedValue(true),
+      pause,
+      canPlayPause: () => true,
+    });
+    const resume = () => {
+      paused = false;
+      video.dispatchEvent(new Event("play"));
+    };
+    return { video, pause, resume };
+  }
+
+  const settle = () => new Promise((resolve) => setTimeout(resolve, 10));
+  const shownLines = () => overlay.update.mock.calls.map(([text]) => text);
+  const observed = () => vocabulary.observeLine.mock.calls.map(([text]) => text);
+
+  afterEach(() => document.body.replaceChildren());
+
+  it("A02: pauses when the line is replaced and keeps the line that ended on screen", async () => {
+    const { pause } = playingAdapter();
+    mocks.getSettings.mockResolvedValue({ ...defaults, autoPause: true });
+    await boot();
+
+    emit("Where were you?");
+    emit("At home.");
+    await settle();
+
+    expect(pause).toHaveBeenCalledOnce();
+    expect(shownLines()).toEqual(["Where were you?"]);
+    // Hidden behind the retained line, so not yet "seen".
+    expect(observed()).toEqual(["Where were you?"]);
+  });
+
+  it("R and copy work on the retained line, not on the hidden live one", async () => {
+    playingAdapter();
+    mocks.getSettings.mockResolvedValue({ ...defaults, autoPause: true });
+    mocks.savePhrase.mockResolvedValue({ phrase: {}, duplicate: false });
+    await boot();
+    emit("Where were you?");
+    emit("At home.");
+    await settle();
+
+    document.body.dispatchEvent(new KeyboardEvent("keydown", { key: "r", bubbles: true, cancelable: true }));
+    options.onStudyCommand?.("copy-line");
+
+    expect(mocks.savePhrase).toHaveBeenCalledWith(expect.objectContaining({ kind: "sentence", sentence: "Where were you?" }));
+    expect(overlay.showCopyFallback).toHaveBeenCalledWith("Where were you?");
+  });
+
+  it("A03: resuming shows the live line and records its words then", async () => {
+    const { pause, resume } = playingAdapter();
+    mocks.getSettings.mockResolvedValue({ ...defaults, autoPause: true });
+    await boot();
+    emit("Where were you?");
+    emit("At home.");
+    await settle();
+
+    resume();
+
+    expect(shownLines()).toEqual(["Where were you?", "At home."]);
+    expect(observed()).toEqual(["Where were you?", "At home."]);
+    expect(pause).toHaveBeenCalledOnce();
+  });
+
+  it("A06: switching auto-pause off while paused keeps the video paused and the line retained", async () => {
+    const { video } = playingAdapter();
+    mocks.getSettings.mockResolvedValue({ ...defaults, autoPause: true });
+    await boot();
+    emit("Where were you?");
+    emit("At home.");
+    await settle();
+
+    settingsChanged({ ...defaults, autoPause: false });
+
+    expect(video.paused).toBe(true);
+    expect(shownLines()).toEqual(["Where were you?"]);
+  });
+
+  it("a seek releases the retained line", async () => {
+    const { video } = playingAdapter();
+    mocks.getSettings.mockResolvedValue({ ...defaults, autoPause: true });
+    await boot();
+    emit("Where were you?");
+    emit("At home.");
+    await settle();
+
+    video.dispatchEvent(new Event("seeking"));
+
+    expect(shownLines()).toEqual(["Where were you?", "At home."]);
+  });
+
+  it("stays off by default", async () => {
+    const { pause } = playingAdapter();
+    await boot();
+
+    emit("Where were you?");
+    emit("At home.");
+    await settle();
+
+    expect(pause).not.toHaveBeenCalled();
+    expect(shownLines()).toEqual(["Where were you?", "At home."]);
+  });
+});
