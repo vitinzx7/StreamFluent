@@ -129,6 +129,20 @@ describe("DOM subtitles (Netflix/Max): approximate pause", () => {
     expect(h.pause).not.toHaveBeenCalled();
   });
 
+  it("keeps the destination line armed when the seek lands after it appeared", () => {
+    const { pause, host: h, advance } = dom();
+    pause.jumped();
+    advance(50);
+    pause.lineShown(line("2"));
+    advance(150);
+    pause.landed();
+    advance(JUMP_GRACE_MS + 2000);
+
+    pause.lineEnded(line("2"), playingVideo().video);
+
+    expect(h.pause).toHaveBeenCalledOnce();
+  });
+
   it("arms the line shown at the seek's destination, once the seek's own changes are over", () => {
     const { pause, host: h, advance } = dom();
     pause.jumped();

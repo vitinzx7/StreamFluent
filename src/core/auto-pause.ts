@@ -74,8 +74,14 @@ export interface DomAutoPause {
   lineShown(snapshot: StudySnapshot): void;
   /** `previous` disappeared or was replaced on screen. */
   lineEnded(previous: StudySnapshot, video: HTMLVideoElement | null): void;
-  /** A seek started or landed, by us or anyone else. */
+  /** A seek started, by us or anyone else. */
   jumped(): void;
+  /**
+   * The seek landed. The subtitle DOM may still be catching up, so changes
+   * just after it are not line ends either — but a line that appeared at the
+   * destination stays armed.
+   */
+  landed(): void;
   /** Episode, video or language changed: forget everything, ignore late replies. */
   reset(): void;
 }
@@ -114,6 +120,10 @@ export function createDomAutoPause(host: PauseHost, now: () => number = () => pe
       jumps++;
       jumpAt = now();
       pause.reset();
+    },
+
+    landed() {
+      jumpAt = now();
     },
 
     reset() {

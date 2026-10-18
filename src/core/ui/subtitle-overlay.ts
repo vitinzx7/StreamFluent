@@ -214,10 +214,11 @@ function ensureStyles(): void {
       transition: background 0.15s, transform 0.1s;
     }
     /* Light tints: they stay readable inside the dark outline. */
+    /* The five states of section 2.3; word-renderer.ts uses the same values. */
     .sf-word-special, .sf-legend-special { color: #C4A5FF; }
-    .sf-word-new, .sf-legend-new { color: #8ecbff; }
-    .sf-word-difficult, .sf-legend-difficult { color: #ff8a80; }
-    .sf-word-learned, .sf-legend-learned { color: #69db7c; }
+    .sf-word-new, .sf-legend-new { color: #8ECBFF; }
+    .sf-word-difficult, .sf-legend-difficult { color: #FF8A80; }
+    .sf-word-learned, .sf-legend-learned { color: #81C784; }
     .sf-word:hover {
       background: rgba(0, 212, 170, 0.35);
       transform: translateY(-1px);
@@ -313,8 +314,8 @@ function ensureStyles(): void {
       font-weight: 600;
       cursor: pointer;
     }
-    .sf-card-mark.sf-mark-difficult { color: #ff8a80; }
-    .sf-card-mark.sf-mark-learned { color: #69db7c; }
+    .sf-card-mark.sf-mark-difficult { color: #FF8A80; }
+    .sf-card-mark.sf-mark-learned { color: #81C784; }
     .sf-card-mark.sf-active {
       background: currentColor;
     }

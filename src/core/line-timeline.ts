@@ -121,6 +121,13 @@ export function createLineTimeline(): LineTimeline {
       close(time);
       const known = findKnown(text, time);
       if (known) {
+        // Every sighting bounds the real start from above: a line first met
+        // mid-way after a seek gets its earlier start once it is seen from before.
+        if (time < known.start) {
+          known.start = time;
+          lines.splice(lines.indexOf(known), 1);
+          insert(known);
+        }
         showing = known;
         return;
       }

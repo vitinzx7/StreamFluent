@@ -98,15 +98,15 @@ export function createWordActions(options: WordActionsOptions) {
       if (!shown) return;
       const session = options.sessionId();
       const language = getLangPair(shown.direction).source;
-      const previous = options.vocabulary.getMark(word, language);
       const current = (): boolean => options.isAlive() && options.sessionId() === session;
       options.feedback("Salvando…");
       void options.vocabulary
         .setMark(word, language, "difficult", { displayWord: word, context: wordContext(shown) })
-        .then(() => {
+        .then((changed) => {
           if (!current()) return;
           options.refresh();
-          options.feedback(previous === "difficult" ? "Já está nas difíceis" : "Adicionada às difíceis");
+          // The worker says whether it changed: a quick second click knows it was already there.
+          options.feedback(changed ? "Adicionada às difíceis" : "Já está nas difíceis");
         })
         .catch(() => {
           if (current()) options.feedback("Não foi possível salvar. Clique novamente para tentar.");

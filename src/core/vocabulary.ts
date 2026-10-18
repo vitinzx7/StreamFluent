@@ -15,8 +15,12 @@ export interface VocabularyStore {
   /** Await durable history; re-rendering the same occurrence reuses its result. */
   observeLine(line: string, language: string, occurrenceId?: string): Promise<Set<string>>;
   getMark(word: string, language: string): WordMark | null;
-  /** Resolves after persistence. Until then getMark returns the confirmed mark. */
-  setMark(word: string, language: string, mark: WordMark | null, details?: Partial<WordDetails>): Promise<void>;
+  /**
+   * Resolves after persistence with whether the mark actually changed — the
+   * worker's answer, so a repeated click knows it was already set. Until then
+   * getMark returns the confirmed mark.
+   */
+  setMark(word: string, language: string, mark: WordMark | null, details?: Partial<WordDetails>): Promise<boolean>;
   onChange(cb: () => void): () => void;
   dispose(): void;
 }
@@ -104,6 +108,7 @@ export function createVocabularyStore(): VocabularyStore {
         word: key, language, mark, ...(details ? { details } : {}),
       });
       apply(response.data.vocabulary, response.revision);
+      return response.data.changed;
     },
     onChange(callback) {
       listeners.add(callback);

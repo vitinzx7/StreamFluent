@@ -113,14 +113,16 @@ async function boot(): Promise<void> {
     autoPause.jumped();
     releaseRetained();
   };
+  // Not a second jump: the line shown at the destination must stay armed.
+  const onLanded = (): void => autoPause.landed();
   const bindVideo = (video: HTMLVideoElement | null): void => {
     boundVideo?.removeEventListener("play", releaseRetained);
     boundVideo?.removeEventListener("seeking", onJump);
-    boundVideo?.removeEventListener("seeked", onJump);
+    boundVideo?.removeEventListener("seeked", onLanded);
     boundVideo = video;
     video?.addEventListener("play", releaseRetained);
     video?.addEventListener("seeking", onJump);
-    video?.addEventListener("seeked", onJump);
+    video?.addEventListener("seeked", onLanded);
   };
   syncSession();
   const shortcutsActive = (): boolean => {

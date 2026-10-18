@@ -22,6 +22,20 @@ function watch(
 }
 
 describe("back one line", () => {
+  it("learns the earlier start of a line first seen mid-way after a seek", () => {
+    const t = createLineTimeline();
+    // Seen first at 2.0 (a seek landed in the middle of it)...
+    t.lineShown("Hello there", 2);
+    t.jumped();
+    // ...then watched from before it starts.
+    play(t, 0.5, 6.5);
+    t.lineShown("Hello there", 1.1);
+    t.lineHidden(4.1);
+    t.lineShown("The café is open", 5.1);
+
+    expect(t.backTarget(5.6)).toBeCloseTo(1.1 - PRE_ROLL);
+  });
+
   it("goes from 'and you' straight to the start of 'I am student in TI'", () => {
     const t = createLineTimeline();
     watch(t, [["Hello there", 1, 3], ["I am student in TI", 3.5, 5.5], ["and you", 6, 8]], 0, 6.5);
