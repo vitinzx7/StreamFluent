@@ -1,62 +1,37 @@
-import type { SavedPhrase, StorageSchema } from "./types.ts";
-import { generateId } from "./utils.ts";
+import type { SavedPhrase, SavedPhraseInput } from "./types.ts";
+import { requestStudy } from "./study-messages.ts";
+import { normalizePhrases } from "./study-data.ts";
 
-const STORAGE_KEY: keyof StorageSchema = "phrases";
+export interface PhraseSaveResult { phrase: SavedPhrase; duplicate: boolean }
 
+/** The service worker owns every write, including removal and clearing. */
 export const PhraseRepository = {
   async getAll(): Promise<SavedPhrase[]> {
-    const result = await chrome.storage.local.get(STORAGE_KEY);
-    const raw = result[STORAGE_KEY];
-    if (!Array.isArray(raw)) return [];
-    return raw;
+    const result = await requestStudy<{ phrases: SavedPhrase[] }>("read");
+    return normalizePhrases(result.data.phrases);
   },
 
   async getById(id: string): Promise<SavedPhrase | null> {
-    const phrases = await this.getAll();
-    return phrases.find((p) => p.id === id) || null;
+    return (await this.getAll()).find((phrase) => phrase.id === id) ?? null;
   },
 
-  async save(
-    phrase: Omit<SavedPhrase, "id" | "createdAt">
-  ): Promise<SavedPhrase> {
-    const phrases = await this.getAll();
+  async saveResult(phrase: SavedPhraseInput): Promise<PhraseSaveResult> {
+    return (await requestStudy<PhraseSaveResult>("save-phrase", { phrase })).data;
+  },
 
-    // Avoid obvious duplicates: same sentence + same word on same platform
-    const existing = phrases.find(
-      (p) =>
-        p.sentence === phrase.sentence &&
-        p.selectedWord === phrase.selectedWord &&
-        p.platform === phrase.platform
-    );
-    if (existing) return existing;
-
-    const newPhrase: SavedPhrase = {
-      ...phrase,
-      id: generateId(),
-      createdAt: new Date().toISOString(),
-    };
-
-    phrases.push(newPhrase);
-    await chrome.storage.local.set({ [STORAGE_KEY]: phrases });
-    return newPhrase;
+  async save(phrase: SavedPhraseInput): Promise<SavedPhrase> {
+    return (await this.saveResult(phrase)).phrase;
   },
 
   async remove(id: string): Promise<boolean> {
-    const phrases = await this.getAll();
-    const index = phrases.findIndex((p) => p.id === id);
-    if (index === -1) return false;
-
-    phrases.splice(index, 1);
-    await chrome.storage.local.set({ [STORAGE_KEY]: phrases });
-    return true;
+    return (await requestStudy<{ removed: boolean }>("remove-phrase", { id })).data.removed;
   },
 
   async clear(): Promise<void> {
-    await chrome.storage.local.set({ [STORAGE_KEY]: [] });
+    await requestStudy("clear-phrases");
   },
 
   async count(): Promise<number> {
-    const phrases = await this.getAll();
-    return phrases.length;
+    return (await this.getAll()).length;
   },
 };

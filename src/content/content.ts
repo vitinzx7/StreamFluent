@@ -69,11 +69,13 @@ async function boot(): Promise<void> {
   // computed once when the line arrives so a re-render keeps the same colours.
   const vocabulary = createVocabularyStore();
   let newWords = new Set<string>();
+  let newWordsLanguage = "";
+  let occurrenceId = 0;
   const sourceLanguage = (): string => getLangPair(settings.direction).source;
   const wordStatus = (word: string): WordStatus | null => {
     const mark = vocabulary.getMark(word, sourceLanguage());
     if (mark) return mark;
-    return settings.highlightNewWords && newWords.has(wordKey(word)) ? "new" : null;
+    return settings.highlightNewWords && newWordsLanguage === sourceLanguage() && newWords.has(wordKey(word)) ? "new" : null;
   };
 
   const showLineTranslation = (line: string): void => {
@@ -96,7 +98,7 @@ async function boot(): Promise<void> {
     onSettingsChange: (patch) => {
       // Storage is the source of truth: the write comes back through
       // onChange below, which refreshes `settings` and the panel controls.
-      void SettingsRepository.save(patch);
+      void SettingsRepository.save(patch).catch((error) => console.warn("StreamFluent: não foi possível salvar a preferência.", error));
     },
     onOpenLibrary: () => {
       void chrome.runtime.sendMessage({ type: "sf:open-library" });
@@ -109,9 +111,9 @@ async function boot(): Promise<void> {
       const metadata = adapter.getMediaMetadata();
       const language = getLangPair(direction).source;
       const mark = vocabulary.getMark(word, language);
-      const onMark = (next: typeof mark): void => {
+      const onMark = async (next: typeof mark): Promise<void> => {
         if (disposed) return;
-        vocabulary.setMark(word, language, next);
+        await vocabulary.setMark(word, language, next);
         overlay.refreshWordStatuses();
       };
 
@@ -154,6 +156,9 @@ async function boot(): Promise<void> {
         async () => {
           if (disposed || page !== location.href) return;
           await PhraseRepository.save({
+            kind: "word",
+            sourceLanguage: language,
+            targetLanguage: getLangPair(direction).target,
             sentence,
             sentenceTranslation,
             selectedWord: word,
@@ -175,7 +180,7 @@ async function boot(): Promise<void> {
   const stopVocabulary = vocabulary.onChange(() => overlay.refreshWordStatuses());
   void vocabulary.ready.then(() => {
     if (!disposed && generation === bootGeneration) overlay.refreshWordStatuses();
-  });
+  }).catch((error) => console.warn("StreamFluent: histórico indisponível.", error));
 
   unsubscribe = SettingsRepository.onChange((next) => {
     const wasOff = !settings.showTranslation;
@@ -202,10 +207,21 @@ async function boot(): Promise<void> {
   const stopObserving = adapter.observeSubtitles((cue) => {
     lineRequestId++;
     const text = cue?.text ?? null;
+    const occurrence = ++occurrenceId;
+    const page = location.href;
+    const language = sourceLanguage();
     currentLine = text;
     navigation.cueChanged(text);
-    newWords = text ? vocabulary.observeLine(text, sourceLanguage()) : new Set();
+    newWords = new Set();
+    newWordsLanguage = language;
     overlay.update(text);
+    if (text) {
+      void vocabulary.observeLine(text, language, `${generation}:${occurrence}`).then((fresh) => {
+        if (disposed || occurrence !== occurrenceId || page !== location.href || generation !== bootGeneration) return;
+        newWords = fresh;
+        overlay.refreshWordStatuses();
+      }).catch((error) => console.warn("StreamFluent: não foi possível registrar o histórico desta fala.", error));
+    }
 
     if (!text || !settings.showTranslation) return;
     showLineTranslation(text);

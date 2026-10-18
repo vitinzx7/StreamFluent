@@ -1,5 +1,6 @@
 import { DEFAULT_SETTINGS, getLangPair, type LanguageDirection } from "./settings.ts";
 import { requestProviderJson } from "./translation-request.ts";
+import { wordKey } from "./word-normalization.ts";
 
 export interface TranslationResult {
   word: string;
@@ -25,10 +26,7 @@ const CACHE_LIMIT = 200;
 
 /** Keeps accented letters so Portuguese words survive; drops surrounding punctuation. */
 export function cleanWord(word: string): string {
-  return word
-    .toLowerCase()
-    .replace(/[^\p{L}\p{M}'-]/gu, "")
-    .replace(/^[-']+|[-']+$/g, "");
+  return wordKey(word);
 }
 
 interface DictionaryEntry {

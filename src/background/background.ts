@@ -1,3 +1,4 @@
+import { createStudyStorageService } from "../core/study-storage.ts";
 import { fetchProviderJson, isAllowedProviderUrl } from "../core/translation-request.ts";
 import {
   isCinetaroUrl, isEmbeddedPlayerUrl, isFrameDocumentId, isFrameId,
@@ -43,9 +44,15 @@ export async function relayFrameSession(message: unknown, sender: chrome.runtime
   }
 }
 
+const studyStorage = createStudyStorageService();
+
 chrome.runtime.onMessage.addListener((message: unknown, sender, respond) => {
   if (!message || typeof message !== "object") return false;
   const request = message as { type?: unknown; url?: unknown };
+  if (typeof request.type === "string" && request.type.startsWith("sf:study:")) {
+    void studyStorage.handle(message, sender).then(respond);
+    return true;
+  }
   if (request.type === "sf:frame-lease") {
     void relayFrameLease(message, sender).then(respond);
     return true;

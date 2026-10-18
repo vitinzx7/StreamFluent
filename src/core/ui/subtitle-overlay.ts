@@ -156,7 +156,7 @@ function ensureStyles(): void {
     /* Light tints: they stay readable inside the dark outline. */
     .sf-word-new, .sf-legend-new { color: #8ecbff; }
     .sf-word-difficult, .sf-legend-difficult { color: #ff8a80; }
-    .sf-word-marked, .sf-legend-marked { color: #ffd54f; }
+    .sf-word-learned, .sf-legend-learned { color: #69db7c; }
     .sf-word:hover {
       background: rgba(0, 212, 170, 0.35);
       transform: translateY(-1px);
@@ -253,7 +253,7 @@ function ensureStyles(): void {
       cursor: pointer;
     }
     .sf-card-mark.sf-mark-difficult { color: #ff8a80; }
-    .sf-card-mark.sf-mark-marked { color: #ffd54f; }
+    .sf-card-mark.sf-mark-learned { color: #69db7c; }
     .sf-card-mark.sf-active {
       background: currentColor;
     }
@@ -357,12 +357,12 @@ export interface CardContent {
 const STATUS_CLASSES: Record<WordStatus, string> = {
   new: "sf-word-new",
   difficult: "sf-word-difficult",
-  marked: "sf-word-marked",
+  learned: "sf-word-learned",
 };
 
 const MARK_BUTTONS: ReadonlyArray<readonly [WordMark, string]> = [
   ["difficult", "Hard"],
-  ["marked", "Mark"],
+  ["learned", "Aprendida"],
 ];
 
 export interface OverlayOptions {
@@ -384,8 +384,8 @@ export function createSubtitleOverlay(options: OverlayOptions): {
   hideCard: () => void;
   showCard: (
     content: CardContent,
-    onSave: () => void,
-    onMark?: (mark: WordMark | null) => void
+    onSave: () => void | Promise<unknown>,
+    onMark?: (mark: WordMark | null) => void | Promise<void>
   ) => void;
   destroy: () => void;
 } {
@@ -433,7 +433,7 @@ export function createSubtitleOverlay(options: OverlayOptions): {
     <div class="sf-panel-legend">
       <span class="sf-legend-new">new</span>
       <span class="sf-legend-difficult">hard</span>
-      <span class="sf-legend-marked">marked</span>
+      <span class="sf-legend-learned">learned</span>
     </div>
     <label class="sf-panel-row">
       <select data-sf="direction">
@@ -442,7 +442,7 @@ export function createSubtitleOverlay(options: OverlayOptions): {
       </select>
     </label>
     <button class="sf-panel-btn" data-sf="library">My Phrases</button>
-    <div class="sf-panel-hint">Press A to go back to the previous line. Click a word to mark it as hard or marked. Drag the subtitle up or down to move it.</div>
+    <div class="sf-panel-hint">Press A to go back to the previous line. Click a word to mark it as hard or learned. Drag the subtitle up or down to move it.</div>
   `;
   document.body.appendChild(panel);
 
@@ -627,8 +627,8 @@ export function createSubtitleOverlay(options: OverlayOptions): {
 
     showCard(
       content: CardContent,
-      onSave: () => void,
-      onMark?: (mark: WordMark | null) => void
+      onSave: () => void | Promise<unknown>,
+      onMark?: (mark: WordMark | null) => void | Promise<void>
     ): void {
       card.classList.remove("sf-hidden");
 
@@ -674,7 +674,7 @@ export function createSubtitleOverlay(options: OverlayOptions): {
         }
         <div class="sf-card-actions">
           <button class="sf-card-btn${isError ? " sf-error" : ""}">
-            ${isLoading ? "Loading..." : isError ? "Error" : "Save Phrase"}
+            ${isLoading ? "Loading..." : "Save Phrase"}
           </button>
           ${
             onMark
@@ -691,6 +691,8 @@ export function createSubtitleOverlay(options: OverlayOptions): {
       // depend on it, and waiting for a slow provider would only get in the way.
       if (onMark) {
         let currentMark = content.mark ?? null;
+        let confirmedMark = currentMark;
+        let markOperation = 0;
         const markButtons = card.querySelectorAll<HTMLButtonElement>(".sf-card-mark");
         const syncMarkButtons = () => {
           markButtons.forEach((btn) => {
@@ -707,7 +709,19 @@ export function createSubtitleOverlay(options: OverlayOptions): {
             // Clicking the active colour again clears it.
             currentMark = currentMark === entry[0] ? null : entry[0];
             syncMarkButtons();
-            onMark(currentMark);
+            const requestedMark = currentMark;
+            const operation = ++markOperation;
+            btn.title = "Salvando…";
+            Promise.resolve().then(() => onMark(requestedMark)).then(() => {
+              if (operation !== markOperation) return;
+              confirmedMark = requestedMark;
+              btn.title = "Salvo";
+            }).catch(() => {
+              if (operation !== markOperation) return;
+              currentMark = confirmedMark;
+              syncMarkButtons();
+              btn.title = "Não foi possível salvar. Tente novamente.";
+            });
           });
         });
       }
@@ -716,9 +730,14 @@ export function createSubtitleOverlay(options: OverlayOptions): {
         const btn = card.querySelector<HTMLButtonElement>(".sf-card-btn");
         btn?.addEventListener("click", (e) => {
           e.stopPropagation();
-          onSave();
-          btn.textContent = "Saved!";
-          btn.classList.add("sf-saved");
+          btn.disabled = true;
+          btn.textContent = "Salvando…";
+          Promise.resolve().then(onSave).then(() => {
+            btn.textContent = "Saved!";
+            btn.classList.add("sf-saved");
+          }).catch(() => {
+            btn.textContent = "Tentar salvar novamente";
+          }).finally(() => { btn.disabled = false; });
         });
       }
     },

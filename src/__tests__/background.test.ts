@@ -22,6 +22,7 @@ beforeEach(async () => {
       onMessage: { addListener: (next: MessageListener) => { listener = next; } },
     },
     tabs: { create: createTab },
+    storage: { local: { get: vi.fn().mockResolvedValue({}), set: vi.fn().mockResolvedValue(undefined) } },
   });
   await import("../background/background.ts");
 });

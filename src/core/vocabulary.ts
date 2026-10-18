@@ -1,234 +1,120 @@
-import { cleanWord } from "./translation.ts";
-import type { StorageSchema } from "./types.ts";
+import { normalizeVocabulary } from "./study-data.ts";
+import { requestStudy } from "./study-messages.ts";
+import { wordKey, tokenizeWords } from "./word-normalization.ts";
+import type { PersonalMark, VocabularyV2, WordDetails } from "./types.ts";
 
-/** A colour the user chose for a word from the lookup card. */
-export type WordMark = "difficult" | "marked";
-
-/** How a word is coloured on screen. A user mark wins over first appearance. */
+export { wordKey } from "./word-normalization.ts";
+export type WordMark = PersonalMark;
 export type WordStatus = WordMark | "new";
-
-export const VOCABULARY_KEY: keyof StorageSchema = "vocabulary";
-
-/**
- * Stored per source language, so "a" seen in English is not "a" seen in
- * Portuguese. Lives only in chrome.storage.local: none of it leaves the machine.
- */
-export interface LanguageVocabulary {
-  seen: string[];
-  marks: Record<string, WordMark>;
-}
-
-export type VocabularyData = Record<string, LanguageVocabulary>;
-
-interface LanguageState {
-  seen: Set<string>;
-  marks: Map<string, WordMark>;
-}
-
-type State = Map<string, LanguageState>;
-
-export function isWordMark(value: unknown): value is WordMark {
-  return value === "difficult" || value === "marked";
-}
-
-/** The key a word is stored under: the same normalisation as the lookups. */
-export function wordKey(word: string): string {
-  return cleanWord(word);
-}
-
-/** Storage contents are untrusted: keep what is well-formed, drop the rest. */
-function readState(raw: unknown): State {
-  const state: State = new Map();
-  if (!raw || typeof raw !== "object" || Array.isArray(raw)) return state;
-
-  for (const [language, value] of Object.entries(raw)) {
-    if (!value || typeof value !== "object") continue;
-    const { seen, marks } = value as { seen?: unknown; marks?: unknown };
-    const entry: LanguageState = { seen: new Set(), marks: new Map() };
-
-    if (Array.isArray(seen)) {
-      for (const word of seen) if (typeof word === "string" && word) entry.seen.add(word);
-    }
-    if (marks && typeof marks === "object" && !Array.isArray(marks)) {
-      for (const [word, mark] of Object.entries(marks)) {
-        if (word && isWordMark(mark)) entry.marks.set(word, mark);
-      }
-    }
-    state.set(language, entry);
-  }
-  return state;
-}
-
-function toStorage(state: State): VocabularyData {
-  const data: VocabularyData = {};
-  for (const [language, entry] of state) {
-    data[language] = { seen: [...entry.seen], marks: Object.fromEntries(entry.marks) };
-  }
-  return data;
-}
-
-function languageEntry(state: State, language: string): LanguageState {
-  let entry = state.get(language);
-  if (!entry) {
-    entry = { seen: new Set(), marks: new Map() };
-    state.set(language, entry);
-  }
-  return entry;
-}
-
-function nested<V>(map: Map<string, V>, language: string, create: () => V): V {
-  let value = map.get(language);
-  if (value === undefined) {
-    value = create();
-    map.set(language, value);
-  }
-  return value;
-}
+export type VocabularyData = VocabularyV2;
+export const VOCABULARY_KEY = "vocabulary";
+export const isWordMark = (value: unknown): value is WordMark => value === "difficult" || value === "learned";
 
 export interface VocabularyStore {
-  /** Resolves once the stored vocabulary is loaded; until then nothing is new. */
   readonly ready: Promise<void>;
-  /** Records a line's words as seen and returns the keys that were new. */
-  observeLine(line: string, language: string): Set<string>;
+  /** Await durable history; re-rendering the same occurrence reuses its result. */
+  observeLine(line: string, language: string, occurrenceId?: string): Promise<Set<string>>;
   getMark(word: string, language: string): WordMark | null;
-  setMark(word: string, language: string, mark: WordMark | null): void;
-  /** Called whenever the stored vocabulary changes, from this tab or another. */
+  /** Resolves after persistence. Until then getMark returns the confirmed mark. */
+  setMark(word: string, language: string, mark: WordMark | null, details?: Partial<WordDetails>): Promise<void>;
   onChange(cb: () => void): () => void;
-  /** Writes anything still pending and stops listening. */
   dispose(): void;
 }
 
-/**
- * In memory, the vocabulary is the last stored state plus this tab's changes
- * not yet written. Writes are read-modify-write merges rather than overwrites,
- * so two open player tabs cannot erase each other's words or marks.
- */
-export function createVocabularyStore(flushDelayMs = 1000): VocabularyStore {
-  let stored: State = new Map();
-  let loaded = false;
+/** Clients only keep confirmed snapshots; the worker serializes all mutations. */
+export function createVocabularyStore(): VocabularyStore {
+  let stored = normalizeVocabulary(undefined);
+  let revision = -1;
   let changeSeq = 0;
-  let timer: ReturnType<typeof setTimeout> | null = null;
-  const pendingSeen = new Map<string, Set<string>>();
-  const pendingMarks = new Map<string, Map<string, WordMark | null>>();
+  let disposed = false;
+  let occurrenceSequence = 0;
   const listeners = new Set<() => void>();
+  const occurrences = new Map<string, Promise<Set<string>>>();
+  const failedHistory = new Map<string, { language: string; keys: string[]; occurrenceId: string }>();
 
-  const isSeen = (language: string, key: string): boolean =>
-    !!stored.get(language)?.seen.has(key) || !!pendingSeen.get(language)?.has(key);
-
-  const markOf = (language: string, key: string): WordMark | null => {
-    const pending = pendingMarks.get(language);
-    if (pending?.has(key)) return pending.get(key) ?? null;
-    return stored.get(language)?.marks.get(key) ?? null;
+  const apply = (value: unknown, nextRevision: number): void => {
+    if (disposed || nextRevision < revision) return;
+    stored = normalizeVocabulary(value);
+    revision = nextRevision;
+    listeners.forEach((callback) => callback());
   };
-
-  const flush = async (): Promise<void> => {
-    timer = null;
-    if (!pendingSeen.size && !pendingMarks.size) return;
-
-    // Taken out before awaiting, so changes made meanwhile wait for the next flush.
-    const seen = new Map(pendingSeen);
-    const marks = new Map(pendingMarks);
-    pendingSeen.clear();
-    pendingMarks.clear();
-
-    try {
-      const result = await chrome.storage.local.get(VOCABULARY_KEY);
-      const next = readState(result[VOCABULARY_KEY]);
-      for (const [language, words] of seen) {
-        const entry = languageEntry(next, language);
-        for (const word of words) entry.seen.add(word);
-      }
-      for (const [language, changes] of marks) {
-        const entry = languageEntry(next, language);
-        for (const [word, mark] of changes) {
-          if (mark) entry.marks.set(word, mark);
-          else entry.marks.delete(word);
-        }
-      }
-      await chrome.storage.local.set({ [VOCABULARY_KEY]: toStorage(next) });
-      stored = next;
-    } catch {
-      // Put the changes back without overriding anything newer, to retry later.
-      for (const [language, words] of seen) {
-        const target = nested(pendingSeen, language, () => new Set<string>());
-        for (const word of words) target.add(word);
-      }
-      for (const [language, changes] of marks) {
-        const target = nested(pendingMarks, language, () => new Map<string, WordMark | null>());
-        for (const [word, mark] of changes) if (!target.has(word)) target.set(word, mark);
-      }
-    }
-  };
-
-  const schedule = (): void => {
-    if (timer === null) timer = setTimeout(() => void flush(), flushDelayMs);
-  };
-
-  const handleStorageChange = (
-    changes: Record<string, chrome.storage.StorageChange>,
-    area: string
-  ): void => {
-    if (area !== "local" || !(VOCABULARY_KEY in changes)) return;
+  const handleStorageChange = (changes: Record<string, chrome.storage.StorageChange>, area: string): void => {
+    if (disposed || area !== "local" || !Object.prototype.hasOwnProperty.call(changes, VOCABULARY_KEY)) return;
     changeSeq++;
-    stored = readState(changes[VOCABULARY_KEY].newValue);
-    if (loaded) listeners.forEach((cb) => cb());
+    const nextRevision = changes.studyRevision?.newValue;
+    try {
+      apply(changes[VOCABULARY_KEY].newValue, typeof nextRevision === "number" ? nextRevision : revision);
+    } catch {
+      // Unknown schemas must not replace the last known, confirmed snapshot.
+    }
   };
   chrome.storage.onChanged.addListener(handleStorageChange);
 
-  const ready = (async () => {
+  const load = async (): Promise<void> => {
     const seq = changeSeq;
-    try {
-      const result = await chrome.storage.local.get(VOCABULARY_KEY);
-      // A change event that arrived meanwhile already carries newer data.
-      if (seq === changeSeq) stored = readState(result[VOCABULARY_KEY]);
-    } catch {
-      // Storage unavailable: keep going with an in-memory vocabulary.
-    }
-    loaded = true;
-  })();
+    const response = await requestStudy<{ vocabulary: VocabularyV2 }>("read");
+    if (seq === changeSeq) apply(response.data.vocabulary, response.revision);
+  };
+  const ready = load();
+  // A caller may attach its error UI later; keep initialization rejection handled.
+  void ready.catch(() => {});
+
+  const sendObservation = async (payload: { language: string; keys: string[]; occurrenceId: string }): Promise<Set<string>> => {
+    const result = await requestStudy<{ freshKeys: string[] }>("observe", payload);
+    return new Set(result.data.freshKeys);
+  };
 
   return {
     ready,
-
-    observeLine(line: string, language: string): Set<string> {
-      const fresh = new Set<string>();
-      // Before the stored words are known, every word would look new.
-      if (!loaded) return fresh;
-
-      for (const token of line.split(/\s+/)) {
-        const key = wordKey(token);
-        if (key && !isSeen(language, key)) fresh.add(key);
-      }
-      if (fresh.size) {
-        const target = nested(pendingSeen, language, () => new Set<string>());
-        for (const key of fresh) target.add(key);
-        schedule();
-      }
-      return fresh;
+    observeLine(line, language, occurrenceId = `local-${++occurrenceSequence}`) {
+      const identity = JSON.stringify([language, occurrenceId]);
+      const cached = occurrences.get(identity);
+      if (cached) return cached;
+      const payload = { language, keys: [...new Set(tokenizeWords(line).flatMap((token) => token.key ? [token.key] : []))], occurrenceId };
+      const operation = (async () => {
+        await ready.catch(() => load());
+        // A useful later cue retries history without mislabelling the visible line.
+        for (const [failedId, failed] of failedHistory) {
+          if (failedId === identity) continue;
+          try {
+            await sendObservation(failed);
+            failedHistory.delete(failedId);
+          } catch { /* The visible occurrence still gets its own attempt below. */ }
+        }
+        const fresh = await sendObservation(payload);
+        failedHistory.delete(identity);
+        return fresh;
+      })();
+      occurrences.set(identity, operation);
+      void operation.catch(() => {
+        occurrences.delete(identity);
+        failedHistory.set(identity, payload);
+      });
+      return operation;
     },
-
-    getMark(word: string, language: string): WordMark | null {
+    getMark(word, language) {
       const key = wordKey(word);
-      return key ? markOf(language, key) : null;
+      const entry = Object.prototype.hasOwnProperty.call(stored.languages, language) ? stored.languages[language] : undefined;
+      return key && entry && Object.prototype.hasOwnProperty.call(entry.marks, key) ? entry.marks[key] : null;
     },
-
-    setMark(word: string, language: string, mark: WordMark | null): void {
+    async setMark(word, language, mark, details) {
       const key = wordKey(word);
-      if (!key) return;
-      nested(pendingMarks, language, () => new Map<string, WordMark | null>()).set(key, mark);
-      schedule();
+      if (!key) throw new Error("Palavra inválida.");
+      const response = await requestStudy<{ vocabulary: VocabularyV2; changed: boolean }>("set-mark", {
+        word: key, language, mark, ...(details ? { details } : {}),
+      });
+      apply(response.data.vocabulary, response.revision);
     },
-
-    onChange(cb: () => void): () => void {
-      listeners.add(cb);
-      return () => listeners.delete(cb);
+    onChange(callback) {
+      listeners.add(callback);
+      return () => listeners.delete(callback);
     },
-
-    dispose(): void {
+    dispose() {
+      disposed = true;
       chrome.storage.onChanged.removeListener(handleStorageChange);
       listeners.clear();
-      if (timer !== null) clearTimeout(timer);
-      void flush();
+      occurrences.clear();
+      failedHistory.clear();
     },
   };
 }

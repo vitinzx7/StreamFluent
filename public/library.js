@@ -1,32 +1,18 @@
 /* global chrome */
 
-const STORAGE_KEY = "phrases";
-
 async function getAllPhrases() {
-  const result = await chrome.storage.local.get(STORAGE_KEY);
-  const raw = result[STORAGE_KEY];
-  if (!Array.isArray(raw)) return [];
-  return raw;
+  return (await studyRequest("read")).phrases;
 }
-
 async function removePhrase(id) {
-  const phrases = await getAllPhrases();
-  const filtered = phrases.filter((p) => p.id !== id);
-  await chrome.storage.local.set({ [STORAGE_KEY]: filtered });
-  return filtered;
+  await studyRequest("remove-phrase", { id });
+  return getAllPhrases();
 }
-
 async function clearAllPhrases() {
-  await chrome.storage.local.set({ [STORAGE_KEY]: [] });
-}
-
-function escapeHtml(str) {
-  const div = document.createElement("div");
-  div.textContent = str;
-  return div.innerHTML;
+  await studyRequest("clear-phrases");
 }
 
 function formatDate(iso) {
+  if (!iso || !Number.isFinite(Date.parse(iso))) return "Data desconhecida";
   const d = new Date(iso);
   return d.toLocaleDateString("en-US", {
     year: "numeric",
@@ -37,48 +23,36 @@ function formatDate(iso) {
 
 function renderPhrases(phrases) {
   const listEl = document.getElementById("list");
-  const countEl = document.getElementById("count");
-
-  countEl.textContent = `${phrases.length} phrase${phrases.length !== 1 ? "s" : ""} saved`;
-
-  if (phrases.length === 0) {
-    listEl.innerHTML = '<p class="empty">No phrases saved yet.</p>';
-    return;
+  document.getElementById("count").textContent = `${phrases.length} frase(s) salva(s)`;
+  listEl.replaceChildren();
+  function text(parent, className, value) {
+    const node = document.createElement("div");
+    node.className = className;
+    node.textContent = value;
+    parent.appendChild(node);
   }
-
-  listEl.innerHTML = "";
+  if (!phrases.length) text(listEl, "empty", "Nenhuma frase salva.");
   for (const p of phrases) {
     const card = document.createElement("div");
     card.className = "card";
-    card.innerHTML = `
-      <button class="card-delete" data-id="${escapeHtml(p.id)}" title="Delete">&times;</button>
-      <div class="card-word">${escapeHtml(p.selectedWord)}</div>
-      <div class="card-translation">${escapeHtml(p.translation || "No translation")}</div>
-      ${p.definition ? `<div class="card-definition">${escapeHtml(p.definition)}</div>` : ""}
-      <div class="card-sentence">"${escapeHtml(p.sentence)}"</div>
-      ${
-        p.sentenceTranslation
-          ? `<div class="card-sentence-translation">"${escapeHtml(p.sentenceTranslation)}"</div>`
-          : ""
-      }
-      <div class="card-meta">
-        ${escapeHtml(p.platform)} &middot; ${escapeHtml(p.mediaTitle)}
-        ${p.season ? ` &middot; S${p.season}E${p.episode || "?"}` : ""}
-        &middot; ${formatDate(p.createdAt)}
-      </div>
-    `;
+    const remove = document.createElement("button");
+    remove.className = "card-delete";
+    remove.textContent = "×";
+    remove.title = "Excluir frase";
+    remove.addEventListener("click", async () => {
+      remove.disabled = true;
+      try { await removePhrase(p.id); await refresh(); }
+      catch { document.getElementById("feedback").textContent = "Não foi possível excluir. Tente novamente."; remove.disabled = false; }
+    });
+    card.appendChild(remove);
+    text(card, "card-word", p.kind === "word" ? p.selectedWord : "Fala completa");
+    if (p.translation) text(card, "card-translation", p.translation);
+    if (p.definition) text(card, "card-definition", p.definition);
+    text(card, "card-sentence", p.sentence);
+    if (p.sentenceTranslation) text(card, "card-sentence-translation", p.sentenceTranslation);
+    text(card, "card-meta", [p.platform, p.mediaTitle, p.season ? `S${p.season}E${p.episode ?? "?"}` : "", formatDate(p.createdAt)].filter(Boolean).join(" · "));
     listEl.appendChild(card);
   }
-
-  // Delete handlers
-  listEl.querySelectorAll(".card-delete").forEach((btn) => {
-    btn.addEventListener("click", async () => {
-      const id = btn.getAttribute("data-id");
-      if (!id) return;
-      const updated = await removePhrase(id);
-      applyFilters(updated);
-    });
-  });
 }
 
 function populatePlatformFilter(phrases) {
@@ -103,7 +77,7 @@ function applyFilters(allPhrases) {
     filtered = filtered.filter(
       (p) =>
         p.sentence.toLowerCase().includes(search) ||
-        p.selectedWord.toLowerCase().includes(search) ||
+        (p.kind === "word" ? p.selectedWord : "").toLowerCase().includes(search) ||
         p.mediaTitle.toLowerCase().includes(search)
     );
   }
@@ -118,25 +92,25 @@ function applyFilters(allPhrases) {
   renderPhrases(filtered);
 }
 
-async function init() {
-  const allPhrases = await getAllPhrases();
+let allPhrases = [];
+async function refresh() {
+  allPhrases = await getAllPhrases();
+  const filter = document.getElementById("platformFilter").value;
   populatePlatformFilter(allPhrases);
+  document.getElementById("platformFilter").value = filter;
   applyFilters(allPhrases);
-
-  document.getElementById("search").addEventListener("input", () => {
-    applyFilters(allPhrases);
-  });
-
-  document.getElementById("platformFilter").addEventListener("change", () => {
-    applyFilters(allPhrases);
-  });
-
+}
+async function init() {
+  await refresh();
+  document.getElementById("search").addEventListener("input", () => applyFilters(allPhrases));
+  document.getElementById("platformFilter").addEventListener("change", () => applyFilters(allPhrases));
   document.getElementById("clearAll").addEventListener("click", async () => {
-    if (!confirm("Delete all saved phrases? This cannot be undone.")) return;
-    await clearAllPhrases();
-    allPhrases.length = 0;
-    applyFilters(allPhrases);
+    if (!confirm("Apagar todas as frases salvas? Esta ação não pode ser desfeita.")) return;
+    try { await clearAllPhrases(); await refresh(); }
+    catch { document.getElementById("feedback").textContent = "Não foi possível apagar. Tente novamente."; }
+  });
+  chrome.storage.onChanged.addListener((changes, area) => {
+    if (area === "local" && changes.phrases) void refresh().catch(() => {});
   });
 }
-
-init();
+init().catch(() => { document.getElementById("feedback").textContent = "Não foi possível carregar. Recarregue para tentar novamente."; });

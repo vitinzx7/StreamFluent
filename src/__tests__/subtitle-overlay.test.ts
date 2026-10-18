@@ -231,7 +231,7 @@ describe("word colours", () => {
     Array.from(document.querySelectorAll<HTMLElement>(".sf-word")).find((w) => w.textContent === text)!;
 
   it("colours each word by the status it is given", () => {
-    const statuses: Record<string, "new" | "difficult" | "marked"> = { fear: "difficult", fitting: "new" };
+    const statuses: Record<string, "new" | "difficult" | "learned"> = { fear: "difficult", fitting: "new" };
     create({}, (word) => statuses[word] ?? null).overlay.update("your fear of not fitting");
 
     expect(wordEl("fear").classList.contains("sf-word-difficult")).toBe(true);
@@ -240,16 +240,16 @@ describe("word colours", () => {
   });
 
   it("re-reads colours in place when asked, without rebuilding the line", () => {
-    const statuses: Record<string, "new" | "difficult" | "marked" | null> = { fear: "new" };
+    const statuses: Record<string, "new" | "difficult" | "learned" | null> = { fear: "new" };
     const { overlay: o } = create({}, (word) => statuses[word] ?? null);
     o.update("your fear");
     const before = wordEl("fear");
 
-    statuses.fear = "marked";
+    statuses.fear = "learned";
     o.refreshWordStatuses();
 
     expect(wordEl("fear")).toBe(before);
-    expect(before.classList.contains("sf-word-marked")).toBe(true);
+    expect(before.classList.contains("sf-word-learned")).toBe(true);
     expect(before.classList.contains("sf-word-new")).toBe(false);
 
     statuses.fear = null;
@@ -285,40 +285,45 @@ describe("marking from the card", () => {
     create().overlay.showCard(content({ mark: "difficult" }), vi.fn(), vi.fn());
 
     expect(button("Hard").classList.contains("sf-active")).toBe(true);
-    expect(button("Mark").classList.contains("sf-active")).toBe(false);
+    expect(button("Aprendida").classList.contains("sf-active")).toBe(false);
   });
 
-  it("switches between marks and clears one when clicked again", () => {
+  it("switches between marks and clears one when clicked again", async () => {
     const onMark = vi.fn();
     create().overlay.showCard(content(), vi.fn(), onMark);
 
-    button("Mark").click();
-    expect(onMark).toHaveBeenLastCalledWith("marked");
-    expect(button("Mark").classList.contains("sf-active")).toBe(true);
+    button("Aprendida").click();
+    await Promise.resolve();
+    expect(onMark).toHaveBeenLastCalledWith("learned");
+    expect(button("Aprendida").classList.contains("sf-active")).toBe(true);
 
     button("Hard").click();
+    await Promise.resolve();
     expect(onMark).toHaveBeenLastCalledWith("difficult");
-    expect(button("Mark").classList.contains("sf-active")).toBe(false);
+    expect(button("Aprendida").classList.contains("sf-active")).toBe(false);
     expect(button("Hard").classList.contains("sf-active")).toBe(true);
 
     button("Hard").click();
+    await Promise.resolve();
     expect(onMark).toHaveBeenLastCalledWith(null);
     expect(button("Hard").classList.contains("sf-active")).toBe(false);
   });
 
-  it("can mark while the translation is still loading", () => {
+  it("can mark while the translation is still loading", async () => {
     const onMark = vi.fn();
     create().overlay.showCard(content({ state: "loading", translation: "" }), vi.fn(), onMark);
 
     button("Hard").click();
+    await Promise.resolve();
 
     expect(onMark).toHaveBeenCalledWith("difficult");
   });
 
-  it("keeps the card open after marking", () => {
+  it("keeps the card open after marking", async () => {
     create().overlay.showCard(content(), vi.fn(), vi.fn());
 
-    button("Mark").click();
+    button("Aprendida").click();
+    await Promise.resolve();
 
     expect(document.querySelector(".sf-card")?.classList.contains("sf-hidden")).toBe(false);
   });

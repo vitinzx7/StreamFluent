@@ -7,7 +7,7 @@ import type { OverlayOptions } from "../core/ui/subtitle-overlay.ts";
 const mocks = vi.hoisted(() => ({
   getAdapter: vi.fn(),
   getSettings: vi.fn(),
-  saveSettings: vi.fn(),
+  saveSettings: vi.fn().mockResolvedValue({}),
   onSettingsChange: vi.fn(),
   createOverlay: vi.fn(),
   translateSentence: vi.fn(),
@@ -37,7 +37,7 @@ vi.mock("../core/vocabulary.ts", () => ({
 }));
 vi.mock("../core/translation.ts", () => ({ translateSentence: mocks.translateSentence, translateWord: mocks.translateWord }));
 
-const defaults: Settings = { direction: "en-pt", showTranslation: true, subtitleBottom: 12, highlightNewWords: true };
+const defaults: Settings = { direction: "en-pt", showTranslation: true, subtitleBottom: 12, highlightNewWords: true, highlightSpecialWords: false, autoPause: false };
 let cue: (value: SubtitleCue | null) => void;
 let settingsChanged: (value: Settings) => void;
 let options: OverlayOptions;
@@ -78,7 +78,7 @@ beforeEach(() => {
   stopVocabulary = vi.fn();
   vocabulary = {
     ready: Promise.resolve(),
-    observeLine: vi.fn().mockReturnValue(new Set()),
+    observeLine: vi.fn().mockResolvedValue(new Set()),
     getMark: vi.fn().mockReturnValue(null),
     setMark: vi.fn(),
     onChange: vi.fn().mockReturnValue(stopVocabulary),
@@ -233,30 +233,32 @@ describe("Netflix content integration", () => {
 
 describe("word colours", () => {
   it("records each new line and colours only its first-time words", async () => {
-    vocabulary.observeLine.mockReturnValue(new Set(["hello"]));
+    vocabulary.observeLine.mockResolvedValue(new Set(["hello"]));
     await boot();
 
     emit("Hello world");
+    await Promise.resolve();
 
-    expect(vocabulary.observeLine).toHaveBeenCalledWith("Hello world", "en");
+    expect(vocabulary.observeLine).toHaveBeenCalledWith("Hello world", "en", expect.any(String));
     expect(options.getWordStatus?.("Hello")).toBe("new");
     expect(options.getWordStatus?.("world")).toBeNull();
   });
 
   it("keeps the line's colours on a re-render instead of re-recording it", async () => {
-    vocabulary.observeLine.mockReturnValueOnce(new Set(["hello"])).mockReturnValue(new Set());
+    vocabulary.observeLine.mockResolvedValueOnce(new Set(["hello"])).mockResolvedValue(new Set());
     await boot();
     emit("Hello");
 
-    // A direction change re-renders the same line through overlay.update.
-    settingsChanged({ ...defaults, direction: "pt-en" });
+    // A position change preserves the same occurrence.
+    await Promise.resolve();
+    settingsChanged({ ...defaults, subtitleBottom: 40 });
 
     expect(vocabulary.observeLine).toHaveBeenCalledTimes(1);
     expect(options.getWordStatus?.("Hello")).toBe("new");
   });
 
   it("lets a user mark win over new, and keeps marks when new-word colour is off", async () => {
-    vocabulary.observeLine.mockReturnValue(new Set(["hello", "world"]));
+    vocabulary.observeLine.mockResolvedValue(new Set(["hello", "world"]));
     vocabulary.getMark.mockImplementation((word: string) => (word === "Hello" ? "difficult" : null));
     await boot();
     emit("Hello world");
@@ -274,9 +276,9 @@ describe("word colours", () => {
 
     const onMark = overlay.showCard.mock.calls[0][2] as (mark: string | null) => void;
     overlay.refreshWordStatuses.mockClear();
-    onMark("marked");
+    await onMark("learned");
 
-    expect(vocabulary.setMark).toHaveBeenCalledWith("Hello", "en", "marked");
+    expect(vocabulary.setMark).toHaveBeenCalledWith("Hello", "en", "learned");
     expect(overlay.refreshWordStatuses).toHaveBeenCalledTimes(1);
   });
 
@@ -286,17 +288,17 @@ describe("word colours", () => {
     void options.onWordSelect("Coração", "Meu coração");
 
     const onMark = overlay.showCard.mock.calls[0][2] as (mark: string | null) => void;
-    onMark("difficult");
+    await onMark("difficult");
 
     expect(vocabulary.setMark).toHaveBeenCalledWith("Coração", "pt-BR", "difficult");
   });
 
   it("shows the word's existing mark on the card", async () => {
-    vocabulary.getMark.mockReturnValue("marked");
+    vocabulary.getMark.mockReturnValue("learned");
     await boot();
     void options.onWordSelect("Hello", "Hello world");
 
-    expect(overlay.showCard.mock.calls[0][0]).toMatchObject({ word: "Hello", mark: "marked" });
+    expect(overlay.showCard.mock.calls[0][0]).toMatchObject({ word: "Hello", mark: "learned" });
   });
 
   it("writes pending vocabulary and stops listening on pagehide", async () => {

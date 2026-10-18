@@ -1,4 +1,4 @@
-import { describe, it, expect, beforeEach, vi } from "vitest";
+import { describe, it, expect, beforeEach } from "vitest";
 import {
   DEFAULT_SETTINGS,
   SettingsRepository,
@@ -7,35 +7,14 @@ import {
   normalizeSettings,
 } from "../core/settings.ts";
 
-type Listener = (changes: Record<string, { newValue?: unknown }>, area: string) => void;
+import { installStudyWorker } from "./helpers/study-worker.ts";
 
+let worker: ReturnType<typeof installStudyWorker>;
 let store: Record<string, unknown>;
-let listeners: Listener[];
 
 beforeEach(() => {
-  store = {};
-  listeners = [];
-
-  vi.stubGlobal("chrome", {
-    storage: {
-      local: {
-        get: async (key: string) => ({ [key]: store[key] }),
-        set: async (items: Record<string, unknown>) => {
-          Object.assign(store, items);
-          const changes = Object.fromEntries(
-            Object.entries(items).map(([k, v]) => [k, { newValue: v }])
-          );
-          listeners.forEach((l) => l(changes, "local"));
-        },
-      },
-      onChanged: {
-        addListener: (l: Listener) => listeners.push(l),
-        removeListener: (l: Listener) => {
-          listeners = listeners.filter((x) => x !== l);
-        },
-      },
-    },
-  });
+  worker = installStudyWorker();
+  store = worker.storage;
 });
 
 describe("normalizeSettings", () => {
@@ -79,6 +58,8 @@ describe("normalizeSettings", () => {
       showTranslation: true,
       subtitleBottom: 12,
       highlightNewWords: true,
+      highlightSpecialWords: false,
+      autoPause: false,
     });
   });
 
@@ -88,6 +69,8 @@ describe("normalizeSettings", () => {
       showTranslation: true,
       subtitleBottom: 12,
       highlightNewWords: true,
+      highlightSpecialWords: false,
+      autoPause: false,
     });
   });
 });
@@ -121,17 +104,21 @@ describe("SettingsRepository", () => {
       showTranslation: true,
       subtitleBottom: 12,
       highlightNewWords: true,
+      highlightSpecialWords: false,
+      autoPause: false,
     });
     expect(await SettingsRepository.get()).toEqual({
       direction: "pt-en",
       showTranslation: true,
       subtitleBottom: 12,
       highlightNewWords: true,
+      highlightSpecialWords: false,
+      autoPause: false,
     });
   });
 
   it("ignores an unsupported direction instead of storing it", async () => {
-    await SettingsRepository.save({ direction: "de-en" as never });
+    await expect(SettingsRepository.save({ direction: "de-en" as never })).rejects.toThrow();
 
     expect(await SettingsRepository.get()).toEqual(DEFAULT_SETTINGS);
   });
@@ -145,6 +132,8 @@ describe("SettingsRepository", () => {
       showTranslation: false,
       subtitleBottom: 12,
       highlightNewWords: true,
+      highlightSpecialWords: false,
+      autoPause: false,
     });
   });
 
@@ -154,7 +143,7 @@ describe("SettingsRepository", () => {
 
     await SettingsRepository.save({ direction: "pt-en" });
 
-    expect(seen).toEqual(["pt-en"]);
+    expect(seen[seen.length - 1]).toEqual("pt-en");
   });
 
   it("keeps the dragged position when the popup saves other settings", async () => {
@@ -181,5 +170,31 @@ describe("SettingsRepository", () => {
     await chrome.storage.local.set({ phrases: [] });
 
     expect(seen).toEqual([]);
+  });
+});
+
+describe("serialized settings", () => {
+  it("keeps disjoint patches from simultaneous clients", async () => {
+    await Promise.all([
+      SettingsRepository.save({ subtitleBottom: 45 }),
+      SettingsRepository.save({ highlightSpecialWords: true }),
+    ]);
+    expect(await SettingsRepository.get()).toMatchObject({ subtitleBottom: 45, highlightSpecialWords: true });
+  });
+
+  it("toggles twice against committed state even before either reply arrives", async () => {
+    await Promise.all([SettingsRepository.toggleAutoPause(), SettingsRepository.toggleAutoPause()]);
+    expect((await SettingsRepository.get()).autoPause).toBe(false);
+  });
+
+  it("rejects failed persistence and keeps the confirmed settings", async () => {
+    await SettingsRepository.get();
+    worker.failNextWrite();
+    await expect(SettingsRepository.save({ autoPause: true })).rejects.toThrow();
+    expect((await SettingsRepository.get()).autoPause).toBe(false);
+  });
+
+  it("ignores inherited preference fields", () => {
+    expect(normalizeSettings(Object.create({ direction: "pt-en", autoPause: true }))).toEqual(DEFAULT_SETTINGS);
   });
 });

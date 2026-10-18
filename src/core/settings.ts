@@ -1,4 +1,5 @@
 import type { StorageSchema } from "./types.ts";
+import { requestStudy } from "./study-messages.ts";
 
 /** Which way a word lookup goes: source language first, then target. */
 export type LanguageDirection = "en-pt" | "pt-en";
@@ -11,6 +12,8 @@ export interface Settings {
   subtitleBottom: number;
   /** Colour words the first time they ever appear in a subtitle. */
   highlightNewWords: boolean;
+  highlightSpecialWords: boolean;
+  autoPause: boolean;
 }
 
 export const SETTINGS_KEY: keyof StorageSchema = "settings";
@@ -20,6 +23,8 @@ export const DEFAULT_SETTINGS: Settings = {
   showTranslation: true,
   subtitleBottom: 12,
   highlightNewWords: true,
+  highlightSpecialWords: false,
+  autoPause: false,
 };
 
 /** Keeps a dragged subtitle on screen whatever the storage said. */
@@ -50,13 +55,15 @@ export function getLangPair(direction: LanguageDirection): { source: string; tar
 
 /** Settings read back from storage are untrusted: fall back per-field. */
 export function normalizeSettings(raw: unknown): Settings {
-  if (!raw || typeof raw !== "object") return { ...DEFAULT_SETTINGS };
-  const { direction, showTranslation, subtitleBottom, highlightNewWords } = raw as {
-    direction?: unknown;
-    showTranslation?: unknown;
-    subtitleBottom?: unknown;
-    highlightNewWords?: unknown;
-  };
+  if (!raw || typeof raw !== "object" || Array.isArray(raw)) return { ...DEFAULT_SETTINGS };
+  const own = (key: keyof Settings): unknown => Object.prototype.hasOwnProperty.call(raw, key)
+    ? (raw as Record<string, unknown>)[key] : undefined;
+  const direction = own("direction");
+  const showTranslation = own("showTranslation");
+  const subtitleBottom = own("subtitleBottom");
+  const highlightNewWords = own("highlightNewWords");
+  const highlightSpecialWords = own("highlightSpecialWords");
+  const autoPause = own("autoPause");
   return {
     direction: isLanguageDirection(direction) ? direction : DEFAULT_SETTINGS.direction,
     showTranslation:
@@ -71,20 +78,25 @@ export function normalizeSettings(raw: unknown): Settings {
       typeof highlightNewWords === "boolean"
         ? highlightNewWords
         : DEFAULT_SETTINGS.highlightNewWords,
+    highlightSpecialWords: typeof highlightSpecialWords === "boolean" ? highlightSpecialWords : false,
+    autoPause: typeof autoPause === "boolean" ? autoPause : false,
   };
 }
 
 export const SettingsRepository = {
   async get(): Promise<Settings> {
-    const result = await chrome.storage.local.get(SETTINGS_KEY);
-    return normalizeSettings(result[SETTINGS_KEY]);
+    const result = await requestStudy<{ settings: Settings }>("read");
+    return normalizeSettings(result.data.settings);
   },
 
   async save(patch: Partial<Settings>): Promise<Settings> {
-    const current = await this.get();
-    const next = normalizeSettings({ ...current, ...patch });
-    await chrome.storage.local.set({ [SETTINGS_KEY]: next });
-    return next;
+    const result = await requestStudy<Settings>("patch-settings", { patch });
+    return normalizeSettings(result.data);
+  },
+
+  async toggleAutoPause(): Promise<Settings> {
+    const result = await requestStudy<Settings>("toggle-auto-pause");
+    return normalizeSettings(result.data);
   },
 
   /** Lets an open player tab pick up a change made in the popup, no reload. */
