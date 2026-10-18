@@ -9,6 +9,16 @@ export interface TimedSubtitleView {
   source: string;
   translation: string;
   state: TranslationState;
+  /**
+   * One presentation of the composition on screen. A translation, a toggle or
+   * more cues loading keep it; leaving and coming back makes a new one.
+   */
+  occurrence?: number;
+  /** Indexes of the active cues in their source. */
+  cueIds?: string;
+  /** Source times (before the offset) of the active cues: earliest start, latest end. */
+  start?: number;
+  end?: number;
 }
 
 function timestamp(value: string): number {
@@ -91,7 +101,10 @@ export class TimedSubtitleController {
   private enabled = false;
   private translate = false;
   private language: SubtitleLanguage = "en";
+  private sourceKey = "";
   private cueKey = "";
+  private shownKey = "";
+  private occurrence = 0;
   private view: TimedSubtitleView = { source: "", translation: "", state: "idle" };
 
   constructor(
@@ -107,11 +120,21 @@ export class TimedSubtitleController {
     this.invalidate();
   }
 
-  setSource(cues: SubtitleCue[], language: SubtitleLanguage): void {
+  /**
+   * `sourceKey` names the source the user picked: the same track loading more
+   * cues keeps its key, so the line on screen stays the same occurrence.
+   */
+  setSource(cues: SubtitleCue[], language: SubtitleLanguage, sourceKey = ""): void {
     this.cues = cues;
     this.language = language;
+    this.sourceKey = sourceKey;
     this.offset = 0;
     this.invalidate();
+  }
+
+  /** Current offset in seconds: positive delays the cues. */
+  get offsetSeconds(): number {
+    return this.offset;
   }
 
   setEnabled(enabled: boolean): void {
@@ -134,14 +157,40 @@ export class TimedSubtitleController {
 
   tick(time: number): void {
     this.time = time;
-    const active = this.enabled ? activeCues(this.cues, time, this.offset) : [];
+    const indexes = this.enabled ? this.activeIndexes(time) : [];
+    const active = indexes.map((index) => this.cues[index]);
     const key = JSON.stringify(active);
     if (this.cueKey === key) return;
     this.cueKey = key;
     this.requestId++;
+    const shown = JSON.stringify([this.session, this.sourceKey, this.language, key]);
+    if (shown !== this.shownKey) {
+      this.shownKey = shown;
+      this.occurrence++;
+    }
     const source = active.map((cue) => cue.text).join("\n");
-    this.publish({ source, translation: "", state: "idle" });
+    this.publish({
+      source,
+      translation: "",
+      state: "idle",
+      occurrence: this.occurrence,
+      ...(active.length ? {
+        cueIds: indexes.join(","),
+        start: Math.min(...active.map((cue) => cue.start)),
+        end: Math.max(...active.map((cue) => cue.end)),
+      } : {}),
+    });
     if (source && this.translate && this.language === "en") this.requestTranslation();
+  }
+
+  private activeIndexes(time: number): number[] {
+    if (!Number.isFinite(time) || !Number.isFinite(this.offset)) return [];
+    const sourceTime = time - this.offset;
+    const indexes: number[] = [];
+    this.cues.forEach((cue, index) => {
+      if (cue.start <= sourceTime && sourceTime < cue.end) indexes.push(index);
+    });
+    return indexes;
   }
 
   retry(): void {
@@ -169,18 +218,19 @@ export class TimedSubtitleController {
   private requestTranslation(): void {
     const generation = this.generation;
     const requestId = ++this.requestId;
-    const source = this.view.source;
-    this.publish({ source, translation: "", state: "loading" });
+    // Same composition, same occurrence: only the translation state changes.
+    const { translation: _none, state: _idle, ...shown } = this.view;
+    this.publish({ ...shown, translation: "", state: "loading" });
     // Promise.resolve also catches a synchronously throwing injected provider.
     void Promise.resolve().then(() => {
       if (generation !== this.generation || requestId !== this.requestId) return "";
-      return this.translator(source);
+      return this.translator(shown.source);
     }).then((translation) => {
       if (generation !== this.generation || requestId !== this.requestId) return;
-      this.publish({ source, translation, state: translation ? "ready" : "error" });
+      this.publish({ ...shown, translation, state: translation ? "ready" : "error" });
     }).catch(() => {
       if (generation !== this.generation || requestId !== this.requestId) return;
-      this.publish({ source, translation: "", state: "error" });
+      this.publish({ ...shown, translation: "", state: "error" });
     });
   }
 }

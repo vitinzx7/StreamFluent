@@ -16,7 +16,7 @@ let overlays: { updatePlayer: ReturnType<typeof vi.fn>; destroy: ReturnType<type
 let cleanup: (() => void) | undefined;
 const flush = async () => { for (let n = 0; n < 12; n++) await Promise.resolve(); };
 const state = (video: HTMLVideoElement | null = null, sessionKey = "local-1"): PlayerSnapshot => ({
-  video, sessionKey, currentTime: 1, paused: true, playbackRate: 1, tracks: [], status: "Aguardando player",
+  video, sessionKey, currentTime: 1, paused: true, seeking: false, playbackRate: 1, tracks: [], status: "Aguardando player",
 });
 function message(value: unknown, sender: chrome.runtime.MessageSender = { id: "extension" }) {
   const reply = vi.fn();

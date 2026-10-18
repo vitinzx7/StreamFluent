@@ -352,6 +352,19 @@ describe("timed sources: end on the video clock", () => {
     expect(h.host.pause).not.toHaveBeenCalled();
   });
 
+  it("keeps a pause in flight when the same track loads more cues", async () => {
+    const answer = deferred<PlaybackResult>();
+    const { tick, pause, host: h } = timed({ pause: vi.fn(() => answer.promise) });
+    tick(2.98);
+    tick(3.01);
+
+    pause.setCues([...cues, { start: 20, end: 22 }]);
+    answer.resolve({ ok: true });
+    await flush();
+
+    expect(h.retain).toHaveBeenCalledOnce();
+  });
+
   it("A06-style: switched off, it never pauses", () => {
     const { play, host: h, setEnabled } = timed();
     setEnabled(false);

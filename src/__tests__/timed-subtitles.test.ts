@@ -4,6 +4,7 @@ import { TimedSubtitleController, type TimedSubtitleView } from "../core/subtitl
 import { createTimedSubtitles } from "../core/ui/timed-subtitles.ts";
 import type { PlayerSnapshot } from "../core/player-types.ts";
 import { translateSentence } from "../core/translation.ts";
+import { installStudyWorker } from "./helpers/study-worker.ts";
 
 vi.mock("../core/translation.ts", () => ({ translateSentence: vi.fn(async () => "Olá") }));
 const flush = async () => { for (let i = 0; i < 8; i++) await Promise.resolve(); };
@@ -87,7 +88,7 @@ describe("timed subtitle lifecycle", () => {
     c.engine.setTranslation(true);
     c.engine.tick(1);
     await flush();
-    expect(c.view()).toEqual({ source: "Hello", translation: "", state: "error" });
+    expect(c.view()).toMatchObject({ source: "Hello", translation: "", state: "error" });
     c.engine.tick(1.5);
     await flush();
     expect(c.translator).toHaveBeenCalledTimes(1);
@@ -122,13 +123,15 @@ afterEach(() => {
   document.body.replaceChildren();
   Object.defineProperty(document, "fullscreenElement", { configurable: true, value: null });
   vi.clearAllMocks();
+  vi.unstubAllGlobals();
 });
 
 function setup() {
+  installStudyWorker();
   const video = document.createElement("video");
   document.body.appendChild(video);
   const track = { kind: "subtitles", mode: "showing", language: "en", label: "English", cues: [{ startTime: 1, endTime: 3, text: "Hello <img src=x onerror=alert(1)>" }] } as unknown as TextTrack;
-  const state: PlayerSnapshot = { video, sessionKey: "ep1", currentTime: 1, paused: true, playbackRate: 1, tracks: [track], status: "ready" };
+  const state: PlayerSnapshot = { video, sessionKey: "ep1", currentTime: 1, paused: true, seeking: false, playbackRate: 1, tracks: [track], status: "ready" };
   overlay = createTimedSubtitles();
   overlay.updatePlayer(state);
   const host = document.querySelector<HTMLElement>("[data-streamfluent-timed]")!;

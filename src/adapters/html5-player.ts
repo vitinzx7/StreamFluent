@@ -108,6 +108,7 @@ export function observeHtml5Player(
       sessionKey,
       currentTime: video && Number.isFinite(video.currentTime) ? video.currentTime : 0,
       paused: video?.paused ?? true,
+      seeking: video?.seeking ?? false,
       playbackRate: video && Number.isFinite(video.playbackRate) ? video.playbackRate : 1,
       tracks: readTracks(),
       status: video ? "Player HTML5 conectado." : blockedFrame
@@ -117,7 +118,8 @@ export function observeHtml5Player(
     };
     if (!force && previous && previous.video === state.video
       && previous.sessionKey === state.sessionKey && previous.currentTime === state.currentTime
-      && previous.paused === state.paused && previous.playbackRate === state.playbackRate
+      && previous.paused === state.paused && previous.seeking === state.seeking
+      && previous.playbackRate === state.playbackRate
       && previous.status === state.status && previous.tracks.length === state.tracks.length
       && previous.tracks.every((track, index) => track === state.tracks[index])) return;
     previous = state;

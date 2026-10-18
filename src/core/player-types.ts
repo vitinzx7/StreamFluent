@@ -5,6 +5,8 @@ export interface PlayerSnapshot {
   sessionKey: string;
   currentTime: number;
   paused: boolean;
+  /** A seek is in progress: the clock is jumping, not playing. */
+  seeking: boolean;
   playbackRate: number;
   tracks: TextTrack[];
   status: string;

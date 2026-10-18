@@ -4,28 +4,17 @@ import { startCinetaroTop, startEmbeddedPlayer } from "./cinetaro-session.ts";
 import { isCinetaroUrl, isEmbeddedPlayerUrl } from "../core/frame-messages.ts";
 import { createSubtitleOverlay } from "../core/ui/subtitle-overlay.ts";
 import { PhraseRepository } from "../core/storage.ts";
-import { SettingsRepository, DIRECTION_LABELS, getLangPair } from "../core/settings.ts";
-import { createVocabularyStore, type WordMark, type WordStatus } from "../core/vocabulary.ts";
+import { SettingsRepository, getLangPair } from "../core/settings.ts";
+import { createVocabularyStore, type WordStatus } from "../core/vocabulary.ts";
 import { createLineNavigation } from "../core/line-navigation.ts";
 import { createPlaybackController, type PlaybackDriver } from "../core/playback-controller.ts";
-import { createStudyContext, wordContext, type StudySnapshot } from "../core/study-context.ts";
+import { createStudyContext, type StudySnapshot } from "../core/study-context.ts";
+import { createWordActions } from "../core/word-actions.ts";
 import { createStudyActions } from "../core/study-actions.ts";
 import { installShortcuts } from "../core/keyboard-shortcuts.ts";
 import { createDomAutoPause } from "../core/auto-pause.ts";
 import type { StreamingAdapter } from "../core/types.ts";
-import {
-  translateWord,
-  translateSentence,
-  type TranslationResult,
-} from "../core/translation.ts";
-
-/** Phonetic + definition + example, collapsed into the card's second line. */
-function formatDefinition(result: TranslationResult): string {
-  if (!result.definition) return "";
-  const phonetic = result.phonetic ? `${result.phonetic} ` : "";
-  const example = result.example ? ` e.g. "${result.example}"` : "";
-  return `${phonetic}${result.definition}${example}`;
-}
+import { translateSentence } from "../core/translation.ts";
 
 const NO_WORDS: ReadonlySet<string> = new Set();
 
@@ -195,12 +184,8 @@ async function boot(): Promise<void> {
     else if (settings.showTranslation) translateLine(shown);
   };
 
-  // Clicking a second word while the first is still in flight must not let the
-  // slower response overwrite the newer card.
-  let lookupId = 0;
-
   const endSession = (): void => {
-    lookupId++;
+    words.cancel();
     lineRequestId++;
     context.clear();
     autoPause.reset();
@@ -221,78 +206,20 @@ async function boot(): Promise<void> {
       void chrome.runtime.sendMessage({ type: "sf:open-library", ...(tab ? { tab } : {}) });
     },
     onStudyCommand: (command) => actions.trigger(command),
-    onCardClose: () => { lookupId++; },
-    onWordDifficult: (word) => {
-      // Everything is captured now: the line may change before the write lands.
-      const shown = context.study;
-      if (!shown) return;
-      const page = location.href;
-      const language = getLangPair(shown.direction).source;
-      const previous = vocabulary.getMark(word, language);
-      overlay.showFeedback("Salvando…");
-      void vocabulary
-        .setMark(word, language, "difficult", { displayWord: word, context: wordContext(shown) })
-        .then(() => {
-          if (!alive() || page !== location.href) return;
-          overlay.refreshWordStatuses();
-          overlay.showFeedback(previous === "difficult" ? "Já está nas difíceis" : "Adicionada às difíceis");
-        })
-        .catch(() => {
-          if (alive() && page === location.href) overlay.showFeedback("Não foi possível salvar. Clique novamente para tentar.");
-        });
-    },
-    onWordSelect: async (word) => {
-      const shown = context.study;
-      if (!shown) return;
-      const direction = shown.direction;
-      const id = ++lookupId;
-      const page = location.href;
-      const session = shown.sessionId;
-      const language = getLangPair(direction).source;
-      const marked = wordContext(shown);
-      const valid = (): boolean =>
-        alive() && id === lookupId && page === location.href
-        && settings.direction === direction && syncSession() === session;
-      let translation = "";
-      let definition = "";
-      const save = async (): Promise<string> => {
-        const result = await PhraseRepository.saveResult({
-          kind: "word",
-          ...marked,
-          targetLanguage: marked.targetLanguage ?? null,
-          selectedWord: word,
-          ...(translation ? { translation } : {}),
-          ...(definition ? { definition } : {}),
-        });
-        return result.duplicate ? "Já salvo" : "Salvo";
-      };
-      const onMark = async (next: WordMark | null): Promise<void> => {
-        await vocabulary.setMark(word, language, next, {
-          displayWord: word,
-          context: marked,
-          ...(translation ? { translation } : {}),
-          ...(definition ? { definition } : {}),
-        });
-        if (valid()) overlay.refreshWordStatuses();
-      };
-      const show = (state: "loading" | "ready" | "error") => overlay.showCard({
-        identity: String(id),
-        word,
-        translation,
-        definition,
-        sentence: shown.text,
-        sentenceTranslation: shown.translation ?? "",
-        directionLabel: DIRECTION_LABELS[direction],
-        state,
-        mark: vocabulary.getMark(word, language),
-      }, save, onMark);
-      show("loading");
-      const result = await translateWord(word, direction);
-      if (!valid()) return;
-      translation = result.translation;
-      definition = formatDefinition(result);
-      show(result.error ? "error" : "ready");
-    },
+    onCardClose: () => words.cancel(),
+    onWordDifficult: (word) => words.markDifficult(word),
+    onWordSelect: (word) => words.lookup(word),
+  });
+
+  // Left click: the card. Right click: difficult at once, offline.
+  const words = createWordActions({
+    vocabulary,
+    study: () => context.study,
+    sessionId: syncSession,
+    isAlive: alive,
+    showCard: (content, onSave, onMark) => overlay.showCard(content, onSave, onMark),
+    refresh: () => overlay.refreshWordStatuses(),
+    feedback: (message) => overlay.showFeedback(message),
   });
 
   // Learns line times from the same cues the overlay shows; the A key itself
@@ -361,7 +288,7 @@ async function boot(): Promise<void> {
     if (directionChanged) {
       // Another language is another study context: the same text on screen,
       // without the old translation, colours or retained line.
-      lookupId++;
+      words.cancel();
       overlay.hideCard();
       autoPause.reset();
       context.release();
@@ -418,7 +345,7 @@ async function boot(): Promise<void> {
 
   stopContent = () => {
     lineRequestId++;
-    lookupId++;
+    words.cancel();
     stopObserving();
     stopShortcuts();
     autoPause.reset();

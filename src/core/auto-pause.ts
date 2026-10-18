@@ -165,6 +165,10 @@ export interface ClockReading {
 }
 
 export interface TimedAutoPause {
+  /**
+   * The cues of the current source. The same source loading more cues keeps
+   * any pause in flight; another source is a reset().
+   */
   setCues(cues: readonly TimedCue[]): void;
   /**
    * What the layer shows, with the source time of its first cue. Called
@@ -185,9 +189,9 @@ export function createTimedAutoPause(host: PauseHost): TimedAutoPause {
   const pause = createPauseRequest(host);
   let groups: CueGroup[] = [];
   let previous: ClockReading | null = null;
-  /** The last composition shown, and the group it belongs to. */
-  let lastShown: { group: number; snapshot: StudySnapshot } | null = null;
-  /** Groups already paused in this pass; a seek starts a new pass. */
+  /** The last composition shown, by the source time of its first cue. */
+  let lastShown: { start: number; snapshot: StudySnapshot } | null = null;
+  /** Ends (source time) already paused at in this pass; a seek starts a new pass. */
   const consumed = new Set<number>();
 
   /** Index of the group holding source time `time`, or -1. */
@@ -225,14 +229,11 @@ export function createTimedAutoPause(host: PauseHost): TimedAutoPause {
   return {
     setCues(cues) {
       groups = overlapGroups(cues);
-      lastShown = null;
-      forget();
     },
 
     shown(snapshot, sourceStart) {
-      if (!snapshot || sourceStart === undefined) return;
-      const group = groupAt(sourceStart);
-      if (group >= 0) lastShown = { group, snapshot };
+      if (!snapshot || sourceStart === undefined || !Number.isFinite(sourceStart)) return;
+      lastShown = { start: sourceStart, snapshot };
     },
 
     observe(reading) {
@@ -252,10 +253,12 @@ export function createTimedAutoPause(host: PauseHost): TimedAutoPause {
       if (step <= 0 || step > MAX_PLAYBACK_STEP) return;
 
       const group = endCrossed(from, to);
-      if (group < 0 || !host.enabled() || consumed.has(group) || pause.pending) return;
+      if (group < 0 || !host.enabled() || pause.pending) return;
+      const end = groups[group].end;
+      if (consumed.has(end)) return;
       // Only a line that was actually shown can be kept on screen.
-      if (lastShown?.group !== group) return;
-      consumed.add(group);
+      if (!lastShown || groupAt(lastShown.start) !== group) return;
+      consumed.add(end);
       pause.request(lastShown.snapshot);
     },
 
