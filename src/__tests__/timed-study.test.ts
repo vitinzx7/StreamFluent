@@ -331,3 +331,23 @@ describe("frames and focus", () => {
     expect(video.currentTime).toBe(6.5);
   });
 });
+
+describe("HTML5 controls placement", () => {
+  it("fades the SF button while the mouse rests and keeps clicks from the player", async () => {
+    vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout"] });
+    const c = setup();
+    const fab = c.shadow.querySelector<HTMLButtonElement>(".fab")!;
+    vi.advanceTimersByTime(3000);
+    expect(fab.classList.contains("sf-idle")).toBe(true);
+
+    document.dispatchEvent(new MouseEvent("mousemove"));
+    expect(fab.classList.contains("sf-idle")).toBe(false);
+
+    const playerClick = vi.fn();
+    document.body.addEventListener("click", playerClick);
+    fab.click();
+    expect(playerClick).not.toHaveBeenCalled();
+    document.body.removeEventListener("click", playerClick);
+    vi.useRealTimers();
+  });
+});

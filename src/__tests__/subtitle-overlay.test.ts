@@ -447,3 +447,97 @@ describe("line actions in the panel", () => {
     vi.useRealTimers();
   });
 });
+
+describe("placement and fullscreen", () => {
+  const setFullscreen = (element: Element | null) => {
+    Object.defineProperty(document, "fullscreenElement", { configurable: true, value: element });
+    document.dispatchEvent(new Event("fullscreenchange"));
+  };
+
+  afterEach(() => {
+    Object.defineProperty(document, "fullscreenElement", { configurable: true, value: null });
+    vi.useRealTimers();
+  });
+
+  it("fades the settings button while the mouse rests, and shows it again on movement", () => {
+    vi.useFakeTimers();
+    create();
+
+    vi.advanceTimersByTime(3000);
+    expect(fab().classList.contains("sf-idle")).toBe(true);
+
+    document.dispatchEvent(new MouseEvent("mousemove"));
+    expect(fab().classList.contains("sf-idle")).toBe(false);
+  });
+
+  it("keeps the button visible while its panel is open", () => {
+    vi.useFakeTimers();
+    create();
+    fab().click();
+
+    vi.advanceTimersByTime(10000);
+
+    expect(fab().classList.contains("sf-idle")).toBe(false);
+  });
+
+  it("moves every piece into the player's fullscreen element and back out", () => {
+    const { overlay: o } = create();
+    o.update("Hello there");
+    const player = document.createElement("div");
+    document.body.append(player);
+
+    setFullscreen(player);
+    for (const selector of [".sf-overlay", ".sf-panel", ".sf-fab", ".sf-card", ".sf-feedback", ".sf-copy"]) {
+      expect(document.querySelector(selector)!.parentElement).toBe(player);
+    }
+
+    setFullscreen(null);
+    expect(overlayEl().parentElement).toBe(document.body);
+    player.remove();
+  });
+
+  it("stays in the page when the fullscreen element is the video itself", () => {
+    create();
+    const video = document.createElement("video");
+    document.body.append(video);
+
+    setFullscreen(video);
+
+    expect(overlayEl().parentElement).toBe(document.body);
+    video.remove();
+  });
+
+  it("comes back when the player re-renders its container without us", () => {
+    const { overlay: o } = create();
+    const player = document.createElement("div");
+    document.body.append(player);
+    setFullscreen(player);
+
+    player.replaceChildren();
+    o.update("Next line");
+
+    expect(overlayEl().parentElement).toBe(player);
+    player.remove();
+  });
+
+  it("keeps clicks on words and controls from reaching the player underneath", () => {
+    const { overlay: o, onWordSelect } = create();
+    const player = document.createElement("div");
+    document.body.append(player);
+    setFullscreen(player);
+    const playerClick = vi.fn();
+    const playerDoubleClick = vi.fn();
+    player.addEventListener("click", playerClick);
+    player.addEventListener("dblclick", playerDoubleClick);
+    o.update("Hello there");
+
+    document.querySelector<HTMLElement>(".sf-word")!.click();
+    fab().click();
+    overlayEl().dispatchEvent(new MouseEvent("dblclick", { bubbles: true }));
+
+    expect(onWordSelect).toHaveBeenCalledWith("Hello", "Hello there");
+    expect(playerClick).not.toHaveBeenCalled();
+    expect(playerDoubleClick).not.toHaveBeenCalled();
+    player.remove();
+  });
+});

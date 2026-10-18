@@ -2,6 +2,7 @@ import { createWordRenderer, WORD_STYLES } from "./word-renderer.ts";
 import { createWordCard, CARD_STYLES, type CardContent } from "./word-card.ts";
 export type { CardContent } from "./word-card.ts";
 import { EXTENSION_MARKER } from "../dom-utils.ts";
+import { createIdleFade, isolatePointer, IDLE_CLASS } from "./idle-fade.ts";
 import {
   clampSubtitleBottom,
   DIRECTION_LABELS,
@@ -59,10 +60,15 @@ function ensureStyles(): void {
     .sf-overlay.sf-dragging .sf-word {
       cursor: grabbing;
     }
+    /* Mid-height on the right edge: clear of the player's bottom bar (play,
+       volume, fullscreen) and of its top-left back arrow. */
     .sf-panel {
       position: fixed;
-      bottom: 68px;
-      right: 20px;
+      top: 50%;
+      right: 68px;
+      transform: translateY(-50%);
+      max-height: calc(100vh - 32px);
+      overflow: auto;
       z-index: 100001;
       width: 232px;
       padding: 14px;
@@ -148,8 +154,9 @@ function ensureStyles(): void {
     }
     .sf-feedback {
       position: fixed;
-      bottom: 22px;
-      left: 20px;
+      top: 10%;
+      left: 50%;
+      transform: translateX(-50%);
       z-index: 100002;
       max-width: 60vw;
       padding: 6px 10px;
@@ -333,8 +340,9 @@ function ensureStyles(): void {
     }
     .sf-fab {
       position: fixed;
-      bottom: 20px;
-      right: 20px;
+      top: 50%;
+      right: 16px;
+      transform: translateY(-50%);
       z-index: 99998;
       width: 40px;
       height: 40px;
@@ -353,7 +361,12 @@ function ensureStyles(): void {
     }
     .sf-fab:hover {
       opacity: 1;
-      transform: scale(1.1);
+      transform: translateY(-50%) scale(1.1);
+    }
+    /* Rests out of sight while the mouse is still, like the player's controls. */
+    .sf-fab.${IDLE_CLASS} {
+      opacity: 0;
+      pointer-events: none;
     }
     .sf-fab.sf-hidden {
       display: none;
@@ -544,11 +557,37 @@ export function createSubtitleOverlay(options: OverlayOptions): {
   fab.textContent = "Aa";
   fab.title = "StreamFluent settings";
   markElement(fab);
+  fab.setAttribute("aria-label", "Configurações do StreamFluent");
   fab.addEventListener("click", (e) => {
     e.stopPropagation();
     panel.classList.toggle("sf-hidden");
   });
   document.body.appendChild(fab);
+  const fabFade = createIdleFade(fab, () => !panel.classList.contains("sf-hidden"));
+  fabFade.attach(document);
+
+  // In fullscreen only the fullscreen element and its descendants are drawn:
+  // our roots must live inside it, or the subtitle and panel vanish. A
+  // fullscreen <video> cannot host anything, and <html> itself means body.
+  const roots = [overlay, card, feedback, copyBox, panel, fab];
+  roots.forEach(isolatePointer);
+  const mountTarget = (): HTMLElement => {
+    const fullscreen = document.fullscreenElement;
+    if (fullscreen instanceof HTMLElement && fullscreen !== document.documentElement && !(fullscreen instanceof HTMLVideoElement)) {
+      return fullscreen;
+    }
+    return document.body;
+  };
+  /** Cheap when nothing moved; also re-attaches roots a player re-render dropped. */
+  const mount = (): void => {
+    const target = mountTarget();
+    for (const root of roots) if (root.parentNode !== target) target.appendChild(root);
+  };
+  const onFullscreenChange = (): void => {
+    mount();
+    fabFade.wake();
+  };
+  document.addEventListener("fullscreenchange", onFullscreenChange);
 
   const handleKeydown = (e: KeyboardEvent) => {
     if (e.key === "Escape") {
@@ -633,6 +672,7 @@ export function createSubtitleOverlay(options: OverlayOptions): {
 
   const instance = {
     update(text: string | null): void {
+      mount();
       renderer.update("");
       // The old line's translation must go immediately: leaving it up while the
       // next one is in flight pairs the wrong translation with the new subtitle.
@@ -684,7 +724,8 @@ export function createSubtitleOverlay(options: OverlayOptions): {
     showCard(content: CardContent, onSave: () => void | string | Promise<void | string>, onMark?: (mark: WordMark | null) => void | Promise<void>): void {
       const wordEl = sourceLine.querySelector(".sf-word.sf-selected");
       const rect = wordEl?.getBoundingClientRect();
-      card.style.left = rect ? `${Math.max(8, Math.min(rect.left, window.innerWidth - 370))}px` : "50%";
+      // Clear of the settings button's strip on the right edge.
+      card.style.left = rect ? `${Math.max(8, Math.min(rect.left, window.innerWidth - 370 - 64))}px` : "50%";
       card.style.top = rect ? `${Math.max(8, rect.top - 200)}px` : "30%";
       card.style.transform = rect ? "" : "translateX(-50%)";
       wordCard.show(content, onSave, onMark);
@@ -706,6 +747,8 @@ export function createSubtitleOverlay(options: OverlayOptions): {
 
     destroy(): void {
       clearTimeout(feedbackTimer);
+      fabFade.destroy();
+      document.removeEventListener("fullscreenchange", onFullscreenChange);
       renderer.destroy();
       wordCard.hide();
       feedback.remove();

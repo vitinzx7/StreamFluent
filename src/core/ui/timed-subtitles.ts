@@ -20,6 +20,7 @@ import { createTimedAutoPause, overlapGroups, type CueGroup } from "../auto-paus
 import { createWordActions } from "../word-actions.ts";
 import { createWordRenderer, WORD_STYLES } from "./word-renderer.ts";
 import { createWordCard, CARD_STYLES } from "./word-card.ts";
+import { createIdleFade, isolatePointer, IDLE_CLASS } from "./idle-fade.ts";
 
 let activeInstance: { destroy(): void } | null = null;
 
@@ -52,9 +53,11 @@ export function createTimedSubtitles(): { updatePlayer(state: PlayerSnapshot): v
       button,select { color:#f5f7fa; background:#24334a; border:1px solid #536078; border-radius:6px; padding:7px; }
       button { cursor:pointer; } button:hover { background:#344b69; }
       [hidden] { display:none !important; }
-      .fab,.panel { position:fixed; right:16px; font:14px/1.5 system-ui,sans-serif; pointer-events:auto; }
-      .fab { bottom:16px; background:#142d32; color:#8bf2d9; }
-      .panel { bottom:66px; padding:16px; width:350px; max-width:calc(100vw - 24px); max-height:calc(100vh - 90px); overflow:auto; color:#f5f7fa; background:#111a29; border:1px solid #536078; border-radius:10px; box-shadow:0 4px 20px #0009; }
+      /* Mid-height on the right edge: clear of the player's own bottom controls. */
+      .fab,.panel { position:fixed; right:16px; top:50%; transform:translateY(-50%); font:14px/1.5 system-ui,sans-serif; pointer-events:auto; }
+      .fab { background:#142d32; color:#8bf2d9; transition:opacity .2s; }
+      .fab.${IDLE_CLASS} { opacity:0; pointer-events:none; }
+      .panel { right:64px; padding:16px; width:350px; max-width:calc(100vw - 24px); max-height:calc(100vh - 90px); overflow:auto; color:#f5f7fa; background:#111a29; border:1px solid #536078; border-radius:10px; box-shadow:0 4px 20px #0009; }
       label { display:block; margin:10px 0; } select,input[type=file] { display:block; width:100%; margin-top:5px; }
       input[type=checkbox] { margin-right:6px; }
       .small { font-size:12px; color:#bac8d9; } .status { color:#8bf2d9; }
@@ -68,7 +71,7 @@ export function createTimedSubtitles(): { updatePlayer(state: PlayerSnapshot): v
       .sf-card { position:fixed; z-index:2; }
       .copy { position:fixed; left:50%; top:30%; transform:translateX(-50%); width:min(480px, calc(100vw - 32px)); padding:14px; border-radius:10px; background:#111a29; border:1px solid #536078; color:#f5f7fa; font:13px/1.4 system-ui,sans-serif; pointer-events:auto; user-select:text; }
       .copy textarea { display:block; width:100%; margin:8px 0; padding:6px; color:#fff; background:#16213e; border:1px solid #536078; border-radius:5px; resize:vertical; }
-      .feedback { position:fixed; left:16px; bottom:16px; padding:6px 10px; border-radius:6px; background:#111a29; color:#fff; font:14px/1.4 system-ui,sans-serif; pointer-events:none; }
+      .feedback { position:fixed; left:50%; top:10%; transform:translateX(-50%); padding:6px 10px; border-radius:6px; background:#111a29; color:#fff; font:14px/1.4 system-ui,sans-serif; pointer-events:none; }
       .feedback:empty { display:none; }
       ${WORD_STYLES}
       ${CARD_STYLES}
@@ -185,7 +188,7 @@ export function createTimedSubtitles(): { updatePlayer(state: PlayerSnapshot): v
     const rect = sourceLine.querySelector(".sf-selected")?.getBoundingClientRect();
     const view = currentDocument.defaultView;
     const width = view?.innerWidth ?? 800;
-    cardElement.style.left = rect ? `${Math.max(8, Math.min(rect.left, width - 370))}px` : "50%";
+    cardElement.style.left = rect ? `${Math.max(8, Math.min(rect.left, width - 370 - 64))}px` : "50%";
     cardElement.style.top = rect ? `${Math.max(8, rect.top - 220)}px` : "20%";
     cardElement.style.transform = rect ? "" : "translateX(-50%)";
   }
@@ -493,6 +496,7 @@ export function createTimedSubtitles(): { updatePlayer(state: PlayerSnapshot): v
     const fullscreen = currentDocument.fullscreenElement;
     const mount = fullscreen && fullscreen !== video ? fullscreen : currentDocument.body || currentDocument.documentElement;
     if (host.parentNode !== mount) mount.appendChild(host);
+    fabFade.attach(currentDocument);
     bindVideo(video ?? null);
     updateShortcuts();
     updateModes();
@@ -529,6 +533,9 @@ export function createTimedSubtitles(): { updatePlayer(state: PlayerSnapshot): v
     panel.hidden = !panel.hidden;
     fab.setAttribute("aria-expanded", String(!panel.hidden));
   });
+  const fabFade = createIdleFade(fab, () => !panel.hidden);
+  // Clicks on our controls must not also play/pause or fullscreen the player.
+  isolatePointer(shadow);
   enabled.addEventListener("change", refresh);
   translate.addEventListener("change", () => { engine.setTranslation(translate.checked); refresh(); });
   autoPauseInput.addEventListener("change", () => {
@@ -688,6 +695,7 @@ export function createTimedSubtitles(): { updatePlayer(state: PlayerSnapshot): v
       destroyed = true;
       fileGeneration++;
       clearTimeout(feedbackTimer);
+      fabFade.destroy();
       documentListeners(currentDocument, false);
       stopShortcuts?.();
       stopShortcuts = null;
