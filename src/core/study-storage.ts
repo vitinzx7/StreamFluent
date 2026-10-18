@@ -12,7 +12,14 @@ import { wordKey } from "./word-normalization.ts";
 import { createIndexedDbSeenStore, type SeenStore } from "./seen-store.ts";
 
 const KEYS = ["vocabulary", "phrases", "settings", "studyRevision"] as const;
-const ACTIONS = new Set<StudyAction>(["read", "observe", "set-mark", "save-phrase", "remove-phrase", "clear-phrases", "patch-settings", "toggle-auto-pause"]);
+const ACTIONS = new Set<StudyAction>([
+  "read", "observe", "set-mark", "save-phrase", "remove-phrase", "clear-phrases",
+  "patch-settings", "toggle-auto-pause", "export", "import", "reset-seen", "reset-all",
+]);
+/** Backups are plain JSON files the user keeps; this names and versions them. */
+export const BACKUP_FORMAT = "streamfluent-backup";
+const BACKUP_VERSION = 1;
+const MAX_BACKUP_PHRASES = 200_000;
 const SETTING_FIELDS = new Set(["direction", "showTranslation", "subtitleBottom", "highlightNewWords", "highlightSpecialWords", "autoPause", "level"]);
 const INVALID = "Pedido de estudo inválido.";
 
@@ -57,7 +64,18 @@ function validatePayload(action: StudyAction, value: unknown): Record<string, un
   assert(isRecord(payload));
   switch (action) {
     case "read": case "clear-phrases": case "toggle-auto-pause":
+    case "export": case "reset-seen": case "reset-all":
       assert(Object.keys(payload).length === 0); break;
+    case "import": {
+      // The contents are normalized like storage; only the envelope is checked here.
+      assert(onlyFields(payload, ["backup"]));
+      const backup = own(payload, "backup");
+      assert(isRecord(backup) && own(backup, "format") === BACKUP_FORMAT);
+      if (own(backup, "version") !== BACKUP_VERSION) throw new Error("Versão de backup desconhecida; atualize a extensão.");
+      const phrases = own(backup, "phrases");
+      assert(phrases === undefined || (Array.isArray(phrases) && phrases.length <= MAX_BACKUP_PHRASES));
+      break;
+    }
     case "observe": {
       assert(onlyFields(payload, ["language", "keys", "occurrenceId"]));
       assert(validLanguage(own(payload, "language")));
@@ -120,6 +138,14 @@ function validatePayload(action: StudyAction, value: unknown): Record<string, un
   return payload;
 }
 
+/** An ISO date later than another; a known date beats an unknown one. */
+function newer(candidate: string | null | undefined, current: string | null | undefined): boolean {
+  const a = candidate ? Date.parse(candidate) : NaN;
+  const b = current ? Date.parse(current) : NaN;
+  if (Number.isNaN(a)) return false;
+  return Number.isNaN(b) || a > b;
+}
+
 export interface StudyStorageService {
   handle(message: unknown, sender: chrome.runtime.MessageSender): Promise<StudyReply<unknown>>;
 }
@@ -174,6 +200,8 @@ export function createStudyStorageService(
           entry.seen = [];
         }
         let data: unknown;
+        /** Work that must wait until storage has committed. */
+        let afterWrite: (() => Promise<void>) | null = null;
         switch (action) {
           case "read": data = { vocabulary: state.vocabulary, phrases: state.phrases, settings: state.settings }; break;
           case "observe": data = { freshKeys: await observed(payload) }; break;
@@ -222,6 +250,62 @@ export function createStudyStorageService(
           case "clear-phrases": data = { removed: state.phrases.length }; state.phrases = []; break;
           case "patch-settings": state.settings = normalizeSettings({ ...state.settings, ...(payload.patch as Partial<Settings>) }); data = state.settings; break;
           case "toggle-auto-pause": state.settings = { ...state.settings, autoPause: !state.settings.autoPause }; data = state.settings; break;
+          case "export": {
+            // The seen history comes back into `vocabulary`, the shape older versions read.
+            const vocabulary = structuredClone(state.vocabulary);
+            for (const [language, words] of Object.entries(await seenWords.all())) {
+              (vocabulary.languages[language] ??= newLanguageVocabulary()).seen = words;
+            }
+            data = {
+              format: BACKUP_FORMAT, version: BACKUP_VERSION, exportedAt: new Date().toISOString(),
+              vocabulary, phrases: state.phrases, settings: state.settings,
+            };
+            break;
+          }
+          case "import": {
+            const backup = payload.backup as Record<string, unknown>;
+            const incoming = normalizeVocabulary(own(backup, "vocabulary"));
+            let words = 0;
+            let marks = 0;
+            for (const [language, entry] of Object.entries(incoming.languages)) {
+              words += (await seenWords.add(language, [...entry.seen, ...Object.keys(entry.marks)])).length;
+              const local = state.vocabulary.languages[language] ??= newLanguageVocabulary();
+              for (const [key, mark] of Object.entries(entry.marks)) {
+                const theirs = entry.details[key];
+                const mine = Object.prototype.hasOwnProperty.call(local.marks, key) ? local.details[key] : undefined;
+                // The most recently updated choice wins; without dates, the one here stays.
+                if (!Object.prototype.hasOwnProperty.call(local.marks, key) || newer(theirs?.updatedAt, mine?.updatedAt)) {
+                  if (local.marks[key] !== mark || mine !== theirs) marks++;
+                  local.marks[key] = mark;
+                  local.details[key] = theirs ?? { displayWord: key, markedAt: null, updatedAt: null };
+                }
+              }
+            }
+            const known = new Set(state.phrases.map(phraseIdentity));
+            const ids = new Set(state.phrases.map((item) => item.id));
+            let added = 0;
+            for (const phrase of normalizePhrases(own(backup, "phrases"))) {
+              const identity = phraseIdentity(phrase);
+              if (known.has(identity)) continue;
+              known.add(identity);
+              const id = ids.has(phrase.id) ? crypto.randomUUID() : phrase.id;
+              ids.add(id);
+              state.phrases.push({ ...phrase, id });
+              added++;
+            }
+            // A backup is a restore: its preferences, including the level, come back.
+            if (own(backup, "settings") !== undefined) state.settings = normalizeSettings(own(backup, "settings"));
+            data = { words, marks, phrases: added };
+            break;
+          }
+          case "reset-seen": await seenWords.clear(); data = { cleared: "seen" }; break;
+          case "reset-all":
+            // Marks and phrases go first; the history is cleared only once that is committed.
+            state.vocabulary = normalizeVocabulary(undefined);
+            state.phrases = [];
+            afterWrite = () => seenWords.clear();
+            data = { cleared: "all" };
+            break;
         }
         const changes: Partial<StorageSchema> = {};
         for (const key of ["vocabulary", "phrases", "settings"] as const) {
@@ -232,6 +316,7 @@ export function createStudyStorageService(
           changes.studyRevision = ++state.studyRevision;
           await storage.set(changes);
         }
+        await afterWrite?.();
         revision = state.studyRevision;
         migrated = true;
         return { ok: true, requestId, revision: state.studyRevision, data };

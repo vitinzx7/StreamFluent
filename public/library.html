@@ -118,6 +118,11 @@
     [aria-selected="true"] { border-color:#00d4aa; }
     :focus-visible { outline:2px solid #8ECBFF; outline-offset:3px; }
     [hidden] { display:none!important; }
+    .data { margin-top: 36px; padding-top: 16px; border-top: 1px solid #2a3a5c; }
+    .data h2 { font-size: 16px; color: #00d4aa; margin-bottom: 4px; }
+    .data button { padding: 8px 12px; background: #26344c; color: #e0e0e0; border: 1px solid #536078; border-radius: 5px; cursor: pointer; }
+    .data .danger { border-color: #8a4a4a; }
+    #dataStatus { min-height: 1.4em; font-size: 13px; color: #8ECBFF; }
   </style>
 </head>
 <body>
@@ -137,6 +142,18 @@
     <p class="empty">No phrases saved yet.</p>
   </div>
   <p id="feedback" role="status" aria-live="polite"></p>
+  <section class="data" aria-labelledby="dataTitle">
+    <h2 id="dataTitle">Seus dados</h2>
+    <p class="subtitle">Tudo fica só neste navegador; desinstalar a extensão apaga os dados. Exporte um backup para guardar ou levar para outro computador.</p>
+    <div class="toolbar">
+      <button type="button" id="exportData">Exportar backup</button>
+      <button type="button" id="importButton">Importar backup</button>
+      <input type="file" id="importData" accept=".json,application/json" hidden />
+      <button type="button" id="resetSeen" class="danger">Apagar histórico de palavras vistas</button>
+      <button type="button" id="resetAll" class="danger">Apagar todos os dados de estudo</button>
+    </div>
+    <p id="dataStatus" role="status" aria-live="polite"></p>
+  </section>
   <script src="study-client.js"></script>
   <script src="library.js"></script>
 </body>

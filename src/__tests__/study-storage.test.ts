@@ -183,3 +183,127 @@ describe("seen history outside chrome.storage", () => {
     expect(fresh.data.freshKeys).toEqual([]);
   });
 });
+
+describe("backups and starting over", () => {
+  type Backup = { format: string; version: number; vocabulary: VocabularyV2; phrases: unknown[]; settings: Record<string, unknown> };
+  const exportNow = async () => (await requestStudy<Backup>("export")).data;
+
+  async function seedProfile() {
+    await requestStudy("patch-settings", { patch: { level: "B1", autoPause: true } });
+    await requestStudy("observe", { language: "en", keys: ["hello", "world"], occurrenceId: "1" });
+    await requestStudy("set-mark", { language: "en", word: "world", mark: "difficult" });
+    await PhraseRepository.save(phrase());
+  }
+
+  it("exports the seen history, marks, phrases and preferences in one file", async () => {
+    await seedProfile();
+
+    const backup = await exportNow();
+
+    expect(backup).toMatchObject({ format: "streamfluent-backup", version: 1, settings: { level: "B1", autoPause: true } });
+    expect(new Set(backup.vocabulary.languages.en.seen)).toEqual(new Set(["hello", "world"]));
+    expect(backup.vocabulary.languages.en.marks).toEqual({ world: "difficult" });
+    expect(backup.phrases).toHaveLength(1);
+  });
+
+  it("restores everything into a fresh install, then reports nothing new on a second import", async () => {
+    await seedProfile();
+    const backup = await exportNow();
+    worker = installStudyWorker();
+
+    const first = await requestStudy<{ words: number; marks: number; phrases: number }>("import", { backup });
+    const second = await requestStudy<{ words: number; marks: number; phrases: number }>("import", { backup });
+
+    expect(first.data).toEqual({ words: 2, marks: 1, phrases: 1 });
+    expect(second.data).toEqual({ words: 0, marks: 0, phrases: 0 });
+    expect((worker.storage.vocabulary as VocabularyV2).languages.en.marks).toEqual({ world: "difficult" });
+    expect(worker.storage.settings).toMatchObject({ level: "B1", autoPause: true });
+    const fresh = await requestStudy<{ freshKeys: string[] }>("observe", { language: "en", keys: ["hello", "new"], occurrenceId: "2" });
+    expect(fresh.data.freshKeys).toEqual(["new"]);
+  });
+
+  it("keeps the most recent choice of each word when merging", async () => {
+    await requestStudy("set-mark", { language: "en", word: "old", mark: "difficult" });
+    await requestStudy("set-mark", { language: "en", word: "new", mark: "difficult" });
+    const backup = await exportNow();
+    const later = new Date(Date.now() + 60_000).toISOString();
+    const earlier = "2020-01-01T00:00:00.000Z";
+    backup.vocabulary.languages.en.marks = { old: "learned", new: "learned", extra: "learned" };
+    backup.vocabulary.languages.en.details = {
+      old: { displayWord: "old", markedAt: earlier, updatedAt: earlier },
+      new: { displayWord: "new", markedAt: later, updatedAt: later },
+      extra: { displayWord: "extra", markedAt: null, updatedAt: null },
+    };
+
+    await requestStudy("import", { backup });
+
+    expect((worker.storage.vocabulary as VocabularyV2).languages.en.marks).toEqual({ old: "difficult", new: "learned", extra: "learned" });
+  });
+
+  it("adds only phrases it does not have, giving a clashing id a new one", async () => {
+    const mine = await PhraseRepository.save(phrase());
+    const backup = await exportNow();
+    backup.phrases = [
+      { ...(backup.phrases[0] as object) },
+      { ...(backup.phrases[0] as object), sentence: "Another line" },
+    ];
+
+    const result = await requestStudy<{ phrases: number }>("import", { backup });
+
+    expect(result.data.phrases).toBe(1);
+    const all = await PhraseRepository.getAll();
+    expect(all.map((item) => item.sentence)).toEqual(["Hello\nworld", "Another line"]);
+    expect(all[1].id).not.toBe(mine.id);
+  });
+
+  it("refuses an unknown file, version or future schema without changing anything", async () => {
+    await seedProfile();
+    const backup = await exportNow();
+    const before = structuredClone(worker.storage);
+
+    await expect(requestStudy("import", { backup: { ...backup, format: "other" } })).rejects.toThrow();
+    await expect(requestStudy("import", { backup: { ...backup, version: 2 } })).rejects.toThrow(/Versão de backup/);
+    await expect(requestStudy("import", { backup: { ...backup, vocabulary: { schemaVersion: 9, languages: {} } } })).rejects.toThrow();
+
+    expect(worker.storage).toEqual(before);
+  });
+
+  it("forgets only the seen history, or every study item while keeping preferences", async () => {
+    await seedProfile();
+
+    await requestStudy("reset-seen");
+    expect(await worker.seen.all()).toEqual({});
+    expect((worker.storage.vocabulary as VocabularyV2).languages.en.marks).toEqual({ world: "difficult" });
+    expect(worker.storage.phrases).toHaveLength(1);
+
+    await requestStudy("observe", { language: "en", keys: ["hello"], occurrenceId: "3" });
+    await requestStudy("reset-all");
+    expect(await worker.seen.all()).toEqual({});
+    expect((worker.storage.vocabulary as VocabularyV2).languages).toEqual({});
+    expect(worker.storage.phrases).toEqual([]);
+    expect(worker.storage.settings).toMatchObject({ level: "B1", autoPause: true });
+  });
+
+  it("keeps the seen history when wiping marks and phrases failed", async () => {
+    await seedProfile();
+    worker.failNextWrite();
+
+    await expect(requestStudy("reset-all")).rejects.toThrow();
+
+    expect((await worker.seen.all()).en).toHaveLength(2);
+    expect(worker.storage.phrases).toHaveLength(1);
+  });
+
+  it("round-trips: export, start over, import gives the same study data back", async () => {
+    await seedProfile();
+    const backup = await exportNow();
+
+    await requestStudy("reset-all");
+    await requestStudy("import", { backup });
+    const again = await exportNow();
+
+    expect(again.vocabulary.languages.en.marks).toEqual(backup.vocabulary.languages.en.marks);
+    expect(new Set(again.vocabulary.languages.en.seen)).toEqual(new Set(backup.vocabulary.languages.en.seen));
+    expect(again.phrases).toEqual(backup.phrases);
+  });
+});

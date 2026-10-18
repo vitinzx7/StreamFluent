@@ -1,5 +1,7 @@
 export const STUDY_PREFIX = "sf:study:";
-export type StudyAction = "read" | "observe" | "set-mark" | "save-phrase" | "remove-phrase" | "clear-phrases" | "patch-settings" | "toggle-auto-pause";
+export type StudyAction =
+  | "read" | "observe" | "set-mark" | "save-phrase" | "remove-phrase" | "clear-phrases"
+  | "patch-settings" | "toggle-auto-pause" | "export" | "import" | "reset-seen" | "reset-all";
 export interface StudyRequest { type: `${typeof STUDY_PREFIX}${StudyAction}`; requestId: string; payload?: unknown }
 export interface StudySuccess<T> { ok: true; requestId: string; revision: number; data: T }
 export interface StudyFailure { ok: false; requestId: string; error: string }

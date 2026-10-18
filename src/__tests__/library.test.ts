@@ -1,11 +1,12 @@
 /** @vitest-environment jsdom */
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import html from "../../public/library.html?raw";
 import source from "../../public/library.js?raw";
 import { installStudyWorker } from "./helpers/study-worker.ts";
 import { requestStudy } from "../core/study-messages.ts";
 import { PhraseRepository } from "../core/storage.ts";
 beforeEach(() => { document.documentElement.innerHTML = html; history.replaceState({}, "", "/library.html?tab=difficult"); installStudyWorker(); });
+afterEach(() => { vi.restoreAllMocks(); vi.unstubAllGlobals(); });
 async function open() {
   const library = new Function("studyRequest", "chrome", source + "\nreturn { refresh };")(
     async (action: Parameters<typeof requestStudy>[0], payload: unknown) => (await requestStudy(action, payload)).data, chrome,
@@ -37,5 +38,65 @@ describe("live study library", () => {
     await requestStudy("set-mark", { language: "en", word: "other", mark: "difficult" });
     await vi.waitFor(() => expect(document.querySelectorAll("article")).toHaveLength(1));
     expect(search.value).toBe("context"); expect(language.value).toBe("en"); expect(document.activeElement).toBe(search);
+  });
+});
+
+describe("your data", () => {
+  const status = () => document.getElementById("dataStatus")!.textContent;
+
+  it("exports a backup file named by date", async () => {
+    await requestStudy("set-mark", { language: "en", word: "hello", mark: "difficult" });
+    const createObjectURL = vi.fn(() => "blob:backup");
+    vi.stubGlobal("URL", Object.assign(URL, { createObjectURL, revokeObjectURL: vi.fn() }));
+    const clicked: HTMLAnchorElement[] = [];
+    vi.spyOn(HTMLAnchorElement.prototype, "click").mockImplementation(function (this: HTMLAnchorElement) { clicked.push(this); });
+    await open();
+
+    byText("Exportar backup").click();
+
+    await vi.waitFor(() => expect(status()).toContain("Backup exportado"));
+    expect(clicked[0].download).toMatch(/^streamfluent-backup-\d{4}-\d{2}-\d{2}\.json$/);
+    expect(status()).toContain("1 marcadas");
+  });
+
+  it("imports a backup file and shows what came back", async () => {
+    await requestStudy("set-mark", { language: "en", word: "hello", mark: "difficult" });
+    const backup = (await requestStudy("export")).data;
+    installStudyWorker();
+    await open();
+    const input = document.getElementById("importData") as HTMLInputElement;
+    Object.defineProperty(input, "files", { configurable: true, value: [new File([JSON.stringify(backup)], "backup.json", { type: "application/json" })] });
+
+    input.dispatchEvent(new Event("change"));
+
+    await vi.waitFor(() => expect(status()).toContain("Backup importado"));
+    expect(status()).toContain("1 marcações");
+    await vi.waitFor(() => expect(document.querySelectorAll("article")).toHaveLength(1));
+  });
+
+  it("says so when the file is not a backup", async () => {
+    await open();
+    const input = document.getElementById("importData") as HTMLInputElement;
+    Object.defineProperty(input, "files", { configurable: true, value: [new File(["not json"], "notes.txt")] });
+
+    input.dispatchEvent(new Event("change"));
+
+    await vi.waitFor(() => expect(status()).toBe("Esse arquivo não é um backup do StreamFluent."));
+  });
+
+  it("asks before wiping, and keeps everything when the answer is no", async () => {
+    await requestStudy("set-mark", { language: "en", word: "hello", mark: "difficult" });
+    await open();
+    const confirm = vi.fn(() => false);
+    vi.stubGlobal("confirm", confirm);
+
+    byText("Apagar todos os dados de estudo").click();
+    expect(confirm).toHaveBeenCalledOnce();
+    expect(document.querySelectorAll("article")).toHaveLength(1);
+
+    confirm.mockReturnValue(true);
+    byText("Apagar todos os dados de estudo").click();
+    await vi.waitFor(() => expect(document.querySelectorAll("article")).toHaveLength(0));
+    expect(status()).toContain("Nível e preferências foram mantidos");
   });
 });
