@@ -332,7 +332,7 @@ export interface OverlayOptions {
   /** Initial values for the in-player settings panel and subtitle position. */
   settings: Settings;
   onSettingsChange: (patch: Partial<Settings>) => void;
-  onOpenLibrary: () => void;
+  onOpenLibrary: (tab?: "difficult") => void;
   /** Colour for a word on screen, or null to leave it plain. */
   getWordStatus?: (word: string) => WordStatus | null;
 }
@@ -413,7 +413,8 @@ export function createSubtitleOverlay(options: OverlayOptions): {
         <option value="pt-en">${DIRECTION_LABELS["pt-en"]}</option>
       </select>
     </label>
-    <button class="sf-panel-btn" data-sf="library">My Phrases</button>
+    <button class="sf-panel-btn" data-sf="library">Frases salvas</button>
+    <button class="sf-panel-btn" data-sf="difficult-library">Palavras difíceis</button>
     <div class="sf-panel-hint">Press A to go back to the previous line. Click a word to mark it as hard or learned. Drag the subtitle up or down to move it.</div>
   `;
   document.body.appendChild(panel);
@@ -443,6 +444,8 @@ export function createSubtitleOverlay(options: OverlayOptions): {
   panel.querySelector('[data-sf="library"]')?.addEventListener("click", () => {
     options.onOpenLibrary();
   });
+
+  panel.querySelector('[data-sf="difficult-library"]')?.addEventListener("click", () => options.onOpenLibrary("difficult"));
 
   const fab = document.createElement("button");
   fab.className = "sf-fab";

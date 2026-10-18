@@ -48,7 +48,7 @@ const studyStorage = createStudyStorageService();
 
 chrome.runtime.onMessage.addListener((message: unknown, sender, respond) => {
   if (!message || typeof message !== "object") return false;
-  const request = message as { type?: unknown; url?: unknown };
+  const request = message as { type?: unknown; url?: unknown; tab?: unknown };
   if (typeof request.type === "string" && request.type.startsWith("sf:study:")) {
     void studyStorage.handle(message, sender).then(respond);
     return true;
@@ -63,7 +63,7 @@ chrome.runtime.onMessage.addListener((message: unknown, sender, respond) => {
   }
   if (sender.id !== chrome.runtime.id) return false;
   if (request.type === "sf:open-library") {
-    void chrome.tabs.create({ url: chrome.runtime.getURL("library.html") });
+    void chrome.tabs.create({ url: chrome.runtime.getURL(request.tab === "difficult" ? "library.html?tab=difficult" : "library.html") });
     respond({ ok: true });
     return false;
   }

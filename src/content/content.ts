@@ -103,8 +103,8 @@ async function boot(): Promise<void> {
       // onChange below, which refreshes `settings` and the panel controls.
       void SettingsRepository.save(patch).catch(() => overlay.showFeedback("Não foi possível salvar a preferência. Tente novamente."));
     },
-    onOpenLibrary: () => {
-      void chrome.runtime.sendMessage({ type: "sf:open-library" });
+    onOpenLibrary: (tab) => {
+      void chrome.runtime.sendMessage({ type: "sf:open-library", ...(tab ? { tab } : {}) });
     },
     onCardClose: () => { lookupId++; },
     onWordDifficult: (word, sentence) => {

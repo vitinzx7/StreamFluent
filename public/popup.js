@@ -63,3 +63,5 @@ async function initSettings() {
   });
 }
 void initSettings();
+
+document.getElementById("openDifficult").addEventListener("click", () => { chrome.tabs.create({ url: chrome.runtime.getURL("library.html?tab=difficult") }); });

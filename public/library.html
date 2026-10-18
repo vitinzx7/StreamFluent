@@ -1,8 +1,8 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="pt-BR">
 <head>
   <meta charset="UTF-8" />
-  <title>StreamFluent — My Phrases</title>
+  <title>StreamFluent — Biblioteca de estudo</title>
   <style>
     * { margin: 0; padding: 0; box-sizing: border-box; }
     body {
@@ -111,17 +111,26 @@
       font-size: 16px;
     }
     .card-delete:hover { color: #e74c3c; }
+    .card-sentence,.card-sentence-translation { white-space:pre-wrap; }
+    .difficult { color:#FF8A80; } .learned { color:#81C784; }
+    nav { display:flex; gap:8px; margin:20px 0; flex-wrap:wrap; }
+    nav button,.card-action { padding:8px; background:#26344c; color:#e0e0e0; border:1px solid #536078; border-radius:5px; cursor:pointer; margin-right:6px; }
+    [aria-selected="true"] { border-color:#00d4aa; }
+    :focus-visible { outline:2px solid #8ECBFF; outline-offset:3px; }
+    [hidden] { display:none!important; }
   </style>
 </head>
 <body>
-  <h1>My Phrases</h1>
-  <p class="subtitle">Phrases you saved while watching.</p>
+  <h1>Biblioteca de estudo</h1>
+  <p class="subtitle">Frases e palavras salvas localmente enquanto você estuda.</p>
+  <nav role="tablist" aria-label="Biblioteca"><button role="tab" data-tab="phrases">Frases salvas</button><button role="tab" data-tab="difficult">Palavras difíceis</button><button role="tab" data-tab="learned">Palavras aprendidas</button></nav>
   <div class="toolbar">
-    <input type="text" id="search" placeholder="Search phrases..." />
-    <select id="platformFilter">
+    <input type="text" id="search" aria-label="Buscar palavra ou contexto" placeholder="Buscar palavra ou contexto…" />
+    <select id="platformFilter" aria-label="Plataforma">
       <option value="">All platforms</option>
     </select>
-    <button id="clearAll">Clear All</button>
+    <select id="languageFilter" aria-label="Idioma"><option value="">Todos os idiomas</option></select>
+    <button id="clearAll">Apagar todas as frases</button>
   </div>
   <p class="count" id="count"></p>
   <div id="list">
