@@ -402,3 +402,48 @@ describe("quick marking and durable card actions", () => {
     expect(document.querySelector(".sf-card-feedback")?.textContent).toContain("aprendida");
   });
 });
+
+describe("line actions in the panel", () => {
+  it("'Copiar fala' and 'Salvar fala' call the same handlers as the shortcuts", () => {
+    const onStudyCommand = vi.fn();
+    overlay = createSubtitleOverlay({
+      onWordSelect: vi.fn(),
+      onSettingsChange: vi.fn(),
+      onOpenLibrary: vi.fn(),
+      onStudyCommand,
+      settings: DEFAULT_SETTINGS,
+    });
+
+    document.querySelector<HTMLButtonElement>('[data-sf="copy-line"]')!.click();
+    document.querySelector<HTMLButtonElement>('[data-sf="save-line"]')!.click();
+
+    expect(onStudyCommand.mock.calls).toEqual([["copy-line"], ["save-line"]]);
+  });
+
+  it("shows a refused copy as a selected, read-only field that Escape closes", () => {
+    const { overlay: o } = create();
+
+    o.showCopyFallback("Line <b>one</b>\nline two");
+
+    const field = document.querySelector<HTMLTextAreaElement>(".sf-copy-text")!;
+    expect(field.value).toBe("Line <b>one</b>\nline two");
+    expect(field.readOnly).toBe(true);
+    expect(document.activeElement).toBe(field);
+    expect(document.querySelector(".sf-copy b")).toBeNull();
+
+    document.dispatchEvent(new KeyboardEvent("keydown", { key: "Escape" }));
+    expect(document.querySelector(".sf-copy")!.classList.contains("sf-hidden")).toBe(true);
+  });
+
+  it("clears a feedback message after a moment", () => {
+    vi.useFakeTimers();
+    const { overlay: o } = create();
+
+    o.showFeedback("Fala salva");
+    expect(document.querySelector(".sf-feedback")!.textContent).toBe("Fala salva");
+    vi.advanceTimersByTime(3000);
+
+    expect(document.querySelector(".sf-feedback")!.textContent).toBe("");
+    vi.useRealTimers();
+  });
+});

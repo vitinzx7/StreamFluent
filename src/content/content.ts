@@ -5,8 +5,13 @@ import { isCinetaroUrl, isEmbeddedPlayerUrl } from "../core/frame-messages.ts";
 import { createSubtitleOverlay } from "../core/ui/subtitle-overlay.ts";
 import { PhraseRepository } from "../core/storage.ts";
 import { SettingsRepository, DIRECTION_LABELS, getLangPair } from "../core/settings.ts";
-import { createVocabularyStore, type WordStatus } from "../core/vocabulary.ts";
+import { createVocabularyStore, type WordMark, type WordStatus } from "../core/vocabulary.ts";
 import { createLineNavigation } from "../core/line-navigation.ts";
+import { createPlaybackController, type PlaybackDriver } from "../core/playback-controller.ts";
+import { createStudyContext, wordContext, type StudySnapshot } from "../core/study-context.ts";
+import { createStudyActions } from "../core/study-actions.ts";
+import { installShortcuts } from "../core/keyboard-shortcuts.ts";
+import type { StreamingAdapter } from "../core/types.ts";
 import {
   translateWord,
   translateSentence,
@@ -19,6 +24,20 @@ function formatDefinition(result: TranslationResult): string {
   const phonetic = result.phonetic ? `${result.phonetic} ` : "";
   const example = result.example ? ` e.g. "${result.example}"` : "";
   return `${phonetic}${result.definition}${example}`;
+}
+
+const NO_WORDS: ReadonlySet<string> = new Set();
+
+/** Seeks, play and pause go through the platform adapter; a missing one just fails. */
+function adapterDriver(adapter: StreamingAdapter, getSessionId: () => string): PlaybackDriver {
+  return {
+    getVideo: () => adapter.getVideo?.() ?? null,
+    getSessionId,
+    seekTo: (seconds) => adapter.seekTo?.(seconds) ?? Promise.resolve(false),
+    play: () => adapter.play?.() ?? Promise.resolve(false),
+    pause: () => adapter.pause?.() ?? Promise.resolve(false),
+    canPlayPause: () => adapter.canPlayPause?.() ?? false,
+  };
 }
 
 const lifecycle = globalThis as typeof globalThis & { __streamfluentCleanup?: () => void };
@@ -62,38 +81,109 @@ async function boot(): Promise<void> {
 
   let settings = await SettingsRepository.get();
   if (disposed || generation !== bootGeneration) return;
-  let unsubscribe = () => {};
-  let currentLine: string | null = null;
-  let currentTranslation = "";
+  const alive = (): boolean => !disposed && generation === bootGeneration;
+
+  // Live, held and retained lines; R, copy, S and the cards read snapshots
+  // from here instead of whatever is on screen after an await.
+  const context = createStudyContext();
   let lineRequestId = 0;
+  let occurrenceSequence = 0;
+  /** The occurrence currently rendered in the overlay. */
+  let shownOccurrence = "";
+
+  // An episode is the URL path plus the <video> playing it. Anything pending
+  // for the previous one is dropped when either changes.
+  let sessionVideo: HTMLVideoElement | null | undefined;
+  let sessionPath = location.pathname;
+  let sessionSequence = 0;
+  /** Shortcuts stay off until this session showed a subtitle: previews and menus keep their keys. */
+  let sessionHasLines = false;
+  const syncSession = (): string => {
+    const video = adapter.getVideo?.() ?? null;
+    if (video !== sessionVideo || location.pathname !== sessionPath) {
+      const first = sessionVideo === undefined;
+      sessionVideo = video;
+      sessionPath = location.pathname;
+      sessionSequence++;
+      sessionHasLines = false;
+      if (!first) endSession();
+    }
+    return `${generation}:${sessionSequence}`;
+  };
+  syncSession();
+  const shortcutsActive = (): boolean => {
+    if (!alive() || !adapter.getVideo?.()) return false;
+    syncSession();
+    return sessionHasLines;
+  };
 
   // Words are coloured per source language: "new" means first appearance ever,
-  // computed once when the line arrives so a re-render keeps the same colours.
+  // computed once per occurrence so a re-render keeps the same colours.
   const vocabulary = createVocabularyStore();
-  let newWords = new Set<string>();
-  let newWordsLanguage = "";
-  let occurrenceId = 0;
   const sourceLanguage = (): string => getLangPair(settings.direction).source;
   const wordStatus = (word: string): WordStatus | null => {
-    const mark = vocabulary.getMark(word, sourceLanguage());
-    const status = resolveWordStatus(word, sourceLanguage(), mark, newWordsLanguage === sourceLanguage() ? newWords : new Set(), settings);
+    const shown = context.study;
+    const fresh = shown && shown.direction === settings.direction ? shown.freshKeys : NO_WORDS;
+    const language = sourceLanguage();
+    const status = resolveWordStatus(word, language, vocabulary.getMark(word, language), fresh, settings);
     return status === "normal" ? null : status;
   };
 
-  const showLineTranslation = (line: string): void => {
+  /** One request per shown occurrence; a reply for anything else is dropped. */
+  const translateLine = (shown: StudySnapshot): void => {
     const id = ++lineRequestId;
     const page = location.href;
-    void translateSentence(line, settings.direction).then((translation) => {
-      if (!disposed && id === lineRequestId && page === location.href && settings.showTranslation && translation) {
-        currentTranslation = translation;
-        overlay.setTranslation(line, translation);
-      }
+    const direction = settings.direction;
+    void translateSentence(shown.text, direction).then((translation) => {
+      if (!alive() || id !== lineRequestId || page !== location.href) return;
+      if (!settings.showTranslation || settings.direction !== direction || !translation) return;
+      if (context.study?.occurrenceId !== shown.occurrenceId) return;
+      context.translate(shown.occurrenceId, translation);
+      overlay.setTranslation(shown.text, translation);
     });
+  };
+
+  /** Words count as seen only once their line is actually shown. */
+  const observeWords = (shown: StudySnapshot): void => {
+    void vocabulary
+      .observeLine(shown.text, getLangPair(shown.direction).source, shown.occurrenceId)
+      .then((fresh) => {
+        if (!alive()) return;
+        context.setFresh(shown.occurrenceId, fresh);
+        overlay.refreshWordStatuses();
+      })
+      .catch(() => overlay.showFeedback("Não foi possível registrar o histórico desta fala."));
+  };
+
+  /** Renders the study line when it changed; same occurrence, same colours. */
+  const present = (): void => {
+    const shown = context.study;
+    const occurrence = shown?.occurrenceId ?? "";
+    if (occurrence === shownOccurrence) {
+      overlay.refreshWordStatuses();
+      return;
+    }
+    shownOccurrence = occurrence;
+    lineRequestId++;
+    overlay.update(shown?.text ?? null);
+    if (!shown) return;
+    observeWords(shown);
+    if (shown.translation) overlay.setTranslation(shown.text, shown.translation);
+    else if (settings.showTranslation) translateLine(shown);
   };
 
   // Clicking a second word while the first is still in flight must not let the
   // slower response overwrite the newer card.
   let lookupId = 0;
+
+  const endSession = (): void => {
+    lookupId++;
+    lineRequestId++;
+    context.clear();
+    controller.invalidate();
+    overlay.hideCard();
+    present();
+  };
 
   const overlay = createSubtitleOverlay({
     settings,
@@ -106,60 +196,115 @@ async function boot(): Promise<void> {
     onOpenLibrary: (tab) => {
       void chrome.runtime.sendMessage({ type: "sf:open-library", ...(tab ? { tab } : {}) });
     },
+    onStudyCommand: (command) => actions.trigger(command),
     onCardClose: () => { lookupId++; },
-    onWordDifficult: (word, sentence) => {
-      const page = location.href, language = sourceLanguage(), metadata = adapter.getMediaMetadata();
+    onWordDifficult: (word) => {
+      // Everything is captured now: the line may change before the write lands.
+      const shown = context.study;
+      if (!shown) return;
+      const page = location.href;
+      const language = getLangPair(shown.direction).source;
       const previous = vocabulary.getMark(word, language);
-      const context = { sentence, sentenceTranslation: currentLine === sentence ? currentTranslation : "", platform: adapter.name, mediaTitle: metadata?.title || "", season: metadata?.season ?? null, episode: metadata?.episode ?? null, sourceLanguage: language, targetLanguage: getLangPair(settings.direction).target, timeSeconds: adapter.getVideo?.()?.currentTime };
       overlay.showFeedback("Salvando…");
-      void vocabulary.setMark(word, language, "difficult", { displayWord: word, context }).then(() => {
-        if (!disposed && page === location.href) { overlay.refreshWordStatuses(); overlay.showFeedback(previous === "difficult" ? "Já está nas difíceis" : "Adicionada às difíceis"); }
-      }).catch(() => { if (!disposed && page === location.href) overlay.showFeedback("Não foi possível salvar. Clique novamente para tentar."); });
+      void vocabulary
+        .setMark(word, language, "difficult", { displayWord: word, context: wordContext(shown) })
+        .then(() => {
+          if (!alive() || page !== location.href) return;
+          overlay.refreshWordStatuses();
+          overlay.showFeedback(previous === "difficult" ? "Já está nas difíceis" : "Adicionada às difíceis");
+        })
+        .catch(() => {
+          if (alive() && page === location.href) overlay.showFeedback("Não foi possível salvar. Clique novamente para tentar.");
+        });
     },
-    onWordSelect: async (word, sentence) => {
-      const direction = settings.direction;
-      const directionLabel = DIRECTION_LABELS[direction];
+    onWordSelect: async (word) => {
+      const shown = context.study;
+      if (!shown) return;
+      const direction = shown.direction;
       const id = ++lookupId;
       const page = location.href;
-      const metadata = adapter.getMediaMetadata();
+      const session = shown.sessionId;
       const language = getLangPair(direction).source;
-      const context = {
-        sentence, sentenceTranslation: currentLine === sentence ? currentTranslation : "",
-        platform: adapter.name, mediaTitle: metadata?.title || "", season: metadata?.season ?? null,
-        episode: metadata?.episode ?? null, sourceLanguage: language, targetLanguage: getLangPair(direction).target,
-        timeSeconds: adapter.getVideo?.()?.currentTime,
-      };
-      const video = adapter.getVideo?.();
-      const valid = () => !disposed && id === lookupId && page === location.href && settings.direction === direction && video === adapter.getVideo?.();
-      let translation = "", definition = "";
-      const save = async () => {
-        const result = await PhraseRepository.saveResult({ kind: "word", ...context, selectedWord: word, translation, definition });
+      const marked = wordContext(shown);
+      const valid = (): boolean =>
+        alive() && id === lookupId && page === location.href
+        && settings.direction === direction && syncSession() === session;
+      let translation = "";
+      let definition = "";
+      const save = async (): Promise<string> => {
+        const result = await PhraseRepository.saveResult({
+          kind: "word",
+          ...marked,
+          targetLanguage: marked.targetLanguage ?? null,
+          selectedWord: word,
+          ...(translation ? { translation } : {}),
+          ...(definition ? { definition } : {}),
+        });
         return result.duplicate ? "Já salvo" : "Salvo";
       };
-      const onMark = async (next: "difficult" | "learned" | null): Promise<void> => {
-        await vocabulary.setMark(word, language, next, { displayWord: word, context, translation, definition });
+      const onMark = async (next: WordMark | null): Promise<void> => {
+        await vocabulary.setMark(word, language, next, {
+          displayWord: word,
+          context: marked,
+          ...(translation ? { translation } : {}),
+          ...(definition ? { definition } : {}),
+        });
         if (valid()) overlay.refreshWordStatuses();
       };
       const show = (state: "loading" | "ready" | "error") => overlay.showCard({
-        identity: String(id), word, translation, definition, sentence, sentenceTranslation: context.sentenceTranslation,
-        directionLabel, state, mark: vocabulary.getMark(word, language),
+        identity: String(id),
+        word,
+        translation,
+        definition,
+        sentence: shown.text,
+        sentenceTranslation: shown.translation ?? "",
+        directionLabel: DIRECTION_LABELS[direction],
+        state,
+        mark: vocabulary.getMark(word, language),
       }, save, onMark);
       show("loading");
       const result = await translateWord(word, direction);
       if (!valid()) return;
-      translation = result.translation; definition = formatDefinition(result);
+      translation = result.translation;
+      definition = formatDefinition(result);
       show(result.error ? "error" : "ready");
     },
+  });
+
+  // Learns line times from the same cues the overlay shows; the A key itself
+  // belongs to the shortcut router below.
+  const navigation = createLineNavigation(adapter);
+
+  const controller = createPlaybackController(adapterDriver(adapter, syncSession), {
+    backTarget: (from) => navigation.backTarget(from),
+  });
+
+  const actions = createStudyActions({
+    controller,
+    study: () => context.study,
+    sessionId: syncSession,
+    toggleAutoPause: () => SettingsRepository.toggleAutoPause(),
+    savePhrase: (phrase) => PhraseRepository.saveResult(phrase),
+    feedback: (message) => overlay.showFeedback(message),
+    showCopyFallback: (text) => overlay.showCopyFallback(text),
+    clipboard: () => navigator.clipboard,
+  });
+
+  const stopShortcuts = installShortcuts(window, {
+    isActive: shortcutsActive,
+    canRun: actions.canRun,
+    run: actions.run,
+    explain: actions.explain,
   });
 
   // Marks and words recorded by another tab (or before storage finished
   // loading) show up on the line already on screen.
   const stopVocabulary = vocabulary.onChange(() => overlay.refreshWordStatuses());
   void vocabulary.ready.then(() => {
-    if (!disposed && generation === bootGeneration) overlay.refreshWordStatuses();
+    if (alive()) overlay.refreshWordStatuses();
   }).catch((error) => console.warn("StreamFluent: histórico indisponível.", error));
 
-  unsubscribe = SettingsRepository.onChange((next) => {
+  const unsubscribe = SettingsRepository.onChange((next) => {
     const wasOff = !settings.showTranslation;
     const directionChanged = settings.direction !== next.direction;
     const highlightChanged = settings.highlightNewWords !== next.highlightNewWords || settings.highlightSpecialWords !== next.highlightSpecialWords;
@@ -168,47 +313,64 @@ async function boot(): Promise<void> {
     overlay.applySettings(next);
     if (highlightChanged) overlay.refreshWordStatuses();
     if (directionChanged) {
+      // Another language is another study context: the same text on screen,
+      // without the old translation, colours or retained line.
       lookupId++;
       overlay.hideCard();
-      overlay.update(currentLine);
+      context.release();
+      const live = context.live;
+      if (live) {
+        const { translation: _old, ...rest } = live;
+        context.setLive({ ...rest, direction: next.direction, freshKeys: NO_WORDS });
+      }
+      shownOccurrence = context.study?.occurrenceId ?? "";
+      overlay.update(context.study?.text ?? null);
     }
 
     // Turning the option on mid-line should fill it in, not wait for the next cue.
-    if ((wasOff || directionChanged) && next.showTranslation && currentLine) showLineTranslation(currentLine);
+    const shown = context.study;
+    if ((wasOff || directionChanged) && next.showTranslation && shown) translateLine(shown);
   });
 
-  // "A" jumps back to the previous subtitle line; it learns line times from
-  // the same cues the overlay shows.
-  const navigation = createLineNavigation(adapter);
-
   const stopObserving = adapter.observeSubtitles((cue) => {
-    lineRequestId++;
+    const session = syncSession();
     const text = cue?.text ?? null;
-    const occurrence = ++occurrenceId;
-    const page = location.href;
-    const language = sourceLanguage();
-    currentLine = text;
-    currentTranslation = "";
     navigation.cueChanged(text);
-    newWords = new Set();
-    newWordsLanguage = language;
-    overlay.update(text);
-    if (text) {
-      void vocabulary.observeLine(text, language, `${generation}:${occurrence}`).then((fresh) => {
-        if (disposed || occurrence !== occurrenceId || page !== location.href || generation !== bootGeneration) return;
-        newWords = fresh;
-        overlay.refreshWordStatuses();
-      }).catch(() => overlay.showFeedback("Não foi possível registrar o histórico desta fala."));
-    }
+    // Netflix answers whether it supports play/pause in the background.
+    adapter.canPlayPause?.();
 
-    if (!text || !settings.showTranslation) return;
-    showLineTranslation(text);
+    let next: StudySnapshot | null = null;
+    if (text) {
+      sessionHasLines = true;
+      // The DOM gives no times (start/end are 0): use what the timeline recorded.
+      const timing = navigation.current();
+      const metadata = adapter.getMediaMetadata();
+      next = {
+        sessionId: session,
+        sourceId: `${adapter.name}:dom`,
+        cueId: timing ? `dom@${timing.start.toFixed(2)}` : "dom",
+        occurrenceId: `${session}:${++occurrenceSequence}`,
+        text,
+        direction: settings.direction,
+        ...(timing ? { start: timing.start } : {}),
+        ...(timing?.previousEnd !== undefined ? { previousEnd: timing.previousEnd } : {}),
+        platform: adapter.name,
+        mediaTitle: metadata?.title || "",
+        season: metadata?.season ?? null,
+        episode: metadata?.episode ?? null,
+        freshKeys: NO_WORDS,
+      };
+    }
+    context.setLive(next);
+    present();
   });
 
   stopContent = () => {
     lineRequestId++;
     lookupId++;
     stopObserving();
+    stopShortcuts();
+    controller.stop();
     navigation.stop();
     unsubscribe();
     stopVocabulary();

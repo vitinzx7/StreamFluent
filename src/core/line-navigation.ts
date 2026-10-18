@@ -1,15 +1,6 @@
 import { createLineTimeline, type CurrentLine } from "./line-timeline.ts";
 import type { StreamingAdapter } from "./types.ts";
 
-/** Pressing it jumps to the start of the previous subtitle line. */
-export const BACK_KEY = "a";
-
-/**
- * A press within this long of the previous one steps back from where that
- * seek is going: the video's own time only catches up once the seek lands.
- */
-const PENDING_SEEK_MS = 1500;
-
 export interface LineNavigation {
   /** Every cue the adapter reports, so line times can be learned. */
   cueChanged(text: string | null): void;
@@ -31,27 +22,19 @@ const NO_NAVIGATION: LineNavigation = {
   stop() {},
 };
 
-/** Typing an "a" in a search box or our own panel must stay an "a". */
-function isTyping(target: EventTarget | null): boolean {
-  if (!(target instanceof HTMLElement)) return false;
-  return target.isContentEditable || ["INPUT", "TEXTAREA", "SELECT"].includes(target.tagName);
-}
-
 /**
- * The "A" key: back to the start of the previous subtitle line, instead of the
- * player's fixed 10-second rewind. Line times are learned while watching.
- *
- * With `keyboard: false` it only learns and answers `backTarget`, and the key
- * itself is left to a central shortcut router.
+ * Behind the "A" key: back to the start of the previous subtitle line, instead
+ * of the player's fixed 10-second rewind. Line times are learned while
+ * watching. The key itself, and the seek, belong to the shortcut router and
+ * the playback controller; this only knows where "previous" is.
  */
-export function createLineNavigation(adapter: Seekable, options: { keyboard?: boolean } = {}): LineNavigation {
+export function createLineNavigation(adapter: Seekable): LineNavigation {
   if (!adapter.getVideo || !adapter.seekTo) return NO_NAVIGATION;
 
   const timeline = createLineTimeline();
   let video: HTMLVideoElement | null = null;
   let path = location.pathname;
   let lastTime = 0;
-  let pending: { target: number; at: number } | null = null;
 
   const onTimeUpdate = (): void => {
     if (!video) return;
@@ -63,7 +46,6 @@ export function createLineNavigation(adapter: Seekable, options: { keyboard?: bo
     if (video) lastTime = video.currentTime;
   };
   const onSeeked = (): void => {
-    pending = null;
     if (video) lastTime = video.currentTime;
   };
 
@@ -80,7 +62,6 @@ export function createLineNavigation(adapter: Seekable, options: { keyboard?: bo
     if (current !== video || location.pathname !== path) {
       unbind();
       timeline.clear();
-      pending = null;
       path = location.pathname;
       if (current) {
         video = current;
@@ -92,28 +73,6 @@ export function createLineNavigation(adapter: Seekable, options: { keyboard?: bo
     }
     return video;
   };
-
-  const handleKeydown = (event: KeyboardEvent): void => {
-    if (event.repeat || event.ctrlKey || event.metaKey || event.altKey) return;
-    if (event.key.toLowerCase() !== BACK_KEY || isTyping(event.target)) return;
-
-    const current = sync();
-    if (!current) return;
-    const from =
-      pending && Date.now() - pending.at < PENDING_SEEK_MS ? pending.target : current.currentTime;
-    const target = timeline.backTarget(from);
-    if (target === null) return;
-
-    // Ours now: keep the player from also reacting to the key.
-    event.preventDefault();
-    event.stopPropagation();
-    pending = { target, at: Date.now() };
-    void adapter.seekTo?.(target).then((ok) => {
-      if (!ok) pending = null;
-    });
-  };
-  // Capture phase, so the player cannot swallow the key before we see it.
-  if (options.keyboard !== false) window.addEventListener("keydown", handleKeydown, true);
 
   return {
     cueChanged(text: string | null): void {
@@ -135,11 +94,9 @@ export function createLineNavigation(adapter: Seekable, options: { keyboard?: bo
 
     reset(): void {
       timeline.clear();
-      pending = null;
     },
 
     stop(): void {
-      window.removeEventListener("keydown", handleKeydown, true);
       unbind();
       timeline.clear();
     },

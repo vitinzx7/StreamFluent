@@ -11,6 +11,7 @@ import {
 import type { WordMark, WordStatus } from "../vocabulary.ts";
 
 const STYLE_ID = "streamfluent-overlay";
+const FEEDBACK_MS = 3000;
 
 function ensureStyles(): void {
   if (document.getElementById(STYLE_ID)) return;
@@ -134,9 +135,64 @@ function ensureStyles(): void {
     }
     .sf-panel-hint {
       font-size: 11px;
-      color: #666;
+      color: #8a94a6;
       margin-top: 10px;
       line-height: 1.4;
+    }
+    .sf-panel-actions {
+      display: flex;
+      gap: 6px;
+    }
+    .sf-panel-actions .sf-panel-btn {
+      margin-top: 8px;
+    }
+    .sf-feedback {
+      position: fixed;
+      bottom: 22px;
+      left: 20px;
+      z-index: 100002;
+      max-width: 60vw;
+      padding: 6px 10px;
+      border-radius: 6px;
+      background: #1a1a2e;
+      color: #fff;
+      font: 14px/1.4 system-ui, sans-serif;
+      pointer-events: none;
+    }
+    .sf-feedback:empty {
+      display: none;
+    }
+    .sf-copy {
+      position: fixed;
+      left: 50%;
+      top: 30%;
+      transform: translateX(-50%);
+      z-index: 100003;
+      width: min(480px, calc(100vw - 32px));
+      padding: 14px;
+      border-radius: 10px;
+      background: #1a1a2e;
+      border: 1px solid rgba(0, 212, 170, 0.3);
+      box-shadow: 0 8px 32px rgba(0, 0, 0, 0.6);
+      color: #e0e0e0;
+      font: 13px/1.4 system-ui, sans-serif;
+      user-select: text;
+    }
+    .sf-copy.sf-hidden {
+      display: none;
+    }
+    .sf-copy-text {
+      display: block;
+      width: 100%;
+      margin: 8px 0 0;
+      padding: 6px;
+      border: 1px solid #2a3a5c;
+      border-radius: 5px;
+      background: #16213e;
+      color: #fff;
+      font: inherit;
+      resize: vertical;
+      box-sizing: border-box;
     }
     .sf-line-target {
       margin-top: 0.15em;
@@ -329,6 +385,8 @@ export interface OverlayOptions {
   onWordSelect: (word: string, sentence: string) => void;
   onWordDifficult?: (word: string, sentence: string) => void;
   onCardClose?: () => void;
+  /** "Copiar fala" / "Salvar fala": the same handlers as Ctrl/⌘+C and R. */
+  onStudyCommand?: (command: "copy-line" | "save-line") => void;
   /** Initial values for the in-player settings panel and subtitle position. */
   settings: Settings;
   onSettingsChange: (patch: Partial<Settings>) => void;
@@ -350,6 +408,8 @@ export function createSubtitleOverlay(options: OverlayOptions): {
     onMark?: (mark: WordMark | null) => void | Promise<void>
   ) => void;
   showFeedback: (message: string) => void;
+  /** The clipboard refused: show the line in a selectable field for a normal copy. */
+  showCopyFallback: (text: string) => void;
   destroy: () => void;
 } {
   // Destroy previous overlay if one exists (only one instance allowed)
@@ -382,9 +442,28 @@ export function createSubtitleOverlay(options: OverlayOptions): {
   const wordCard = createWordCard(card, options.onCardClose);
   const renderer = createWordRenderer(sourceLine, { status: word => options.getWordStatus?.(word) ?? null, select: options.onWordSelect, difficult: options.onWordDifficult });
   const feedback = document.createElement("div");
-  feedback.className = "sf-feedback"; feedback.setAttribute("role", "status"); feedback.setAttribute("aria-live", "polite"); markElement(feedback);
-  feedback.style.cssText = "position:fixed;bottom:22px;left:20px;z-index:100002;background:#1a1a2e;color:white;font:14px system-ui;padding:6px;border-radius:6px;pointer-events:none";
+  feedback.className = "sf-feedback";
+  feedback.setAttribute("role", "status");
+  feedback.setAttribute("aria-live", "polite");
+  markElement(feedback);
   document.body.appendChild(feedback);
+  let feedbackTimer: ReturnType<typeof setTimeout> | undefined;
+
+  // Clipboard fallback: the line in a read-only field the user copies normally.
+  const copyBox = document.createElement("div");
+  copyBox.className = "sf-copy sf-hidden";
+  copyBox.setAttribute("role", "dialog");
+  copyBox.setAttribute("aria-label", "Copiar fala");
+  markElement(copyBox);
+  copyBox.innerHTML = `
+    <div class="sf-copy-hint">Não foi possível copiar automaticamente. Pressione Ctrl+C (⌘C no Mac) para copiar a fala.</div>
+    <textarea class="sf-copy-text" readonly rows="3"></textarea>
+    <button type="button" class="sf-panel-btn" data-sf="copy-close">Fechar</button>
+  `;
+  document.body.appendChild(copyBox);
+  const copyText = copyBox.querySelector<HTMLTextAreaElement>(".sf-copy-text")!;
+  const hideCopyBox = (): void => copyBox.classList.add("sf-hidden");
+  copyBox.querySelector('[data-sf="copy-close"]')?.addEventListener("click", hideCopyBox);
 
   const panel = document.createElement("div");
   panel.className = "sf-panel sf-hidden";
@@ -413,9 +492,18 @@ export function createSubtitleOverlay(options: OverlayOptions): {
         <option value="pt-en">${DIRECTION_LABELS["pt-en"]}</option>
       </select>
     </label>
+    <div class="sf-panel-actions">
+      <button class="sf-panel-btn" data-sf="copy-line">Copiar fala</button>
+      <button class="sf-panel-btn" data-sf="save-line">Salvar fala</button>
+    </div>
     <button class="sf-panel-btn" data-sf="library">Frases salvas</button>
     <button class="sf-panel-btn" data-sf="difficult-library">Palavras difíceis</button>
-    <div class="sf-panel-hint">Press A to go back to the previous line. Click a word to mark it as hard or learned. Drag the subtitle up or down to move it.</div>
+    <div class="sf-panel-hint">
+      A: fala anterior · S: repetir fala · D: avançar 5 s · Espaço: reproduzir/pausar ·
+      Q: pausa automática · R: salvar fala · Ctrl/⌘+C: copiar fala.
+      Clique numa palavra para consultar; botão direito marca como difícil.
+      Arraste a legenda para cima ou para baixo para movê-la.
+    </div>
   `;
   document.body.appendChild(panel);
 
@@ -447,6 +535,9 @@ export function createSubtitleOverlay(options: OverlayOptions): {
 
   panel.querySelector('[data-sf="difficult-library"]')?.addEventListener("click", () => options.onOpenLibrary("difficult"));
 
+  panel.querySelector('[data-sf="copy-line"]')?.addEventListener("click", () => options.onStudyCommand?.("copy-line"));
+  panel.querySelector('[data-sf="save-line"]')?.addEventListener("click", () => options.onStudyCommand?.("save-line"));
+
   const fab = document.createElement("button");
   fab.className = "sf-fab";
   fab.textContent = "Aa";
@@ -462,6 +553,7 @@ export function createSubtitleOverlay(options: OverlayOptions): {
     if (e.key === "Escape") {
       wordCard.hide();
       panel.classList.add("sf-hidden");
+      hideCopyBox();
     }
     if (e.ctrlKey && e.shiftKey && e.key === "L") {
       e.preventDefault();
@@ -596,10 +688,27 @@ export function createSubtitleOverlay(options: OverlayOptions): {
       card.style.transform = rect ? "" : "translateX(-50%)";
       wordCard.show(content, onSave, onMark);
     },
-    showFeedback(message: string): void { feedback.textContent = message; },
+    showFeedback(message: string): void {
+      feedback.textContent = message;
+      clearTimeout(feedbackTimer);
+      // Discreet: gone after a moment, replaced sooner by the next message.
+      feedbackTimer = setTimeout(() => { feedback.textContent = ""; }, FEEDBACK_MS);
+    },
+
+    showCopyFallback(text: string): void {
+      copyText.value = text;
+      copyBox.classList.remove("sf-hidden");
+      // The user asked to copy: focusing the field is what makes Ctrl+C work.
+      copyText.focus();
+      copyText.select();
+    },
 
     destroy(): void {
-      renderer.destroy(); wordCard.hide(); feedback.remove();
+      clearTimeout(feedbackTimer);
+      renderer.destroy();
+      wordCard.hide();
+      feedback.remove();
+      copyBox.remove();
       document.removeEventListener("keydown", handleKeydown);
       document.removeEventListener("click", handleClick);
       document.removeEventListener("mousemove", handleDragMove);

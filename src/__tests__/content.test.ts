@@ -17,6 +17,7 @@ const mocks = vi.hoisted(() => ({
   createTimedSubtitles: vi.fn(),
   createVocabularyStore: vi.fn(),
   createLineNavigation: vi.fn(),
+  toggleAutoPause: vi.fn(),
 }));
 
 vi.mock("../adapters/registry.ts", () => ({ getAdapter: mocks.getAdapter }));
@@ -25,7 +26,7 @@ vi.mock("../core/ui/timed-subtitles.ts", () => ({ createTimedSubtitles: mocks.cr
 vi.mock("../core/ui/subtitle-overlay.ts", () => ({ createSubtitleOverlay: mocks.createOverlay }));
 vi.mock("../core/storage.ts", () => ({ PhraseRepository: { save: mocks.savePhrase, saveResult: mocks.savePhrase } }));
 vi.mock("../core/settings.ts", () => ({
-  SettingsRepository: { get: mocks.getSettings, save: mocks.saveSettings, onChange: mocks.onSettingsChange },
+  SettingsRepository: { get: mocks.getSettings, save: mocks.saveSettings, onChange: mocks.onSettingsChange, toggleAutoPause: mocks.toggleAutoPause },
   DIRECTION_LABELS: { "en-pt": "EN → PT", "pt-en": "PT → EN" },
   getLangPair: (direction: string) =>
     direction === "pt-en" ? { source: "pt-BR", target: "en" } : { source: "en", target: "pt-BR" },
@@ -43,7 +44,7 @@ let settingsChanged: (value: Settings) => void;
 let options: OverlayOptions;
 let stopObserving: ReturnType<typeof vi.fn>;
 let unsubscribe: ReturnType<typeof vi.fn>;
-let overlay: Record<"update" | "setTranslation" | "applySettings" | "refreshWordStatuses" | "hideCard" | "showCard" | "showFeedback" | "destroy", ReturnType<typeof vi.fn>>;
+let overlay: Record<"update" | "setTranslation" | "applySettings" | "refreshWordStatuses" | "hideCard" | "showCard" | "showFeedback" | "showCopyFallback" | "destroy", ReturnType<typeof vi.fn>>;
 let vocabulary: {
   ready: Promise<void>;
   observeLine: ReturnType<typeof vi.fn>;
@@ -53,7 +54,7 @@ let vocabulary: {
   dispose: ReturnType<typeof vi.fn>;
 };
 let stopVocabulary: ReturnType<typeof vi.fn>;
-let navigation: { cueChanged: ReturnType<typeof vi.fn>; stop: ReturnType<typeof vi.fn> };
+let navigation: Record<"cueChanged" | "backTarget" | "current" | "reset" | "stop", ReturnType<typeof vi.fn>>;
 
 function deferred<T>() {
   let resolve!: (value: T) => void;
@@ -74,7 +75,7 @@ beforeEach(() => {
   window.history.replaceState({}, "", "/watch/first");
   stopObserving = vi.fn();
   unsubscribe = vi.fn();
-  overlay = { update: vi.fn(), setTranslation: vi.fn(), applySettings: vi.fn(), refreshWordStatuses: vi.fn(), hideCard: vi.fn(), showCard: vi.fn(), showFeedback: vi.fn(), destroy: vi.fn() };
+  overlay = { update: vi.fn(), setTranslation: vi.fn(), applySettings: vi.fn(), refreshWordStatuses: vi.fn(), hideCard: vi.fn(), showCard: vi.fn(), showFeedback: vi.fn(), showCopyFallback: vi.fn(), destroy: vi.fn() };
   stopVocabulary = vi.fn();
   vocabulary = {
     ready: Promise.resolve(),
@@ -85,7 +86,7 @@ beforeEach(() => {
     dispose: vi.fn(),
   };
   mocks.createVocabularyStore.mockReturnValue(vocabulary);
-  navigation = { cueChanged: vi.fn(), stop: vi.fn() };
+  navigation = { cueChanged: vi.fn(), backTarget: vi.fn().mockReturnValue(null), current: vi.fn().mockReturnValue(null), reset: vi.fn(), stop: vi.fn() };
   mocks.createLineNavigation.mockReturnValue(navigation);
   mocks.getSettings.mockResolvedValue({ ...defaults });
   mocks.onSettingsChange.mockImplementation((listener) => { settingsChanged = listener; return unsubscribe; });
@@ -221,6 +222,7 @@ describe("Netflix content integration", () => {
     const word = deferred<{ word: string; translation: string; definition: string; phonetic: string; example: string; error: null }>();
     mocks.translateWord.mockReturnValue(word.promise);
     await boot();
+    emit("Hello");
     const lookup = options.onWordSelect("Hello", "Hello");
     settingsChanged({ ...defaults, direction: "pt-en" });
     word.resolve({ word: "Hello", translation: "Olá", definition: "", phonetic: "", example: "", error: null });
@@ -272,6 +274,9 @@ describe("word colours", () => {
 
   it("saves a mark from the card under the source language and recolours the line", async () => {
     await boot();
+    emit("Hello world");
+    // Let the line's own history lookup recolour it first.
+    await new Promise((resolve) => setTimeout(resolve));
     void options.onWordSelect("Hello", "Hello world");
 
     const onMark = overlay.showCard.mock.calls[0][2] as (mark: string | null) => void;
@@ -285,6 +290,7 @@ describe("word colours", () => {
   it("keys marks by Portuguese when the subtitles are in Portuguese", async () => {
     mocks.getSettings.mockResolvedValue({ ...defaults, direction: "pt-en" });
     await boot();
+    emit("Meu coração");
     void options.onWordSelect("Coração", "Meu coração");
 
     const onMark = overlay.showCard.mock.calls[0][2] as (mark: string | null) => void;
@@ -296,6 +302,7 @@ describe("word colours", () => {
   it("shows the word's existing mark on the card", async () => {
     vocabulary.getMark.mockReturnValue("learned");
     await boot();
+    emit("Hello world");
     void options.onWordSelect("Hello", "Hello world");
 
     expect(overlay.showCard.mock.calls[0][0]).toMatchObject({ word: "Hello", mark: "learned" });
@@ -349,10 +356,97 @@ describe("quick difficult marking", () => {
   });
   it("does not reopen a closed card after a delayed lookup", async () => {
     const pending = deferred<unknown>(); mocks.translateWord.mockReturnValue(pending.promise);
-    await boot(); void options.onWordSelect("Hello", "Hello world");
+    await boot(); emit("Hello world"); void options.onWordSelect("Hello", "Hello world");
     options.onCardClose?.();
     pending.resolve({ word: "Hello", translation: "Olá", error: null });
     await Promise.resolve();
     expect(overlay.showCard).toHaveBeenCalledTimes(1);
+  });
+});
+
+describe("study shortcuts", () => {
+  function withVideo() {
+    const video = document.createElement("video");
+    document.body.append(video);
+    mocks.getAdapter.mockReturnValue({
+      name: "Netflix",
+      isSupportedPage: () => true,
+      getMediaMetadata: () => ({ title: "Episode one", season: 1, episode: 1 }),
+      observeSubtitles: (listener: typeof cue) => { cue = listener; return stopObserving; },
+      getVideo: () => video,
+      seekTo: vi.fn().mockResolvedValue(true),
+      play: vi.fn().mockResolvedValue(true),
+      pause: vi.fn().mockResolvedValue(true),
+      canPlayPause: () => false,
+    });
+    return video;
+  }
+
+  function press(key: string, init: KeyboardEventInit = {}) {
+    const event = new KeyboardEvent("keydown", { key, bubbles: true, cancelable: true, ...init });
+    document.body.dispatchEvent(event);
+    return event;
+  }
+
+  afterEach(() => document.body.replaceChildren());
+
+  it("leaves every key to the page until this episode showed a subtitle", async () => {
+    withVideo();
+    await boot();
+
+    const event = press("r");
+
+    expect(event.defaultPrevented).toBe(false);
+    expect(mocks.savePhrase).not.toHaveBeenCalled();
+  });
+
+  it("R saves the line on screen as a whole sentence", async () => {
+    withVideo();
+    mocks.savePhrase.mockResolvedValue({ phrase: {}, duplicate: false });
+    await boot();
+    emit("Hello\nworld");
+
+    const event = press("R", { shiftKey: true });
+
+    expect(event.defaultPrevented).toBe(true);
+    expect(mocks.savePhrase).toHaveBeenCalledExactlyOnceWith(expect.objectContaining({
+      kind: "sentence",
+      sentence: "Hello\nworld",
+      platform: "Netflix",
+      mediaTitle: "Episode one",
+    }));
+  });
+
+  it("the panel's copy button runs the same copy as Ctrl+C", async () => {
+    withVideo();
+    await boot();
+    emit("Copy me");
+
+    options.onStudyCommand?.("copy-line");
+    press("c", { ctrlKey: true });
+
+    // jsdom has no clipboard API: both fall back to the selectable field.
+    expect(overlay.showCopyFallback.mock.calls).toEqual([["Copy me"], ["Copy me"]]);
+  });
+
+  it("leaves Space to the player while play/pause are not confirmed", async () => {
+    withVideo();
+    await boot();
+    emit("Hello");
+
+    expect(press(" ").defaultPrevented).toBe(false);
+  });
+
+  it("asks the timeline where A goes, and stops listening on pagehide", async () => {
+    withVideo();
+    navigation.backTarget.mockReturnValue(3);
+    await boot();
+    emit("Hello");
+
+    expect(press("a").defaultPrevented).toBe(true);
+    expect(navigation.backTarget).toHaveBeenCalled();
+
+    window.dispatchEvent(new Event("pagehide"));
+    expect(press("a").defaultPrevented).toBe(false);
   });
 });
