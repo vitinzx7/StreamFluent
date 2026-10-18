@@ -8,6 +8,7 @@ import {
   decodeSeekRequest,
   handleNetflixSeekRequests,
   requestNetflixSeek,
+  requestNetflixAction,
 } from "../core/netflix-bridge.ts";
 
 type FakeWindow = Window & { netflix?: unknown };
@@ -111,8 +112,23 @@ describe("seeking Netflix through its own player", () => {
   });
 
   it("decodes only well-formed requests", () => {
-    expect(decodeSeekRequest('{"id":2,"ms":1500}')).toEqual({ id: 2, ms: 1500 });
+    expect(decodeSeekRequest('{"id":2,"action":"seek","path":"/","ms":1500}')).toEqual({ id: 2, action: "seek", path: "/", ms: 1500 });
     expect(decodeSeekRequest('{"id":"2","ms":1500}')).toBeNull();
     expect(decodeSeekRequest('{"id":2,"ms":null}')).toBeNull();
+  });
+});
+
+
+describe("Netflix playback actions", () => {
+  it("fails safely when an undocumented method is missing", async () => {
+    fakeNetflix(); uninstall = handleNetflixSeekRequests(window);
+    expect(await requestNetflixAction("play")).toBe(false);
+    expect(await requestNetflixAction("pause")).toBe(false);
+  });
+  it("rejects arbitrary methods, extra fields and obsolete sessions", () => {
+    const players = fakeNetflix(); uninstall = handleNetflixSeekRequests(window);
+    for (const value of [{ id: 3, path: "/", action: "eval" }, { id: 3, path: "/", action: "play", ms: 4 }, { id: 3, path: "/", action: "seek", ms: 5, code: "bad" }]) expect(decodeSeekRequest(JSON.stringify(value))).toBeNull();
+    document.dispatchEvent(new CustomEvent(SEEK_REQUEST_EVENT, { detail: JSON.stringify({ id: 5, path: "/obsolete", action: "seek", ms: 4000 }) }));
+    expect(players.get("watch-123")!.seek).not.toHaveBeenCalled();
   });
 });

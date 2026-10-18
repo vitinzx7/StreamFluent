@@ -117,6 +117,9 @@ export class MaxAdapter implements StreamingAdapter {
   }
 
   /** Assumes Max's player tolerates a direct seek — not verified on the real site. */
+  async play(): Promise<boolean> { try { const video = this.getVideo(); if (!video) return false; await video.play(); return !video.paused; } catch { return false; } }
+  async pause(): Promise<boolean> { try { const video = this.getVideo(); if (!video) return false; video.pause(); return video.paused; } catch { return false; } }
+
   async seekTo(seconds: number): Promise<boolean> {
     const video = this.getVideo();
     if (!video || !Number.isFinite(seconds)) return false;

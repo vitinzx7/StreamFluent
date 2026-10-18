@@ -9,7 +9,7 @@ import {
   restoreNativeSubtitles,
   findSubtitleRoot,
 } from "../core/dom-utils.ts";
-import { requestNetflixSeek } from "../core/netflix-bridge.ts";
+import { requestNetflixSeek, requestNetflixAction } from "../core/netflix-bridge.ts";
 
 const SUBTITLE_SELECTORS = [
   "[data-testid='player-timedtext-text-container']",
@@ -127,6 +127,9 @@ export class NetflixAdapter implements StreamingAdapter {
    * so this goes through its own player API, reachable only from the page's
    * JavaScript world — see src/core/netflix-bridge.ts.
    */
+  play(): Promise<boolean> { return requestNetflixAction("play"); }
+  pause(): Promise<boolean> { return requestNetflixAction("pause"); }
+
   seekTo(seconds: number): Promise<boolean> {
     return requestNetflixSeek(seconds);
   }

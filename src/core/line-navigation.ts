@@ -13,6 +13,9 @@ const PENDING_SEEK_MS = 1500;
 export interface LineNavigation {
   /** Every cue the adapter reports, so line times can be learned. */
   cueChanged(text: string | null): void;
+  backTarget(from?: number): number | null;
+  current(): { start: number; end: number | null; previousEnd?: number } | null;
+  reset(): void;
   stop(): void;
 }
 
@@ -28,8 +31,8 @@ function isTyping(target: EventTarget | null): boolean {
  * The "A" key: back to the start of the previous subtitle line, instead of the
  * player's fixed 10-second rewind. Line times are learned while watching.
  */
-export function createLineNavigation(adapter: Seekable): LineNavigation {
-  if (!adapter.getVideo || !adapter.seekTo) return { cueChanged() {}, stop() {} };
+export function createLineNavigation(adapter: Seekable, options: { keyboard?: boolean } = {}): LineNavigation {
+  if (!adapter.getVideo || !adapter.seekTo) return { cueChanged() {}, backTarget: () => null, current: () => null, reset() {}, stop() {} };
 
   const timeline = createLineTimeline();
   let video: HTMLVideoElement | null = null;
@@ -97,7 +100,7 @@ export function createLineNavigation(adapter: Seekable): LineNavigation {
     });
   };
   // Capture phase, so the player cannot swallow the key before we see it.
-  window.addEventListener("keydown", handleKeydown, true);
+  if (options.keyboard !== false) window.addEventListener("keydown", handleKeydown, true);
 
   return {
     cueChanged(text: string | null): void {
@@ -106,6 +109,10 @@ export function createLineNavigation(adapter: Seekable): LineNavigation {
       if (text) timeline.lineShown(text, current.currentTime);
       else timeline.lineHidden(current.currentTime);
     },
+
+    backTarget(from?: number) { const current = sync(); return current ? timeline.backTarget(from ?? current.currentTime) : null; },
+    current() { sync(); return timeline.current(); },
+    reset() { timeline.clear(); pending = null; },
 
     stop(): void {
       window.removeEventListener("keydown", handleKeydown, true);

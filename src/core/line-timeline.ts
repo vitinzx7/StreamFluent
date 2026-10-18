@@ -41,6 +41,7 @@ export interface LineTimeline {
   played(from: number, to: number): void;
   /** Where "back one line" should land from `time`, or null when unknown. */
   backTarget(time: number): number | null;
+  current(): { start: number; end: number | null; previousEnd?: number } | null;
   clear(): void;
   readonly size: number;
 }
@@ -156,6 +157,12 @@ export function createLineTimeline(): LineTimeline {
       // before was skipped): restart the line on screen instead.
       if (!inGap) return seekPoint(current, lines[index - 1]);
       return null;
+    },
+
+    current() {
+      if (!showing) return null;
+      const before = lines[lines.indexOf(showing) - 1];
+      return { start: showing.start, end: showing.end, ...(before?.end != null && before.end <= showing.start ? { previousEnd: before.end } : {}) };
     },
 
     clear(): void {

@@ -80,6 +80,8 @@ export interface StreamingAdapter {
    * it — and must never fall back to anything that can break its player.
    */
   seekTo?(seconds: number): Promise<boolean>;
+  play?(): Promise<boolean>;
+  pause?(): Promise<boolean>;
 }
 
 export interface StorageSchema {
