@@ -78,6 +78,7 @@ async function boot(): Promise<void> {
   const context = createStudyContext();
   let lineRequestId = 0;
   let occurrenceSequence = 0;
+  let levelAsked = false;
   /** The occurrence currently rendered in the overlay. */
   let shownOccurrence = "";
 
@@ -282,7 +283,8 @@ async function boot(): Promise<void> {
   const unsubscribe = SettingsRepository.onChange((next) => {
     const wasOff = !settings.showTranslation;
     const directionChanged = settings.direction !== next.direction;
-    const highlightChanged = settings.highlightNewWords !== next.highlightNewWords || settings.highlightSpecialWords !== next.highlightSpecialWords;
+    const highlightChanged = settings.highlightNewWords !== next.highlightNewWords
+      || settings.highlightSpecialWords !== next.highlightSpecialWords || settings.level !== next.level;
     if (directionChanged || settings.showTranslation !== next.showTranslation) lineRequestId++;
     settings = next;
     overlay.applySettings(next);
@@ -318,6 +320,11 @@ async function boot(): Promise<void> {
     let next: StudySnapshot | null = null;
     if (text) {
       sessionHasLines = true;
+      // English subtitles and no level yet: ask once per page.
+      if (!levelAsked && !settings.level && settings.direction === "en-pt") {
+        levelAsked = true;
+        overlay.askLevel();
+      }
       // The DOM gives no times (start/end are 0): use what the timeline recorded.
       const timing = navigation.current();
       const metadata = adapter.getMediaMetadata();

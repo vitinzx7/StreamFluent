@@ -1,5 +1,6 @@
 import { isCinetaroUrl, isEmbeddedPlayerUrl, isFrameDocumentId } from "./frame-messages.ts";
 import { normalizeSettings, isLanguageDirection, type Settings } from "./settings.ts";
+import { isCefrLevel } from "./cefr.ts";
 import {
   dateValue, episodeValue, isRecord, newLanguageVocabulary, normalizeContext,
   normalizeDetails, normalizePhrases, normalizeVocabulary, own, phraseIdentity,
@@ -11,7 +12,7 @@ import { wordKey } from "./word-normalization.ts";
 
 const KEYS = ["vocabulary", "phrases", "settings", "studyRevision"] as const;
 const ACTIONS = new Set<StudyAction>(["read", "observe", "set-mark", "save-phrase", "remove-phrase", "clear-phrases", "patch-settings", "toggle-auto-pause"]);
-const SETTING_FIELDS = new Set(["direction", "showTranslation", "subtitleBottom", "highlightNewWords", "highlightSpecialWords", "autoPause"]);
+const SETTING_FIELDS = new Set(["direction", "showTranslation", "subtitleBottom", "highlightNewWords", "highlightSpecialWords", "autoPause", "level"]);
 const INVALID = "Pedido de estudo inválido.";
 
 /** Only our own UI and admitted content-script documents can use this protocol. */
@@ -21,7 +22,7 @@ export function isStudySender(sender: chrome.runtime.MessageSender): boolean {
     const url = new URL(sender.url);
     if (url.protocol === "chrome-extension:" && url.hostname === chrome.runtime.id) {
       return (sender.frameId === undefined || sender.frameId === 0)
-        && ["/popup.html", "/library.html", "/player-test.html"].includes(url.pathname);
+        && ["/popup.html", "/library.html", "/player-test.html", "/welcome.html"].includes(url.pathname);
     }
     if (!Number.isSafeInteger(sender.tab?.id) || (sender.tab?.id ?? -1) < 0 || url.username || url.password || url.port) return false;
     if (isEmbeddedPlayerUrl(sender.url)) {
@@ -108,6 +109,7 @@ function validatePayload(action: StudyAction, value: unknown): Record<string, un
       for (const [key, value] of Object.entries(patch)) {
         assert(SETTING_FIELDS.has(key));
         if (key === "direction") assert(isLanguageDirection(value));
+        else if (key === "level") assert(value === null || isCefrLevel(value));
         else if (key === "subtitleBottom") assert(typeof value === "number" && Number.isFinite(value));
         else assert(typeof value === "boolean");
       }

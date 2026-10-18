@@ -4,7 +4,7 @@ import { relayFrameLease, relayFrameSession } from "../background/background.ts"
 
 // Background installs its listener at import time; supply that boundary before import.
 vi.hoisted(() => {
-  Object.assign(globalThis, { chrome: { runtime: { onMessage: { addListener() {} } }, storage: { local: { async get() { return {}; }, async set() {} } } } });
+  Object.assign(globalThis, { chrome: { runtime: { onMessage: { addListener() {} }, onInstalled: { addListener() {} } }, storage: { local: { async get() { return {}; }, async set() {} } } } });
 });
 const sender = {
   id: "extension", tab: { id: 7 }, frameId: 12, documentId: "document-a",

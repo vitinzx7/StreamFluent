@@ -1,4 +1,5 @@
 import type { StorageSchema } from "./types.ts";
+import { isCefrLevel, type CefrLevel } from "./cefr.ts";
 import { requestStudy } from "./study-messages.ts";
 
 /** Which way a word lookup goes: source language first, then target. */
@@ -12,8 +13,11 @@ export interface Settings {
   subtitleBottom: number;
   /** Colour words the first time they ever appear in a subtitle. */
   highlightNewWords: boolean;
+  /** Lilac marks English words above `level` (or, with no level yet, only words above C2). */
   highlightSpecialWords: boolean;
   autoPause: boolean;
+  /** The user's English level; null until asked. */
+  level: CefrLevel | null;
 }
 
 export const SETTINGS_KEY: keyof StorageSchema = "settings";
@@ -25,6 +29,7 @@ export const DEFAULT_SETTINGS: Settings = {
   highlightNewWords: true,
   highlightSpecialWords: false,
   autoPause: false,
+  level: null,
 };
 
 /** Keeps a dragged subtitle on screen whatever the storage said. */
@@ -64,6 +69,7 @@ export function normalizeSettings(raw: unknown): Settings {
   const highlightNewWords = own("highlightNewWords");
   const highlightSpecialWords = own("highlightSpecialWords");
   const autoPause = own("autoPause");
+  const level = own("level");
   return {
     direction: isLanguageDirection(direction) ? direction : DEFAULT_SETTINGS.direction,
     showTranslation:
@@ -80,6 +86,7 @@ export function normalizeSettings(raw: unknown): Settings {
         : DEFAULT_SETTINGS.highlightNewWords,
     highlightSpecialWords: typeof highlightSpecialWords === "boolean" ? highlightSpecialWords : false,
     autoPause: typeof autoPause === "boolean" ? autoPause : false,
+    level: isCefrLevel(level) ? level : null,
   };
 }
 

@@ -16,7 +16,7 @@ describe("bundled special vocabulary", () => {
     expect(isSpecialWord("ephemerally", "en")).toBe(false);
   });
   it("resolves personal > special > first occurrence > normal without mutating history", () => {
-    const fresh = new Set(["ephemeral"]), on = { highlightNewWords: true, highlightSpecialWords: true };
+    const fresh = new Set(["ephemeral"]), on = { highlightNewWords: true, highlightSpecialWords: true, level: null };
     expect(resolveWordStatus("EPHEMERAL,", "en", null, fresh, on)).toBe("special");
     for (const mark of ["learned", "difficult"] as const) expect(resolveWordStatus("ephemeral", "en", mark, fresh, on)).toBe(mark);
     expect(resolveWordStatus("ephemeral", "pt-BR", null, fresh, on)).toBe("new");

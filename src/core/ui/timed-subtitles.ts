@@ -21,6 +21,7 @@ import { createWordActions } from "../word-actions.ts";
 import { createWordRenderer, WORD_STYLES } from "./word-renderer.ts";
 import { createWordCard, CARD_STYLES } from "./word-card.ts";
 import { createIdleFade, isolatePointer, IDLE_CLASS } from "./idle-fade.ts";
+import { CEFR_LEVELS, LEVEL_LABELS, isCefrLevel } from "../cefr.ts";
 
 let activeInstance: { destroy(): void } | null = null;
 
@@ -87,6 +88,7 @@ export function createTimedSubtitles(): { updatePlayer(state: PlayerSnapshot): v
       <label><input type="checkbox" data-control="translate">Traduzir inglês → português brasileiro</label>
       <p class="small">Ao ativar a tradução, somente a fala atual é enviada a clients5.google.com e, se necessário, api.mymemory.translated.net. O arquivo inteiro não é enviado. Serviços externos podem falhar ou limitar o uso.</p>
       <label><input type="checkbox" data-control="auto-pause">Pausa automática no fim de cada fala</label>
+      <label>Meu nível de inglês (palavras acima dele em lilás)<select data-control="level"><option value="">Escolher…</option>${CEFR_LEVELS.map((level) => `<option value="${level}">${LEVEL_LABELS[level]}</option>`).join("")}</select></label>
       <div class="actions"><button type="button" data-control="copy-line">Copiar fala</button><button type="button" data-control="save-line">Salvar fala</button></div>
       <p class="small">A: fala anterior · S: repetir fala · D: avançar 5 s · Espaço: reproduzir/pausar · Q: pausa automática · R: salvar fala · Ctrl/⌘+C: copiar fala. Os atalhos valem com o foco neste player. Clique numa palavra para consultar; o botão direito a marca como difícil.</p>
       <div class="offset"><button type="button" data-control="earlier">Adiantar 0,5 s</button><button type="button" data-control="later">Atrasar 0,5 s</button><button type="button" data-control="reset">Restaurar</button></div>
@@ -109,6 +111,7 @@ export function createTimedSubtitles(): { updatePlayer(state: PlayerSnapshot): v
   const enabled = get<HTMLInputElement>('[data-control="enabled"]');
   const translate = get<HTMLInputElement>('[data-control="translate"]');
   const autoPauseInput = get<HTMLInputElement>('[data-control="auto-pause"]');
+  const levelSelect = get<HTMLSelectElement>('[data-control="level"]');
   const sources = get<HTMLSelectElement>('[data-control="source"]');
   const fileInput = get<HTMLInputElement>('[data-control="file"]');
   const language = get<HTMLSelectElement>('[data-control="language"]');
@@ -545,6 +548,13 @@ export function createTimedSubtitles(): { updatePlayer(state: PlayerSnapshot): v
       showFeedback("Não foi possível salvar a preferência. Tente novamente.");
     });
   });
+  levelSelect.addEventListener("change", () => {
+    const level = isCefrLevel(levelSelect.value) ? levelSelect.value : null;
+    void SettingsRepository.save({ level, ...(level ? { highlightSpecialWords: true } : {}) }).catch(() => {
+      levelSelect.value = settings.level ?? "";
+      showFeedback("Não foi possível salvar a preferência. Tente novamente.");
+    });
+  });
   get<HTMLButtonElement>('[data-control="copy-line"]').addEventListener("click", () => actions.trigger("copy-line"));
   get<HTMLButtonElement>('[data-control="save-line"]').addEventListener("click", () => actions.trigger("save-line"));
   get<HTMLButtonElement>('[data-control="copy-close"]').addEventListener("click", () => { copyBox.hidden = true; });
@@ -648,6 +658,7 @@ export function createTimedSubtitles(): { updatePlayer(state: PlayerSnapshot): v
   const applySettings = (next: Settings): void => {
     settings = next;
     autoPauseInput.checked = next.autoPause;
+    levelSelect.value = next.level ?? "";
     renderer.refresh();
   };
   const stopSettings = SettingsRepository.onChange(applySettings);

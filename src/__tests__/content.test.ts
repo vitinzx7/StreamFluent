@@ -38,13 +38,13 @@ vi.mock("../core/vocabulary.ts", () => ({
 }));
 vi.mock("../core/translation.ts", () => ({ translateSentence: mocks.translateSentence, translateWord: mocks.translateWord }));
 
-const defaults: Settings = { direction: "en-pt", showTranslation: true, subtitleBottom: 12, highlightNewWords: true, highlightSpecialWords: false, autoPause: false };
+const defaults: Settings = { direction: "en-pt", showTranslation: true, subtitleBottom: 12, highlightNewWords: true, highlightSpecialWords: false, autoPause: false, level: null };
 let cue: (value: SubtitleCue | null) => void;
 let settingsChanged: (value: Settings) => void;
 let options: OverlayOptions;
 let stopObserving: ReturnType<typeof vi.fn>;
 let unsubscribe: ReturnType<typeof vi.fn>;
-let overlay: Record<"update" | "setTranslation" | "applySettings" | "refreshWordStatuses" | "hideCard" | "showCard" | "showFeedback" | "showCopyFallback" | "destroy", ReturnType<typeof vi.fn>>;
+let overlay: Record<"update" | "setTranslation" | "applySettings" | "refreshWordStatuses" | "hideCard" | "showCard" | "showFeedback" | "showCopyFallback" | "askLevel" | "destroy", ReturnType<typeof vi.fn>>;
 let vocabulary: {
   ready: Promise<void>;
   observeLine: ReturnType<typeof vi.fn>;
@@ -75,7 +75,7 @@ beforeEach(() => {
   window.history.replaceState({}, "", "/watch/first");
   stopObserving = vi.fn();
   unsubscribe = vi.fn();
-  overlay = { update: vi.fn(), setTranslation: vi.fn(), applySettings: vi.fn(), refreshWordStatuses: vi.fn(), hideCard: vi.fn(), showCard: vi.fn(), showFeedback: vi.fn(), showCopyFallback: vi.fn(), destroy: vi.fn() };
+  overlay = { update: vi.fn(), setTranslation: vi.fn(), applySettings: vi.fn(), refreshWordStatuses: vi.fn(), hideCard: vi.fn(), showCard: vi.fn(), showFeedback: vi.fn(), showCopyFallback: vi.fn(), askLevel: vi.fn(), destroy: vi.fn() };
   stopVocabulary = vi.fn();
   vocabulary = {
     ready: Promise.resolve(),
@@ -570,5 +570,40 @@ describe("auto-pause on DOM subtitles", () => {
 
     expect(pause).not.toHaveBeenCalled();
     expect(shownLines()).toEqual(["Where were you?", "At home."]);
+  });
+});
+
+describe("asking the English level", () => {
+  it("asks once, on the first English line, while no level is chosen", async () => {
+    await boot();
+
+    emit("Hello");
+    emit("Again");
+
+    expect(overlay.askLevel).toHaveBeenCalledOnce();
+  });
+
+  it("does not ask when a level is set or the subtitles are Portuguese", async () => {
+    mocks.getSettings.mockResolvedValue({ ...defaults, level: "B1" });
+    await boot();
+    emit("Hello");
+    window.dispatchEvent(new Event("pagehide"));
+
+    vi.resetModules();
+    mocks.getSettings.mockResolvedValue({ ...defaults, direction: "pt-en" });
+    await boot();
+    emit("Olá");
+
+    expect(overlay.askLevel).not.toHaveBeenCalled();
+  });
+
+  it("recolours the line when the level changes", async () => {
+    await boot();
+    emit("Hello");
+    overlay.refreshWordStatuses.mockClear();
+
+    settingsChanged({ ...defaults, level: "A2" });
+
+    expect(overlay.refreshWordStatuses).toHaveBeenCalled();
   });
 });

@@ -8,6 +8,7 @@ vi.mock("../core/translation-request.ts", async (importOriginal) => ({
 
 type MessageListener = (message: unknown, sender: { id?: string }, respond: (result: unknown) => void) => boolean;
 let listener: MessageListener;
+let installed: (details: { reason: string }) => void;
 let createTab: ReturnType<typeof vi.fn>;
 
 beforeEach(async () => {
@@ -20,6 +21,7 @@ beforeEach(async () => {
       id: "streamfluent-test",
       getURL: (path: string) => `chrome-extension://streamfluent-test/${path}`,
       onMessage: { addListener: (next: MessageListener) => { listener = next; } },
+      onInstalled: { addListener: (next: typeof installed) => { installed = next; } },
     },
     tabs: { create: createTab },
     storage: { local: { get: vi.fn().mockResolvedValue({}), set: vi.fn().mockResolvedValue(undefined) } },
@@ -69,5 +71,16 @@ describe("background message boundary", () => {
     listener({ type: "sf:open-library", url: "https://evil.example" }, { id: "streamfluent-test" }, respond);
     expect(createTab).toHaveBeenCalledWith({ url: "chrome-extension://streamfluent-test/library.html" });
     expect(respond).toHaveBeenCalledWith({ ok: true });
+  });
+});
+
+describe("first run", () => {
+  it("opens the level question on a new install only", () => {
+    installed({ reason: "update" });
+    installed({ reason: "chrome_update" });
+    expect(createTab).not.toHaveBeenCalled();
+
+    installed({ reason: "install" });
+    expect(createTab).toHaveBeenCalledExactlyOnceWith({ url: "chrome-extension://streamfluent-test/welcome.html" });
   });
 });

@@ -60,6 +60,7 @@ describe("normalizeSettings", () => {
       highlightNewWords: true,
       highlightSpecialWords: false,
       autoPause: false,
+      level: null,
     });
   });
 
@@ -71,6 +72,7 @@ describe("normalizeSettings", () => {
       highlightNewWords: true,
       highlightSpecialWords: false,
       autoPause: false,
+      level: null,
     });
   });
 });
@@ -106,6 +108,7 @@ describe("SettingsRepository", () => {
       highlightNewWords: true,
       highlightSpecialWords: false,
       autoPause: false,
+      level: null,
     });
     expect(await SettingsRepository.get()).toEqual({
       direction: "pt-en",
@@ -114,6 +117,7 @@ describe("SettingsRepository", () => {
       highlightNewWords: true,
       highlightSpecialWords: false,
       autoPause: false,
+      level: null,
     });
   });
 
@@ -134,6 +138,7 @@ describe("SettingsRepository", () => {
       highlightNewWords: true,
       highlightSpecialWords: false,
       autoPause: false,
+      level: null,
     });
   });
 
@@ -192,6 +197,11 @@ describe("serialized settings", () => {
     worker.failNextWrite();
     await expect(SettingsRepository.save({ autoPause: true })).rejects.toThrow();
     expect((await SettingsRepository.get()).autoPause).toBe(false);
+  });
+
+  it("keeps a valid level and drops anything else", () => {
+    expect(normalizeSettings({ level: "B1" }).level).toBe("B1");
+    for (const level of ["b1", "D1", 3, ""]) expect(normalizeSettings({ level }).level).toBeNull();
   });
 
   it("ignores inherited preference fields", () => {

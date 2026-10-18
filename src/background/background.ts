@@ -46,6 +46,11 @@ export async function relayFrameSession(message: unknown, sender: chrome.runtime
 
 const studyStorage = createStudyStorageService();
 
+// A new install starts by asking the English level; updates ask in the player instead.
+chrome.runtime.onInstalled.addListener((details) => {
+  if (details.reason === "install") void chrome.tabs.create({ url: chrome.runtime.getURL("welcome.html") });
+});
+
 chrome.runtime.onMessage.addListener((message: unknown, sender, respond) => {
   if (!message || typeof message !== "object") return false;
   const request = message as { type?: unknown; url?: unknown; tab?: unknown };

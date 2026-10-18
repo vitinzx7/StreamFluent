@@ -35,10 +35,16 @@ document.getElementById("openPlayerTest")?.addEventListener("click", () => {
 async function initSettings() {
   const select = document.getElementById("direction");
   const toggle = document.getElementById("showTranslation");
+  // Same values as src/core/cefr.ts; this page is not bundled.
+  const levelSelect = document.getElementById("level");
+  const LEVELS = ["A1", "A2", "B1", "B2", "C1", "C2"];
+  let chosenLevel = null;
   const hint = document.getElementById("directionHint");
   function apply(settings) {
     select.value = settings.direction;
     toggle.checked = settings.showTranslation;
+    levelSelect.value = settings.level ?? "";
+    chosenLevel = settings.level ?? null;
     for (const key of ["highlightNewWords", "highlightSpecialWords", "autoPause"]) document.getElementById(key).checked = settings[key];
   }
   try { apply((await studyRequest("read")).settings); }
@@ -55,6 +61,11 @@ async function initSettings() {
     input.addEventListener("change", () => void persist({ [key]: input.checked }));
   }
   select.addEventListener("change", () => void persist({ direction: select.value }));
+  levelSelect.addEventListener("change", () => {
+    const level = LEVELS.includes(levelSelect.value) ? levelSelect.value : null;
+    // The first level chosen also turns the lilac on; later changes leave the switch alone.
+    void persist({ level, ...(level && !chosenLevel ? { highlightSpecialWords: true } : {}) });
+  });
   toggle.addEventListener("change", () => void persist({ showTranslation: toggle.checked }));
   chrome.storage.onChanged.addListener((changes, area) => {
     if (area === "local" && changes.settings) {

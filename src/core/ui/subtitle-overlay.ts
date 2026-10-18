@@ -3,6 +3,10 @@ import { createWordCard, CARD_STYLES, type CardContent } from "./word-card.ts";
 export type { CardContent } from "./word-card.ts";
 import { EXTENSION_MARKER } from "../dom-utils.ts";
 import { createIdleFade, isolatePointer, IDLE_CLASS } from "./idle-fade.ts";
+import { CEFR_LEVELS, LEVEL_LABELS, isCefrLevel } from "../cefr.ts";
+
+/** Constant markup: the six levels for a <select>. */
+const LEVEL_OPTIONS = CEFR_LEVELS.map((level) => `<option value="${level}">${LEVEL_LABELS[level]}</option>`).join("");
 import {
   clampSubtitleBottom,
   DIRECTION_LABELS,
@@ -168,6 +172,56 @@ function ensureStyles(): void {
     }
     .sf-feedback:empty {
       display: none;
+    }
+    .sf-level-prompt {
+      position: fixed;
+      top: 16%;
+      left: 50%;
+      transform: translateX(-50%);
+      z-index: 100003;
+      width: min(520px, calc(100vw - 32px));
+      padding: 16px;
+      border-radius: 10px;
+      background: #1a1a2e;
+      border: 1px solid #C4A5FF;
+      box-shadow: 0 8px 32px rgba(0, 0, 0, 0.6);
+      color: #e0e0e0;
+      font: 14px/1.4 system-ui, sans-serif;
+    }
+    .sf-level-prompt.sf-hidden {
+      display: none;
+    }
+    .sf-level-title {
+      font-size: 16px;
+      font-weight: 700;
+      color: #C4A5FF;
+    }
+    .sf-level-hint {
+      margin: 4px 0 12px;
+      font-size: 12px;
+      color: #aab;
+    }
+    .sf-level-options {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 6px;
+    }
+    .sf-level-options button,
+    .sf-level-later {
+      padding: 8px;
+      border: 1px solid #2a3a5c;
+      border-radius: 6px;
+      background: #16213e;
+      color: #e0e0e0;
+      font: inherit;
+      cursor: pointer;
+    }
+    .sf-level-options button:hover {
+      border-color: #C4A5FF;
+    }
+    .sf-level-later {
+      margin-top: 10px;
+      background: transparent;
     }
     .sf-copy {
       position: fixed;
@@ -422,6 +476,7 @@ export function createSubtitleOverlay(options: OverlayOptions): {
     onMark?: (mark: WordMark | null) => void | Promise<void>
   ) => void;
   showFeedback: (message: string) => void;
+  askLevel: () => void;
   /** The clipboard refused: show the line in a selectable field for a normal copy. */
   showCopyFallback: (text: string) => void;
   destroy: () => void;
@@ -492,13 +547,17 @@ export function createSubtitleOverlay(options: OverlayOptions): {
       <span>Colour new words</span>
       <input type="checkbox" data-sf="new-words" />
     </label>
-    <label class="sf-panel-row"><span>Destacar palavras especiais (inglês)</span><input type="checkbox" data-sf="special-words" /></label>
+    <label class="sf-panel-row sf-panel-level">
+      <span>Meu nível de inglês</span>
+      <select data-sf="level"><option value="">Escolher…</option>${LEVEL_OPTIONS}</select>
+    </label>
+    <label class="sf-panel-row"><span>Destacar palavras acima do meu nível (inglês)</span><input type="checkbox" data-sf="special-words" /></label>
     <label class="sf-panel-row"><span>Pausa automática</span><input type="checkbox" data-sf="auto-pause" /></label>
     <div class="sf-panel-legend">
       <span class="sf-legend-new">Nova</span>
       <span class="sf-legend-difficult">Difícil</span>
       <span class="sf-legend-learned">Aprendida</span>
-      <span class="sf-legend-special">Especial</span>
+      <span class="sf-legend-special">Acima do nível</span>
     </div>
     <label class="sf-panel-row">
       <select data-sf="direction">
@@ -523,6 +582,35 @@ export function createSubtitleOverlay(options: OverlayOptions): {
 
   const translationInput = panel.querySelector<HTMLInputElement>('[data-sf="translation"]');
   const directionSelect = panel.querySelector<HTMLSelectElement>('[data-sf="direction"]');
+  const levelSelect = panel.querySelector<HTMLSelectElement>('[data-sf="level"]');
+  let chosenLevel = options.settings.level;
+  levelSelect?.addEventListener("change", () => {
+    const level = isCefrLevel(levelSelect.value) ? levelSelect.value : null;
+    // The first level chosen also turns the lilac on; later changes leave the switch alone.
+    options.onSettingsChange({ level, ...(level && !chosenLevel ? { highlightSpecialWords: true } : {}) });
+  });
+
+  // Asked once, on screen: one click sets the level and turns the lilac on.
+  const levelPrompt = document.createElement("div");
+  levelPrompt.className = "sf-level-prompt sf-hidden";
+  levelPrompt.setAttribute("role", "dialog");
+  levelPrompt.setAttribute("aria-label", "Seu nível de inglês");
+  markElement(levelPrompt);
+  levelPrompt.innerHTML = `
+    <div class="sf-level-title">Qual é o seu nível de inglês?</div>
+    <div class="sf-level-hint">As palavras acima do seu nível ficam em lilás. Dá para mudar depois no painel ou no popup.</div>
+    <div class="sf-level-options">${CEFR_LEVELS.map((level) => `<button type="button" data-level="${level}">${LEVEL_LABELS[level]}</button>`).join("")}</div>
+    <button type="button" class="sf-level-later" data-sf="level-later">Agora não</button>
+  `;
+  document.body.appendChild(levelPrompt);
+  const hideLevelPrompt = (): void => levelPrompt.classList.add("sf-hidden");
+  levelPrompt.querySelectorAll<HTMLButtonElement>("[data-level]").forEach((button) => {
+    button.addEventListener("click", () => {
+      hideLevelPrompt();
+      options.onSettingsChange({ level: button.dataset.level as (typeof CEFR_LEVELS)[number], highlightSpecialWords: true });
+    });
+  });
+  levelPrompt.querySelector('[data-sf="level-later"]')?.addEventListener("click", hideLevelPrompt);
   const newWordsInput = panel.querySelector<HTMLInputElement>('[data-sf="new-words"]');
 
   const specialInput = panel.querySelector<HTMLInputElement>('[data-sf="special-words"]');
@@ -569,7 +657,7 @@ export function createSubtitleOverlay(options: OverlayOptions): {
   // In fullscreen only the fullscreen element and its descendants are drawn:
   // our roots must live inside it, or the subtitle and panel vanish. A
   // fullscreen <video> cannot host anything, and <html> itself means body.
-  const roots = [overlay, card, feedback, copyBox, panel, fab];
+  const roots = [overlay, card, feedback, copyBox, panel, fab, levelPrompt];
   roots.forEach(isolatePointer);
   const mountTarget = (): HTMLElement => {
     const fullscreen = document.fullscreenElement;
@@ -711,6 +799,9 @@ export function createSubtitleOverlay(options: OverlayOptions): {
       if (specialInput) specialInput.checked = settings.highlightSpecialWords;
       if (autoPauseInput) autoPauseInput.checked = settings.autoPause;
       if (directionSelect) directionSelect.value = settings.direction;
+      if (levelSelect) levelSelect.value = settings.level ?? "";
+      chosenLevel = settings.level;
+      if (settings.level) hideLevelPrompt();
       // Turning it off should take effect now, not at the next subtitle.
       if (!settings.showTranslation) targetLine.textContent = "";
       // Skip while dragging: the change we just saved would fight the cursor.
@@ -730,6 +821,11 @@ export function createSubtitleOverlay(options: OverlayOptions): {
       card.style.transform = rect ? "" : "translateX(-50%)";
       wordCard.show(content, onSave, onMark);
     },
+    /** Shows the level question; it closes itself once a level is chosen. */
+    askLevel(): void {
+      levelPrompt.classList.remove("sf-hidden");
+    },
+
     showFeedback(message: string): void {
       feedback.textContent = message;
       clearTimeout(feedbackTimer);
@@ -753,6 +849,7 @@ export function createSubtitleOverlay(options: OverlayOptions): {
       wordCard.hide();
       feedback.remove();
       copyBox.remove();
+      levelPrompt.remove();
       document.removeEventListener("keydown", handleKeydown);
       document.removeEventListener("click", handleClick);
       document.removeEventListener("mousemove", handleDragMove);

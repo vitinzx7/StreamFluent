@@ -541,3 +541,52 @@ describe("placement and fullscreen", () => {
     player.remove();
   });
 });
+
+describe("English level", () => {
+  it("reports a level chosen in the panel, and shows the stored one", () => {
+    const { overlay: o, onSettingsChange } = create({ level: "B1" });
+    const select = document.querySelector<HTMLSelectElement>('[data-sf="level"]')!;
+    expect(select.value).toBe("B1");
+
+    select.value = "C1";
+    select.dispatchEvent(new Event("change"));
+    expect(onSettingsChange).toHaveBeenCalledWith({ level: "C1" });
+
+    o.applySettings({ ...DEFAULT_SETTINGS, level: null });
+    expect(select.value).toBe("");
+  });
+
+  it("turns the lilac on with the first level chosen in the panel", () => {
+    const { onSettingsChange } = create();
+    const select = document.querySelector<HTMLSelectElement>('[data-sf="level"]')!;
+
+    select.value = "A2";
+    select.dispatchEvent(new Event("change"));
+
+    expect(onSettingsChange).toHaveBeenCalledWith({ level: "A2", highlightSpecialWords: true });
+  });
+
+  it("asks with one click per level, turning the lilac on, and closes when answered", () => {
+    const { overlay: o, onSettingsChange } = create();
+    const prompt = () => document.querySelector<HTMLElement>(".sf-level-prompt")!;
+    expect(prompt().classList.contains("sf-hidden")).toBe(true);
+
+    o.askLevel();
+    expect(prompt().classList.contains("sf-hidden")).toBe(false);
+    expect([...prompt().querySelectorAll("[data-level]")].map((b) => b.getAttribute("data-level"))).toEqual(["A1", "A2", "B1", "B2", "C1", "C2"]);
+    prompt().querySelector<HTMLButtonElement>('[data-level="A2"]')!.click();
+
+    expect(onSettingsChange).toHaveBeenCalledWith({ level: "A2", highlightSpecialWords: true });
+    expect(prompt().classList.contains("sf-hidden")).toBe(true);
+  });
+
+  it("can be put off for now", () => {
+    const { overlay: o, onSettingsChange } = create();
+    o.askLevel();
+
+    document.querySelector<HTMLButtonElement>('[data-sf="level-later"]')!.click();
+
+    expect(document.querySelector(".sf-level-prompt")!.classList.contains("sf-hidden")).toBe(true);
+    expect(onSettingsChange).not.toHaveBeenCalled();
+  });
+});

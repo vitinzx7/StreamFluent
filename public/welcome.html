@@ -1,0 +1,84 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>StreamFluent — Bem-vindo</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+      background: #0f0f23;
+      color: #e0e0e0;
+      padding: 32px 20px 48px;
+      max-width: 720px;
+      margin: 0 auto;
+      line-height: 1.5;
+    }
+    h1 { font-size: 24px; color: #00d4aa; margin-bottom: 6px; }
+    h2 { font-size: 18px; color: #C4A5FF; margin: 28px 0 8px; }
+    p { margin-bottom: 10px; }
+    .muted { color: #9aa3b5; font-size: 14px; }
+    .levels { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 10px; margin: 14px 0; }
+    .levels button {
+      text-align: left;
+      padding: 12px 14px;
+      border: 1px solid #2a3a5c;
+      border-radius: 8px;
+      background: #16213e;
+      color: inherit;
+      font: inherit;
+      cursor: pointer;
+    }
+    .levels button strong { display: block; font-size: 16px; color: #fff; }
+    .levels button span { font-size: 13px; color: #9aa3b5; }
+    .levels button:hover, .levels button[aria-pressed="true"] { border-color: #C4A5FF; }
+    .levels button[aria-pressed="true"] { background: #2a2350; }
+    label.toggle { display: flex; gap: 8px; align-items: center; margin: 8px 0 14px; cursor: pointer; }
+    input[type="checkbox"] { width: 16px; height: 16px; accent-color: #C4A5FF; }
+    #status { min-height: 1.5em; color: #00d4aa; }
+    table { border-collapse: collapse; margin: 8px 0; font-size: 14px; }
+    td { padding: 4px 12px 4px 0; vertical-align: top; }
+    kbd { padding: 1px 6px; border: 1px solid #3a4a6c; border-radius: 4px; background: #16213e; font: 13px ui-monospace, monospace; }
+    .swatch { font-weight: 700; }
+    footer { margin-top: 36px; font-size: 12px; color: #7f889a; }
+    footer a, a { color: #8ECBFF; }
+    :focus-visible { outline: 2px solid #8ECBFF; outline-offset: 3px; }
+  </style>
+</head>
+<body>
+  <h1>Bem-vindo ao StreamFluent</h1>
+  <p class="muted">Legendas para estudar inglês na Netflix, Max e no Cinetaro. Tudo o que você marca fica guardado neste navegador.</p>
+
+  <h2>Qual é o seu nível de inglês?</h2>
+  <p class="muted">As palavras acima do seu nível aparecem em <span class="swatch" style="color:#C4A5FF">lilás</span> nas legendas. Não sabe? Comece pelo B1 e ajuste depois, no popup da extensão ou no painel do player.</p>
+  <div class="levels" role="group" aria-label="Nível de inglês">
+    <button type="button" data-level="A1"><strong>A1 · Iniciante</strong><span>Palavras e frases bem simples.</span></button>
+    <button type="button" data-level="A2"><strong>A2 · Básico</strong><span>Conversas simples do dia a dia.</span></button>
+    <button type="button" data-level="B1"><strong>B1 · Intermediário</strong><span>Entende o essencial de séries sobre temas comuns.</span></button>
+    <button type="button" data-level="B2"><strong>B2 · Intermediário avançado</strong><span>Acompanha a maioria das séries com legenda.</span></button>
+    <button type="button" data-level="C1"><strong>C1 · Avançado</strong><span>Entende quase tudo, mesmo em ritmo rápido.</span></button>
+    <button type="button" data-level="C2"><strong>C2 · Proficiente</strong><span>Entende praticamente tudo; o lilás fica só nas palavras raras.</span></button>
+  </div>
+  <label class="toggle"><input type="checkbox" id="highlight" checked />Destacar em lilás as palavras acima do meu nível</label>
+  <p id="status" role="status" aria-live="polite"></p>
+
+  <h2>Como estudar</h2>
+  <table>
+    <tr><td>Clique numa palavra</td><td>tradução, dicionário e marcar como difícil ou aprendida</td></tr>
+    <tr><td>Botão direito numa palavra</td><td>salva como <span class="swatch" style="color:#FF8A80">difícil</span> na hora</td></tr>
+    <tr><td><kbd>A</kbd> / <kbd>S</kbd> / <kbd>D</kbd></td><td>fala anterior · repetir fala · avançar 5 s</td></tr>
+    <tr><td><kbd>Espaço</kbd> / <kbd>Q</kbd></td><td>reproduzir/pausar · pausa automática no fim de cada fala</td></tr>
+    <tr><td><kbd>R</kbd> / <kbd>Ctrl</kbd>+<kbd>C</kbd></td><td>salvar a fala · copiar a fala</td></tr>
+  </table>
+  <p class="muted">Cores: <span class="swatch" style="color:#8ECBFF">azul</span> palavra nova, <span class="swatch" style="color:#FF8A80">vermelho</span> difícil, <span class="swatch" style="color:#81C784">verde</span> aprendida, <span class="swatch" style="color:#C4A5FF">lilás</span> acima do seu nível.</p>
+
+  <footer>
+    Níveis das palavras: CEFR-J Wordlist (Tono Laboratory, Tokyo University of Foreign Studies) e Octanove Vocabulary Profile C1/C2 (Octanove Labs, CC BY-SA 4.0), via
+    <a href="https://github.com/openlanguageprofiles/olp-en-cefrj" target="_blank" rel="noopener noreferrer">Open Language Profiles</a>.
+    A lista derivada usada pela extensão é distribuída sob CC BY-SA 4.0.
+  </footer>
+  <script src="study-client.js"></script>
+  <script src="welcome.js"></script>
+</body>
+</html>
