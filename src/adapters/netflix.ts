@@ -105,6 +105,9 @@ export class NetflixAdapter implements StreamingAdapter {
       subtree: true,
       characterData: true,
     });
+    // A line already on screen (a paused episode when the extension starts)
+    // causes no mutation: read the current state once, too.
+    check();
 
     // If we fell back to body, retry finding the player periodically
     // and switch to it once available (reduces noise significantly).

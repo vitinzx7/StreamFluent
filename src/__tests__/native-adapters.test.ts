@@ -38,6 +38,25 @@ describe.each([
   });
 });
 
+describe.each([
+  { name: "Netflix", Adapter: NetflixAdapter, selector: "player-timedtext-text-container" },
+  { name: "Max", Adapter: MaxAdapter, selector: "player-subtitle" },
+])("$name start-up", ({ Adapter, selector }) => {
+  it("reads a line that was already on screen before observing began", () => {
+    vi.useFakeTimers();
+    const cue = document.createElement("div");
+    cue.setAttribute("data-testid", selector);
+    cue.textContent = "Paused on this line";
+    document.body.append(cue);
+    const onCue = vi.fn();
+
+    stop = new Adapter().observeSubtitles(onCue);
+    vi.advanceTimersByTime(100);
+
+    expect(onCue).toHaveBeenCalledExactlyOnceWith({ text: "Paused on this line", start: 0, end: 0 });
+  });
+});
+
 /** A <video> whose currentTime records writes, which jsdom does not implement. */
 function trackedVideo() {
   const video = document.createElement("video");

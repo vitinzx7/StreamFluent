@@ -91,6 +91,9 @@ export class MaxAdapter implements StreamingAdapter {
       subtree: true,
       characterData: true,
     });
+    // A line already on screen (a paused episode when the extension starts)
+    // causes no mutation: read the current state once, too.
+    check();
 
     if (!player) {
       retryInterval = setInterval(() => {
