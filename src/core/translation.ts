@@ -1,5 +1,6 @@
 import { DEFAULT_SETTINGS, getLangPair, type LanguageDirection } from "./settings.ts";
 import { requestProviderJson } from "./translation-request.ts";
+import { canSaveLines, readSavedLine, saveLine } from "./line-cache.ts";
 import { wordKey } from "./word-normalization.ts";
 
 export interface TranslationResult {
@@ -177,7 +178,8 @@ const SENTENCE_CACHE_LIMIT = 1000;
 /**
  * Whole-line translation shown under the original subtitle. Separate cache from
  * the per-word one: lines repeat across an episode ("Yeah.", "Come on!"), and a
- * cache hit is what keeps this to roughly one request per distinct line.
+ * cache hit is what keeps this to roughly one request per distinct line. Behind
+ * this memory cache sits the worker's persistent one (line-cache.ts).
  */
 export async function translateSentence(
   text: string,
@@ -193,7 +195,13 @@ export async function translateSentence(
   if (pending) return pending;
 
   const generation = cacheGeneration;
-  const request = fetchTranslation(trimmed, direction).then((translation) => {
+  const fetchAndSave = (): Promise<string> => fetchTranslation(trimmed, direction).then((translation) => {
+    if (translation) saveLine(key, translation);
+    return translation;
+  });
+  // A line translated before, even in an earlier visit, comes from the worker's store at once.
+  const lookup = canSaveLines() ? readSavedLine(key).then((saved) => saved || fetchAndSave()) : fetchAndSave();
+  const request = lookup.then((translation) => {
     if (!translation || generation !== cacheGeneration) return translation;
     if (sentenceCache.size >= SENTENCE_CACHE_LIMIT) {
       const oldest = sentenceCache.keys().next().value;

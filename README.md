@@ -101,7 +101,7 @@ Um deslocamento fixo não resolve descompasso crescente ou legendas de outra edi
 
 ## Netflix e Max
 
-Habilite as legendas no site. A camada StreamFluent substitui as legendas do player, com as palavras clicáveis e a tradução da fala por baixo. O botão **Aa** abre o painel, em três abas: **Ajustes** (tradução da fala, idioma, nível, pausa automática, copiar/salvar fala e biblioteca), **Cores** (o que cada cor quer dizer, com as chaves para ligar o azul e o lilás) e **Teclas** (o mapa das teclas e do mouse). Arraste a legenda para mudar a posição. A biblioteca abre pelo service worker.
+Habilite as legendas no site. A camada StreamFluent substitui as legendas do player, com as palavras clicáveis e a tradução da fala por baixo. Com a tradução ligada, a fala original **espera a tradução e as duas aparecem juntas** (e somem juntas); se a tradução demorar mais de 1 s, a original aparece sozinha e a tradução entra em seguida. Uma fala já traduzida antes, mesmo em outro dia, aparece na hora: as traduções ficam guardadas no computador. O botão **Aa** abre o painel, em três abas: **Ajustes** (tradução da fala, idioma, nível, pausa automática, copiar/salvar fala e biblioteca), **Cores** (o que cada cor quer dizer, com as chaves para ligar o azul e o lilás) e **Teclas** (o mapa das teclas e do mouse). Arraste a legenda para mudar a posição. A biblioteca abre pelo service worker.
 
 Na Netflix, saltos e play/pause passam pela API do próprio player (não documentada), nunca por `video.currentTime`, que quebra o player dela (M7375). Se essa API mudar, os saltos falham sem afetar a reprodução e o Espaço volta para a Netflix. Na Max, os comandos usam o elemento de vídeo diretamente (não verificado no site real).
 
@@ -138,7 +138,7 @@ Os testes automatizados usam DOM e respostas controladas: **546 testes em 36 arq
 - As listas de palavras especiais e de níveis vêm empacotadas; os links Linglify/Oxford/Open Language Profiles são só procedência, nunca acessados pela extensão.
 - Tradução no modo HTML5 exige ativação visível. Não há tradução antecipada ou em lote, nem tradução disparada por `R`.
 - O worker valida destinos, usa timeout por provedor e não envia cookies nem segue redirecionamentos.
-- Frases, marcas e preferências ficam em `chrome.storage.local`; o histórico de palavras vistas fica no IndexedDB da extensão. Tudo é gravado por um único serviço no worker e nada é sincronizado. A permissão `unlimitedStorage` (sem aviso na instalação) tira o limite de 10 MB e impede que o Chrome descarte o IndexedDB por falta de espaço. Copiar usa só escrita no clipboard (sem permissão de leitura).
+- Frases, marcas e preferências ficam em `chrome.storage.local`; o histórico de palavras vistas e as traduções das falas já exibidas ficam no IndexedDB da extensão (as traduções, até 20 mil falas, as mais antigas saem primeiro; "Apagar todos os dados" apaga também elas). Tudo é gravado por um único serviço no worker e nada é sincronizado. A permissão `unlimitedStorage` (sem aviso na instalação) tira o limite de 10 MB e impede que o Chrome descarte o IndexedDB por falta de espaço. Copiar usa só escrita no clipboard (sem permissão de leitura).
 - Não há chaves ou assinatura nova. O endpoint Google é não documentado e pode recusar chamadas ou mudar. MyMemory possui limites próprios. Nenhum deles tem disponibilidade ou uso ilimitado garantido.
 
 ## Limitações
@@ -147,7 +147,7 @@ Os testes automatizados usam DOM e respostas controladas: **546 testes em 36 arq
 - O domínio `cinextream.cc` foi identificado pelo diagnóstico do usuário e recebeu uma entrada específica no manifesto. Outros hosts continuam sem suporte. O aviso lista as origens declaradas dos frames; `iframe.src` pode diferir da origem final após redirecionamento. Enquanto o vídeo estiver inacessível, a importação fica desativada por falta de relógio para sincronizar.
 - Tela cheia do contêiner (a da Netflix) hospeda a camada. Na tela cheia nativa do próprio elemento de vídeo a camada não aparece: as legendas originais voltam e pausa automática, `R` e cópia ficam suspensas.
 - O nível vale só para legendas em inglês. A lista não cobre todo o vocabulário avançado: palavras raras fora dela não ficam lilás.
-- A tradução da fala ainda depende de serviços gratuitos (Google não documentado, MyMemory com cota pequena); o atraso diminuiu, mas não some se os dois estiverem lentos.
+- A tradução da fala ainda depende de serviços gratuitos (Google não documentado, MyMemory com cota pequena). Na primeira vez que uma fala aparece, as duas linhas chegam juntas, mas só quando a tradução chega (≈0,3–0,6 s com o Google medido daqui; até 1 s, depois disso a original aparece sozinha). A Netflix só mostra a fala atual, então ela não pode ser traduzida antes.
 - Atalhos num iframe só funcionam com o foco nesse frame.
 - Na Netflix/Max a pausa automática é aproximada; uma fala que continua na tela através de uma busca não pausa no próprio fim.
 - Os seletores DOM e a API de player da Netflix/Max continuam sujeitos a mudanças dos sites.

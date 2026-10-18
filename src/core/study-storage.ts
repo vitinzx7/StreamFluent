@@ -1,3 +1,4 @@
+import type { LineCache } from "./line-cache.ts";
 import { isCinetaroUrl, isEmbeddedPlayerUrl, isFrameDocumentId } from "./frame-messages.ts";
 import { normalizeSettings, isLanguageDirection, type Settings } from "./settings.ts";
 import { isCefrLevel } from "./cefr.ts";
@@ -158,6 +159,8 @@ export interface StudyStorageService {
 export function createStudyStorageService(
   storage: Pick<chrome.storage.LocalStorageArea, "get" | "set"> = chrome.storage.local,
   seenWords: SeenStore = createIndexedDbSeenStore(),
+  /** Stored line translations: they show what was watched, so "reset-all" clears them too. */
+  lineCache?: Pick<LineCache, "clear">,
 ): StudyStorageService {
   let queue: Promise<void> = Promise.resolve();
   /** Storage was read, any legacy history moved out, and the result committed. */
@@ -303,7 +306,10 @@ export function createStudyStorageService(
             // Marks and phrases go first; the history is cleared only once that is committed.
             state.vocabulary = normalizeVocabulary(undefined);
             state.phrases = [];
-            afterWrite = () => seenWords.clear();
+            afterWrite = async () => {
+              await seenWords.clear();
+              await lineCache?.clear();
+            };
             data = { cleared: "all" };
             break;
         }

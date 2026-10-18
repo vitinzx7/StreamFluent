@@ -1,6 +1,7 @@
 import { vi } from "vitest";
 import { createStudyStorageService } from "../../core/study-storage.ts";
 import { createMemorySeenStore } from "../../core/seen-store.ts";
+import { createMemoryLineCache, handleLineCacheMessage } from "../../core/line-cache.ts";
 
 type Listener = (changes: Record<string, chrome.storage.StorageChange>, area: string) => void;
 
@@ -24,11 +25,13 @@ export function installStudyWorker(initial: Record<string, unknown> = {}) {
   const extensionId = "a".repeat(32);
   // The seen history survives restarts like the worker's IndexedDB does.
   const seen = createMemorySeenStore();
-  const create = () => createStudyStorageService(local as unknown as Pick<chrome.storage.LocalStorageArea, "get" | "set">, seen);
+  // So do the stored line translations.
+  const lines = createMemoryLineCache();
+  const create = () => createStudyStorageService(local as unknown as Pick<chrome.storage.LocalStorageArea, "get" | "set">, seen, lines);
   let service = create();
-  const sendMessage = vi.fn(async (message: unknown) => service.handle(message, {
-    id: extensionId, url: `chrome-extension://${extensionId}/library.html`, frameId: 0,
-  }));
+  const sendMessage = vi.fn(async (message: unknown) => (message as { type?: unknown } | null)?.type === "sf:line-cache"
+    ? handleLineCacheMessage(lines, message)
+    : service.handle(message, { id: extensionId, url: `chrome-extension://${extensionId}/library.html`, frameId: 0 }));
   vi.stubGlobal("chrome", {
     runtime: { id: extensionId, sendMessage },
     storage: { local, onChanged: { addListener: (listener: Listener) => listeners.add(listener), removeListener: (listener: Listener) => listeners.delete(listener) } },
@@ -37,6 +40,7 @@ export function installStudyWorker(initial: Record<string, unknown> = {}) {
     storage, local, sendMessage,
     failNextWrite(error = new Error("QUOTA_BYTES quota exceeded")) { failure = error; },
     seen,
+    lines,
     restart() { service = create(); },
     emit(changes: Record<string, chrome.storage.StorageChange>) { listeners.forEach((listener) => listener(changes, "local")); },
   };

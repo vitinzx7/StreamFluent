@@ -172,7 +172,7 @@ get("resetSeen").addEventListener("click", () => void startOver(get("resetSeen")
   "Apagar o histórico de palavras vistas? Todas as palavras voltam a aparecer como novas (azul). Marcações e frases ficam.",
   "reset-seen", "Histórico de palavras vistas apagado."));
 get("resetAll").addEventListener("click", () => void startOver(get("resetAll"),
-  "Apagar todos os dados de estudo? Palavras vistas, marcações e frases serão apagadas; nível e preferências ficam. Exporte um backup antes se quiser guardar.",
+  "Apagar todos os dados de estudo? Palavras vistas, marcações, frases e traduções guardadas serão apagadas; nível e preferências ficam. Exporte um backup antes se quiser guardar.",
   "reset-all", "Dados de estudo apagados. Nível e preferências foram mantidos."));
 
 chrome.storage.onChanged.addListener((changes, area) => {

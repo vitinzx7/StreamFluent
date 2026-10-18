@@ -34,7 +34,9 @@ Ambas enviam a palavra e a fala a um novo provedor; precisam ser recurso explíc
 
 ## 4. Tradução da fala ainda mais rápida
 
-- Medir no navegador real quanto cada provedor demora antes de mexer mais.
+Já feito: as duas linhas aparecem juntas (a original espera a tradução, até 1 s) e as traduções ficam guardadas, então uma fala já vista aparece na hora. Falta a primeira vez de cada fala, que espera o tradutor (≈0,3–0,6 s medidos daqui).
+
+- Na Netflix, a extensão só conhece a fala que está na tela. Para traduzir antes, seria preciso ler o arquivo de legendas que o próprio player baixa (sem DRM; é o que extensões como o Language Reactor fazem). **Muda duas regras do projeto**: deixa de ler só o DOM e envia ao tradutor falas ainda não exibidas. Exige decisão explícita e documentação.
 - No HTML5 (tempos conhecidos), traduzir a próxima fala antes de ela aparecer. **Muda o que sai da máquina** (uma fala ainda não exibida): exige decisão explícita e documentação.
 - Um tradutor oficial (Azure Translator, DeepL) pelo servidor do item 2 seria mais rápido e estável que o endpoint não documentado do Google.
 

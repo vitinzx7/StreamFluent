@@ -1,4 +1,6 @@
 import { createStudyStorageService } from "../core/study-storage.ts";
+import { createIndexedDbSeenStore } from "../core/seen-store.ts";
+import { createIndexedDbLineCache, handleLineCacheMessage } from "../core/line-cache.ts";
 import { fetchProviderJson, isAllowedProviderUrl } from "../core/translation-request.ts";
 import {
   isCinetaroUrl, isEmbeddedPlayerUrl, isFrameDocumentId, isFrameId,
@@ -44,7 +46,8 @@ export async function relayFrameSession(message: unknown, sender: chrome.runtime
   }
 }
 
-const studyStorage = createStudyStorageService();
+const lineCache = createIndexedDbLineCache();
+const studyStorage = createStudyStorageService(chrome.storage.local, createIndexedDbSeenStore(), lineCache);
 
 // A new install starts by asking the English level; updates ask in the player instead.
 chrome.runtime.onInstalled.addListener((details) => {
@@ -71,6 +74,10 @@ chrome.runtime.onMessage.addListener((message: unknown, sender, respond) => {
     void chrome.tabs.create({ url: chrome.runtime.getURL(request.tab === "difficult" ? "library.html?tab=difficult" : "library.html") });
     respond({ ok: true });
     return false;
+  }
+  if (request.type === "sf:line-cache") {
+    void handleLineCacheMessage(lineCache, message).then(respond);
+    return true;
   }
   if (request.type !== "sf:provider-json") return false;
   if (!isAllowedProviderUrl(request.url)) {

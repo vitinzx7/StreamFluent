@@ -108,4 +108,13 @@ Pedido do usuário, só para uso próprio: gravar um vídeo de demonstração na
 
 Verificação: typecheck, **561 testes em 37 arquivos** (5 do diretor de cores e 1 de integração com a flag ligada), os dois builds (`DEMO_MODE` vira `false` em `dist/` e `true` em `dist-demo/`). Página com forma de Netflix: `dist/` **20/20** (uma execução anterior travou e foi encerrada pelo tempo limite; repetida, passou); `dist-demo/` 18/20, e as duas falhas são as checagens de cor da versão normal: a primeira fala mostrou só "local" em azul em vez de todas as palavras, e trocar o nível com a fala na tela só muda a cor na fala seguinte. Não visto na Netflix real nem com o episódio citado.
 
+### Fala e tradução juntas
+
+Pedido do usuário: "primeiro aparece a inglês e depois de 1 s aparece a portuguesa, elas precisam aparecer e sumir na mesma hora". Medido nesta máquina: o endpoint do Google responde em 0,2–0,6 s; somado ao caminho pela extensão, dá o atraso relatado. Como a Netflix só expõe a fala da tela, não há como traduzir antes sem mudar as regras do projeto (ver próximos passos). Feito:
+
+- na Netflix/Max, com a tradução ligada, a fala original espera a tradução (até 1 s) e as duas entram no mesmo instante; somem juntas como antes; falha, desligar a tradução ou trocar a direção mostram a original na hora;
+- traduções de falas guardadas no IndexedDB do worker (`line-cache.ts`, até 20 mil), lidas antes de chamar o tradutor: uma fala já traduzida aparece na hora, também depois de recarregar (rever episódio, tomadas de gravação). Apagadas por "Apagar todos os dados".
+
+Verificação: typecheck, **572 testes em 38 arquivos** (6 da exibição conjunta, 5 do armazenamento), build. IndexedDB real num Chrome headless: grava, lê, descarta as mais antigas no limite e apaga. Nova execução com página em forma de Netflix e **tradutor falso** (o host `clients5.google.com` resolvido para um servidor local que responde em 400 ms), amostrando cada quadro: **6/6, duas vezes** — nenhum quadro com a original sem a tradução; na primeira vez a fala espera ≈0,5 s (0,4 s do tradutor + ≈0,1 s do debounce que já existia; a primeira fala também espera a extensão iniciar); depois de recarregar, ≈0,1 s e nenhuma chamada nova ao tradutor. Página com forma de Netflix **20/20**, `player-test.html` **17/17**, biblioteca **4/4**. Não visto na Netflix real nem com o Google real no navegador.
+
 O que ficou para depois está em [proximos-passos.md](proximos-passos.md).
