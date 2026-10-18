@@ -1,12 +1,22 @@
 import * as esbuild from "esbuild";
-import { cpSync, rmSync, mkdirSync } from "node:fs";
+import { cpSync, rmSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 
 const watch = process.argv.includes("--watch");
+// `--demo`: a separate extension for recording a demo video (see src/core/demo-colors.ts).
+// Its own folder gives it its own extension id, so its data never mixes with the real one.
+const demo = process.argv.includes("--demo");
+const outdir = demo ? "dist-demo" : "dist";
 
-rmSync("dist", { recursive: true, force: true });
-mkdirSync("dist", { recursive: true });
+rmSync(outdir, { recursive: true, force: true });
+mkdirSync(outdir, { recursive: true });
 
-cpSync("public", "dist", { recursive: true });
+cpSync("public", outdir, { recursive: true });
+if (demo) {
+  const manifestPath = `${outdir}/manifest.json`;
+  const manifest = JSON.parse(readFileSync(manifestPath, "utf8"));
+  manifest.name = `${manifest.name} (demo)`;
+  writeFileSync(manifestPath, `${JSON.stringify(manifest, null, 2)}\n`);
+}
 
 const shared = {
   bundle: true,
@@ -14,6 +24,7 @@ const shared = {
   target: ["chrome111"],
   sourcemap: watch ? "inline" : false,
   logLevel: "info",
+  define: { __SF_DEMO__: String(demo) },
 };
 
 const entries = {
@@ -25,10 +36,10 @@ const entries = {
 };
 
 if (watch) {
-  const ctx = await esbuild.context({ ...shared, entryPoints: entries, outdir: "dist" });
+  const ctx = await esbuild.context({ ...shared, entryPoints: entries, outdir });
   await ctx.watch();
   console.log("[StreamFluent] watch enabled — rebuilding on save.");
 } else {
-  await esbuild.build({ ...shared, entryPoints: entries, outdir: "dist" });
-  console.log("[StreamFluent] build ready in dist/");
+  await esbuild.build({ ...shared, entryPoints: entries, outdir });
+  console.log(`[StreamFluent] build ready in ${outdir}/`);
 }

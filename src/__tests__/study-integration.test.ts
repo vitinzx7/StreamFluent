@@ -19,8 +19,10 @@ const mocks = vi.hoisted(() => ({
   getAdapter: vi.fn(),
   translateWord: vi.fn(),
   translateSentence: vi.fn(),
+  demo: false,
 }));
 vi.mock("../adapters/registry.ts", () => ({ getAdapter: mocks.getAdapter }));
+vi.mock("../core/demo-mode.ts", () => ({ get DEMO_MODE() { return mocks.demo; } }));
 vi.mock("../core/translation.ts", async (importOriginal) => ({
   ...(await importOriginal<typeof import("../core/translation.ts")>()),
   translateWord: mocks.translateWord,
@@ -120,6 +122,7 @@ beforeEach(() => {
 });
 
 afterEach(() => {
+  mocks.demo = false;
   window.dispatchEvent(new Event("pagehide"));
   document.body.replaceChildren();
   vi.unstubAllGlobals();
@@ -409,5 +412,31 @@ describe("S02: nothing new leaves the machine", () => {
     ]) {
       expect(isAllowedProviderUrl(url)).toBe(false);
     }
+  });
+});
+
+describe("demo build", () => {
+  const coloured = () => [...document.querySelectorAll<HTMLElement>(".sf-overlay .sf-word")].filter((element) => colour(element.textContent!) !== "normal").map((element) => `${element.textContent}:${colour(element.textContent!)}`);
+
+  it("keeps white in charge: one automatic colour, then white lines, while marks still show", async () => {
+    mocks.demo = true;
+    worker = installStudyWorker({ settings: { level: "A2", highlightSpecialWords: true } });
+    const p = player();
+    await boot();
+    await p.ready();
+
+    // In the normal build every word of a first line would be blue.
+    p.line("The police found the victim.");
+    await flush();
+    expect(coloured()).toEqual(["victim:special"]);
+
+    p.line("This murder is about family.");
+    await flush();
+    expect(coloured()).toEqual([]);
+
+    rightClick("family");
+    await flush();
+    expect(coloured()).toEqual(["family:difficult"]);
+    expect(vocabulary().languages.en.marks.family).toBe("difficult");
   });
 });

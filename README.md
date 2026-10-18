@@ -105,6 +105,16 @@ Habilite as legendas no site. A camada StreamFluent substitui as legendas do pla
 
 Na Netflix, saltos e play/pause passam pela API do próprio player (não documentada), nunca por `video.currentTime`, que quebra o player dela (M7375). Se essa API mudar, os saltos falham sem afetar a reprodução e o Espaço volta para a Netflix. Na Max, os comandos usam o elemento de vídeo diretamente (não verificado no site real).
 
+## Versão para gravar vídeo de demonstração
+
+`npm run build:demo` gera `dist-demo/`, uma extensão separada chamada **StreamFluent (demo)**, só para gravar a tela. Ela tem dados próprios (marcações e histórico não se misturam com os seus) e cores controladas para o vídeo não ficar branco demais nem colorido demais:
+
+- no máximo **uma cor automática por fala**, seguida de **duas falas brancas**;
+- azul e lilás se revezam; o lilás é a palavra mais difícil acima do seu nível, o azul é a palavra mais difícil que aparece pela primeira vez **desde que a página abriu** (nomes e palavras curtas nunca ficam azuis);
+- vermelho e verde aparecem quando você marca durante a gravação.
+
+Toda cor mostrada continua verdadeira; a demo só mostra menos delas. Para gravar: em `chrome://extensions`, desative o StreamFluent normal e carregue `dist-demo/` (a página de boas-vindas pede o nível). A cada nova tomada, recarregue a página da Netflix; para tirar as marcações da tomada anterior, use "Apagar todos os dados" na biblioteca (o nível fica). A quantidade de falas brancas é `DEMO_WHITE_LINES` em `src/core/demo-colors.ts`.
+
 ## Player de teste local
 
 No popup, clique em **Testar player local**. A página contém um vídeo sintético de 15 segundos, sem downloads externos, e uma faixa de exemplo; os arquivos de importação estão em `public/fixtures/`. As instruções da página cobrem tempo, ajuste, tela cheia, palavras, atalhos e pausa automática.

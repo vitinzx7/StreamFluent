@@ -1,4 +1,7 @@
 import { resolveWordStatus } from "../core/word-status.ts";
+import { DEMO_MODE } from "../core/demo-mode.ts";
+import { createDemoColors } from "../core/demo-colors.ts";
+import { wordKey } from "../core/word-normalization.ts";
 import { getAdapter } from "../adapters/registry.ts";
 import { startCinetaroTop, startEmbeddedPlayer } from "./cinetaro-session.ts";
 import { isCinetaroUrl, isEmbeddedPlayerUrl } from "../core/frame-messages.ts";
@@ -136,11 +139,19 @@ async function boot(): Promise<void> {
   // computed once per occurrence so a re-render keeps the same colours.
   const vocabulary = createVocabularyStore();
   const sourceLanguage = (): string => getLangPair(settings.direction).source;
+  // Demo build only: one automatic colour at a time, white lines in between.
+  const demoColors = DEMO_MODE ? createDemoColors() : null;
   const wordStatus = (word: string): WordStatus | null => {
     const shown = context.study;
-    const fresh = shown && shown.direction === settings.direction ? shown.freshKeys : NO_WORDS;
     const language = sourceLanguage();
-    const status = resolveWordStatus(word, language, vocabulary.getMark(word, language), fresh, settings);
+    const mark = vocabulary.getMark(word, language);
+    if (demoColors) {
+      if (mark) return mark;
+      const pick = shown ? demoColors.pick(shown.occurrenceId, shown.text, language, settings) : null;
+      return pick?.key === wordKey(word) ? pick.status : null;
+    }
+    const fresh = shown && shown.direction === settings.direction ? shown.freshKeys : NO_WORDS;
+    const status = resolveWordStatus(word, language, mark, fresh, settings);
     return status === "normal" ? null : status;
   };
 

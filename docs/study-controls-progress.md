@@ -102,4 +102,10 @@ Pedido do usuário: "o dicionário ainda tá ruim, diminui um pouco, ele precisa
 
 Verificação: typecheck, **555 testes** (posição acima, abaixo, perto da borda direita; sem repetir a fala; remover clicando de novo), build, `git diff --check`; capturas no Chrome headless com viewport fixa de 1280×720; página com forma de Netflix **20/20** e `player-test.html` **17/17**. Não visto na Netflix real.
 
+### Versão de demonstração
+
+Pedido do usuário, só para uso próprio: gravar um vídeo de demonstração na Netflix (*The Mentalist*, episódio 1) sem a legenda ficar branca demais (histórico cheio) nem colorida demais (perfil novo, tudo azul), com cada cor aparecendo no seu momento. Feito como um build separado (`npm run build:demo` → `dist-demo/`, "StreamFluent (demo)"), sem efeito na extensão normal: `src/core/demo-colors.ts` escolhe no máximo uma cor automática por fala, seguida de duas falas brancas, alternando azul e lilás; o azul conta só o que apareceu desde que a página abriu, então cada tomada começa igual. Marcações pessoais aparecem quando feitas.
+
+Verificação: typecheck, **561 testes em 37 arquivos** (5 do diretor de cores e 1 de integração com a flag ligada), os dois builds (`DEMO_MODE` vira `false` em `dist/` e `true` em `dist-demo/`). Página com forma de Netflix: `dist/` **20/20** (uma execução anterior travou e foi encerrada pelo tempo limite; repetida, passou); `dist-demo/` 18/20, e as duas falhas são as checagens de cor da versão normal: a primeira fala mostrou só "local" em azul em vez de todas as palavras, e trocar o nível com a fala na tela só muda a cor na fala seguinte. Não visto na Netflix real nem com o episódio citado.
+
 O que ficou para depois está em [proximos-passos.md](proximos-passos.md).
