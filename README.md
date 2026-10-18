@@ -1,8 +1,8 @@
 # StreamFluent
 
-Extensão Chrome Manifest V3 para estudar idiomas com legendas. Netflix e Max usam as legendas já renderizadas no DOM. O modo HTML5, habilitado para Cinetaro e seu player incorporado `cinextream.cc`, lê faixas acessíveis ou um arquivo SRT/VTT local e usa o tempo real do vídeo.
+Extensão Chrome Manifest V3 para estudar idiomas com legendas. Netflix e Max usam as legendas já renderizadas no DOM. O modo HTML5, habilitado para Cinetaro e seu player incorporado `cinextream.cc`, lê faixas acessíveis ou um arquivo SRT/VTT local e usa o tempo real do vídeo. Os dois caminhos oferecem as mesmas ferramentas de estudo: palavras clicáveis e coloridas, cartão de consulta, atalhos, pausa automática e salvamento da fala.
 
-**Situação:** implementação e testes controlados disponíveis; compatibilidade com o player real do Cinetaro e reprodução real da Netflix ainda precisam de validação no navegador. A inspeção do site ficou indisponível no ambiente de desenvolvimento. Não há transcrição de áudio nem recuperação automática de falas ausentes.
+**Situação:** implementado, com testes automatizados e uma execução em Chrome headless da página de teste da extensão e de uma página local com forma de Netflix (detalhes em [docs/study-controls-progress.md](docs/study-controls-progress.md)). **Não foi verificado em player real** da Netflix, Max ou Cinetaro. Não há transcrição de áudio nem recuperação automática de falas ausentes.
 
 ## Instalar e recarregar
 
@@ -19,13 +19,57 @@ npm run build
 
 `npm run watch` recompila os bundles; alterações em `public/` exigem um novo build. Não há comando de lint.
 
+## Estudar com as legendas
+
+### Mouse e cores
+
+| Ação | Resultado |
+|---|---|
+| Clique esquerdo numa palavra | Abre o cartão com tradução, definição (inglês, quando a API tiver) e as opções **Difícil**, **Aprendida**, **Remover marcação** e **Salvar palavra + frase**. Marcar e salvar funcionam mesmo sem tradução. |
+| Clique direito numa palavra | Marca como **difícil** na hora, sem abrir o cartão, sem tradução e sem internet. Fora das palavras o menu normal do navegador continua. |
+
+| Cor | Significado |
+|---|---|
+| Branco | Palavra já vista, sem outra regra. |
+| Azul claro | Primeira vez que a palavra aparece no seu histórico daquele idioma (opção "Destacar palavras novas", ligada por padrão). |
+| Vermelho | Marcada como difícil por você. |
+| Verde | Marcada como aprendida por você. A antiga marca amarela foi convertida em aprendida. |
+| Lilás | Uma das 100 palavras especiais em inglês (opção "Destacar palavras especiais", desligada por padrão). |
+
+Sua marca sempre vence; depois vêm especial, nova e normal. Remover a marca volta à cor automática. As palavras especiais são uma lista fixa de 100 palavras de um artigo, cada uma com verbete confirmado no Oxford Advanced Learner's Dictionary — não é um ranking oficial nem um nível CEFR uniforme. A lista vem dentro da extensão e não classifica legendas em português ([procedência](docs/special-words-sources.md)).
+
+### Atalhos
+
+| Tecla | Ação |
+|---|---|
+| `A` | Fala anterior. No silêncio logo depois de uma fala, repete essa fala. Não salta trechos que você pulou. |
+| `S` | Repetir fala: volta ao começo da fala estudada e reproduz uma vez. |
+| `D` | Avançar 5 s (não procura a próxima legenda). Pressões rápidas somam. |
+| `Espaço` | Reproduzir / pausar. |
+| `Q` | Ligar/desligar a pausa automática. |
+| `R` | Salvar a fala original completa, sem precisar escolher palavra e sem esperar tradução. |
+| `Ctrl+C` / `⌘C` | Copiar a fala original completa, quando não há texto selecionado. Com seleção, a cópia normal continua. |
+
+Os atalhos não agem enquanto você digita num campo, nem em Espaço/Enter sobre um botão focado. Na Netflix/Max eles só começam depois que o episódio mostrou uma legenda, e o Espaço continua com a Netflix até o player dela confirmar que aceita play/pause. No HTML5 eles valem com a camada ativa e o foco no documento do player. "Copiar fala" e "Salvar fala" também estão no painel (**Aa** na Netflix/Max, **SF · Legendas** no HTML5).
+
+### Pausa automática
+
+Ligada por `Q` ou pelo painel/popup (começa desligada e a escolha fica salva). O vídeo pausa no fim de cada fala e ela continua na tela para consulta, `R` e cópia. Retomar não pausa de novo na mesma fala; `S` a repete e ela pode pausar outra vez. `A`, `D` ou uma busca liberam a fala retida. Desligar com `Q` enquanto pausado não dá play.
+
+- **HTML5:** pausa pelo relógio do vídeo no fim da fala, já com o ajuste aplicado; falas sobrepostas pausam uma vez no fim do grupo.
+- **Netflix/Max:** as legendas do DOM não trazem tempos, então a pausa é **aproximada** — acontece quando a fala some ou é trocada na tela, pouco depois do fim real (cerca de 0,1 s na execução local). Duas falas idênticas seguidas, sem mudança no DOM, contam como uma.
+
+### Biblioteca
+
+Abra pelo popup ou pelo painel. Três vistas: **Frases salvas** (por `R` e pelo cartão), **Palavras difíceis** e **Palavras aprendidas**, com busca, filtro de idioma e de plataforma. "Palavras difíceis" abre direto por `library.html?tab=difficult`. Mudar de difícil para aprendida, remover marca ou apagar frases não afeta o resto; "Apagar todas as frases" não apaga marcas nem preferências.
+
 ## Usar no Cinetaro / HTML5
 
 Abra `https://cinetaro.to/watch/62560?ep=8` e inicie o player. A extensão executa dentro do frame `cinextream.cc`, mantendo apenas um painel ativo. O topo transmite a troca de episódio por mensagens internas validadas, sem enviar a URL para os tradutores. No painel StreamFluent:
 
 1. Selecione uma faixa acessível ou importe um arquivo `.srt`/`.vtt` em UTF-8, até 2 MB. Informe se o arquivo já está em português ou se está em inglês.
 2. Ative a camada de legendas. A importação fica apenas em memória, sem upload do arquivo.
-3. Ative a tradução para português brasileiro se quiser enviar a fala atual ao tradutor. O texto original continua disponível enquanto a tradução está pendente ou falha.
+3. Ative a tradução para português brasileiro se quiser enviar a fala atual ao tradutor. O texto original continua disponível enquanto a tradução está pendente ou falha. Clicar numa palavra consulta só aquela palavra, sem ligar a tradução das falas.
 4. Use **Adiantar 0,5 s** quando a legenda aparece depois da fala; use **Atrasar 0,5 s** quando aparece antes. **Restaurar** volta a zero.
 
 Exemplo: uma fala marcada em 10–12 s aparece em 9,5–11,5 s após adiantar e em 10,5–12,5 s após atrasar. O intervalo é fechado no início e aberto no fim. Pausa, busca e velocidade usam `video.currentTime`, sem acumular um relógio separado.
@@ -36,56 +80,60 @@ Um deslocamento fixo não resolve descompasso crescente ou legendas de outra edi
 
 ## Netflix e Max
 
-O fluxo anterior permanece: habilite legendas no site, clique nas palavras da camada StreamFluent para consultar tradução/definição e salve frases na biblioteca local. O botão **Aa** e o popup controlam direção e linha traduzida. Arraste a legenda para mudar a posição. A biblioteca abre pelo service worker.
+Habilite as legendas no site. A camada StreamFluent substitui as legendas do player, com as palavras clicáveis e a tradução da fala por baixo. O botão **Aa** abre o painel: tradução da fala, cores, pausa automática, direção, copiar/salvar fala e links da biblioteca. Arraste a legenda para mudar a posição. A biblioteca abre pelo service worker.
+
+Na Netflix, saltos e play/pause passam pela API do próprio player (não documentada), nunca por `video.currentTime`, que quebra o player dela (M7375). Se essa API mudar, os saltos falham sem afetar a reprodução e o Espaço volta para a Netflix. Na Max, os comandos usam o elemento de vídeo diretamente (não verificado no site real).
 
 ## Player de teste local
 
-No popup, clique em **Testar player local**. A página contém um vídeo sintético de 15 segundos, sem downloads externos, e uma faixa de exemplo. Os arquivos de importação estão em `public/fixtures/`.
+No popup, clique em **Testar player local**. A página contém um vídeo sintético de 15 segundos, sem downloads externos, e uma faixa de exemplo; os arquivos de importação estão em `public/fixtures/`. As instruções da página cobrem tempo, ajuste, tela cheia, palavras, atalhos e pausa automática.
 
-Checklist manual ainda pendente neste ambiente:
+Esta página foi executada com a extensão carregada num Chrome headless isolado e rede externa bloqueada: palavras e cores, cliques, D/S/Espaço/R/Ctrl+C/Q e pausa automática passaram. Ainda vale repetir à mão, num Chrome normal:
 
-- Ativar a camada e a tradução; conferir texto e acentos.
+- Ativar a tradução da fala e conferir texto e acentos (precisa de rede).
 - Importar `example.srt` e `example.vtt`; conferir múltiplas linhas e intervalos.
-- Pausar, buscar para 10 s e mudar para 2x; verificar que a legenda segue o vídeo.
-- Aplicar cada ajuste e restaurar; conferir os intervalos do exemplo acima.
-- Trocar episódio e substituir vídeo durante uma tradução; confirmar descarte da fonte e do resultado antigo.
-- Desativar a camada; conferir restauração das legendas nativas.
+- Mudar para 2x; trocar episódio e substituir vídeo durante uma tradução.
 - Entrar/sair da tela cheia do contêiner; conferir painel, legenda e ausência de duplicatas.
-- Repetir Netflix/Max com conteúdo real e inspecionar os domínios dos frames do Cinetaro.
+- Repetir na Netflix/Max com conteúdo real — inclusive se a Netflix/Max reagem às mesmas teclas — e no Cinetaro.
 
-Os testes automatizados usam DOM e respostas de rede controladas. Eles não substituem reprodução em Chrome nem comprovam CORS, políticas de fullscreen ou estrutura dos sites reais. Uma chamada isolada ao endpoint Google respondeu `Bom dia.` para `Good morning.` durante o desenvolvimento; isso não garante disponibilidade contínua.
-
-Validação desta entrega: **225 testes em 17 arquivos passaram**, assim como `npm run typecheck`, `npm run build` e `git diff --check`. Inclui regressões DOM de Netflix/Max, importação, ajuste, respostas antigas, transporte, diagnóstico de frames e limpeza. Reprodução manual em navegador continua pendente.
+Os testes automatizados usam DOM e respostas controladas: **476 testes em 32 arquivos** passaram, assim como `npm run typecheck`, `npm run build` e `git diff --check`. Eles não comprovam a API real da Netflix, CORS, políticas de fullscreen ou a estrutura atual dos sites.
 
 ## Privacidade e rede
 
 - Sem download de streaming, contorno de DRM, telemetria ou análise de áudio.
 - As únicas APIs externas são `clients5.google.com` e `api.mymemory.translated.net` para tradução, e `api.dictionaryapi.dev` para definições em inglês.
-- Saem somente a fala atual e, no fluxo de consulta, a palavra selecionada. Título, episódio, biblioteca e arquivo completo não são enviados.
-- Tradução no modo HTML5 exige ativação visível. Não há tradução antecipada ou em lote.
+- Saem somente a fala atual e, no fluxo de consulta, a palavra selecionada. Título, episódio, biblioteca, vocabulário e arquivo completo não são enviados. O clique direito não usa a rede.
+- A lista de palavras especiais vem empacotada; os links Linglify/Oxford são só procedência, nunca acessados pela extensão.
+- Tradução no modo HTML5 exige ativação visível. Não há tradução antecipada ou em lote, nem tradução disparada por `R`.
 - O worker valida destinos, usa timeout por provedor e não envia cookies nem segue redirecionamentos.
-- Frases salvas ficam em `chrome.storage.local`; não são sincronizadas.
+- Frases, marcas, histórico de palavras e preferências ficam em `chrome.storage.local`, gravados por um único serviço no worker; nada é sincronizado. Copiar usa só escrita no clipboard (sem permissão de leitura).
 - Não há chaves ou assinatura nova. O endpoint Google é não documentado e pode recusar chamadas ou mudar. MyMemory possui limites próprios. Nenhum deles tem disponibilidade ou uso ilimitado garantido.
 
 ## Limitações
 
 - Apenas vídeos e faixas que o navegador permite ler. Legendas em imagem, áudio sem faixa e formatos diferentes de SRT/VTT não são suportados.
 - O domínio `cinextream.cc` foi identificado pelo diagnóstico do usuário e recebeu uma entrada específica no manifesto. Outros hosts continuam sem suporte. O aviso lista as origens declaradas dos frames; `iframe.src` pode diferir da origem final após redirecionamento. Enquanto o vídeo estiver inacessível, a importação fica desativada por falta de relógio para sincronizar.
-- Tela cheia do contêiner pode hospedar a camada. Tela cheia nativa do próprio elemento de vídeo pode impedir overlays HTML; use a do contêiner ou saia desse modo.
-- A versão HTML5 não inclui o cartão de palavras/biblioteca do fluxo Netflix/Max.
-- Os seletores DOM da Netflix/Max continuam sujeitos a mudanças dos sites.
+- Tela cheia do contêiner pode hospedar a camada. Na tela cheia nativa do próprio elemento de vídeo a camada não aparece: as legendas originais voltam e pausa automática, `R` e cópia ficam suspensas.
+- Atalhos num iframe só funcionam com o foco nesse frame.
+- Na Netflix/Max a pausa automática é aproximada; uma fala que continua na tela através de uma busca não pausa no próprio fim.
+- Os seletores DOM e a API de player da Netflix/Max continuam sujeitos a mudanças dos sites.
 - A detecção de episódio usa URL e fonte do vídeo. Players que trocam conteúdo mantendo ambos exigem integração específica.
 
 ## Código
 
-- `src/adapters/netflix.ts`, `max.ts`: extração DOM existente.
+- `src/adapters/netflix.ts`, `max.ts`: extração DOM e comandos de player por plataforma.
+- `src/core/netflix-bridge.ts`, `src/content/netflix-main.ts`: ponte fechada (seek/play/pause/probe) para a API do player da Netflix no mundo da página.
 - `src/adapters/html5-player.ts`, `src/core/player-types.ts`: descoberta de vídeo, frames acessíveis, eventos e sessões.
-- `src/core/subtitles.ts`: parsing, UTF-8, intervalos, ajuste e controle assíncrono.
-- `src/core/ui/timed-subtitles.ts`: importação, faixas e controles HTML5.
+- `src/core/subtitles.ts`: parsing, UTF-8, intervalos, ajuste, ocorrências e controle assíncrono.
+- `src/core/ui/subtitle-overlay.ts`, `ui/timed-subtitles.ts`: camadas Netflix/Max e HTML5; `ui/word-renderer.ts`, `ui/word-card.ts`: palavras e cartão compartilhados.
+- `src/core/word-actions.ts`, `study-actions.ts`, `keyboard-shortcuts.ts`: cliques, comandos e o roteador de teclado.
+- `src/core/study-context.ts`, `playback-controller.ts`, `line-navigation.ts`, `line-timeline.ts`, `auto-pause.ts`: fala de estudo, comandos de reprodução, fala anterior e pausa automática.
+- `src/core/vocabulary.ts`, `word-status.ts`, `word-normalization.ts`, `special-words.ts`, `src/data/special-words.en.json`: histórico, marcas, cores e lista especial.
+- `src/core/study-storage.ts`, `study-data.ts`, `study-messages.ts`, `storage.ts`, `settings.ts`: persistência serializada no worker, migração e clientes.
 - `src/core/translation.ts`, `translation-request.ts`: tradutor reutilizado e transporte restrito.
-- `src/background/background.ts`: solicitações externas e abertura da biblioteca.
-- `src/content/content.ts`: integração e limpeza dos fluxos.
+- `src/background/background.ts`: worker (persistência de estudo, provedores, biblioteca e relay dos frames).
+- `src/content/content.ts`: integração Netflix/Max e ciclo de vida.
 - `src/content/cinetaro-session.ts`, `src/core/frame-messages.ts`: coordenação dos frames, sessão do episódio e validação das mensagens.
-- `src/__tests__/`: testes de parsing, sincronização, DOM, armazenamento e tradução.
+- `src/__tests__/`: testes unitários e de integração.
 
-`public/popup.js` e `library.js` são JavaScript sem compilação TypeScript; mudanças de schema/detecção precisam manter as cópias coerentes.
+`public/popup.js`, `library.js` e `study-client.js` são JavaScript sem compilação TypeScript; mudanças de protocolo, schema ou detecção precisam manter as cópias coerentes.

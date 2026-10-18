@@ -35,6 +35,19 @@ Chrome 155.0.8059.84 headless, perfil temporário isolado, `dist/` carregado por
 - Página local **com forma de Netflix** (não é a Netflix): `www.netflix.com` mapeado para um servidor HTTPS local com legenda DOM nos seletores do adaptador e um `window.netflix` mínimo. Rodam o content script, o script MAIN e a ponte reais: **12/12**. Overlay e ocultação da legenda nativa, azul, clique direito persistido, A via API do player (0,86 s), Espaço só após o `probe`, D +5 s via ponte, Q, pausa DOM aproximada em 4,11 s (fala termina em 4,0 s; atraso do debounce) com a fala retida, R sobre ela, retomar sem nova pausa, próxima pausa em 8,11 s.
 - **Não verificado em player real** Netflix, Max ou Cinetaro: API real da Netflix (play/pause/seek), ordem dos listeners de teclado da Netflix/Max, seletores atuais, CORS, iframe `cinextream.cc`.
 
+10. Concluído: README (atalhos, cores, cliques, padrões, onde ficam as difíceis, pausa DOM aproximada, lista especial como seleção fixa confirmada em dicionário, validação real e limitações), `AGENTS.md`/`CLAUDE.md` (sem `marked`/amarelo, sem gravadores distribuídos com debounce, HTML5 com cores e atalhos, ponte Netflix com `probe`, contexto de estudo, roteador, pausa automática e persistência serializada) e `CONTINUAR-AQUI.md` reescrito como estado atual. Gates finais abaixo.
+
+### Fechamento (18/10/2026)
+
+- `npm run typecheck`: aprovado.
+- `npm test`: **476 testes em 32 arquivos** aprovados (base anterior à implementação: 298 em 21; checkpoint recebido: 334 em 26).
+- `npm run build`: aprovado; `git diff --check`: aprovado.
+- Build inspecionado: `dist/content.js` contém a lista especial local; `popup.js`/`library.js` usam `study-client.js` (`sf:study:*`), sem `chrome.storage.local.set`; manifesto com `permissions: ["storage"]` e os três hosts de provedores.
+- Execução em Chrome headless: fixture 17/17, página com forma de Netflix 12/12 (seção acima).
+- Não verificado em player real Netflix, Max ou Cinetaro.
+
+Ambiente desta etapa: Node 22.23.3, npm 10.9.9 (o checkpoint usou Node 24.19.0/npm 11.9.0; sem mudança de dependências).
+
 ## Validação do checkpoint de transferência
 
 Em 18/10/2026, após o pedido de passagem para outra IA:
