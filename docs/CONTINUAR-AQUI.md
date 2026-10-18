@@ -21,6 +21,8 @@ Os dez blocos da [especificação](StreamFluent-especificacao-implementacao.md) 
 | 9 — integração e robustez | `300750c` |
 | 10 — documentação | commit `docs(study): …` seguinte a `300750c` |
 
+Uma segunda rodada (níveis A1–C2, tela cheia, histórico no IndexedDB, backup e tradução) está na branch `feat/levels-fullscreen-local-data`, descrita na seção "Rodada 2" do [progresso](study-controls-progress.md). O que ficou para depois está em [proximos-passos.md](proximos-passos.md).
+
 Nada foi mesclado em `main` nem publicado. Os commits dos blocos 5–10 estão na branch local até um novo pedido de envio.
 
 ## Preparar outra máquina

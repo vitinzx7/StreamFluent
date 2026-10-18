@@ -60,3 +60,34 @@ Em 18/10/2026, após o pedido de passagem para outra IA:
 - Nenhum player real Netflix/Max/Cinetaro foi validado nesta implementação. Não houve teste de browser da fixture nesta etapa.
 
 Esses resultados validam o código presente e os testes controlados, não a conclusão das funcionalidades ainda sem integração. O guia de retomada está em `docs/CONTINUAR-AQUI.md`, e a especificação integral foi preservada em `docs/StreamFluent-especificacao-implementacao.md`. Checkpoint do código parcial do bloco 5: `c20091b074460ea831706a84eca8631fbb12fe2f`.
+
+## Rodada 2 — níveis, tela cheia, dados locais e tradução (18/10/2026)
+
+Branch `feat/levels-fullscreen-local-data`, a partir de `f267ee1`.
+
+### Relato do usuário na Netflix real
+
+O usuário usou a versão dos blocos 1–10 na **Netflix real** (episódio do Gumball) e relatou que tudo funcionou, com quatro exceções: a fala traduzida chega alguns segundos depois (defeito antigo); nenhuma palavra ficou lilás; o botão **Aa** ficava sobre o botão de tela cheia; e a camada não funcionava em tela cheia. O lilás vazio era esperado (opção desligada por padrão; lista de 100 palavras raras, ausentes de um desenho infantil). Este é o primeiro relato de uso em player real; as correções abaixo **ainda não foram vistas na Netflix real**.
+
+### Blocos
+
+| Bloco | Commit | Conteúdo |
+|---|---|---|
+| Botão e tela cheia | `7855cd2` | Botão e painel na borda direita, a meia altura, sumindo com o mouse parado; avisos no topo; todas as raízes da camada movidas para o elemento em tela cheia (e de volta), reanexadas se o player as remover; cliques nos nossos controles não chegam ao player. |
+| Níveis A1–C2 | `2bc95e9` | Pergunta de nível na instalação (`welcome.html`), na primeira legenda em inglês e no popup/painéis; lilás = acima do nível, sobre a lista CEFR-J + Octanove (~9.700 palavras, CC BY-SA 4.0) com flexões; as 100 especiais fora da lista contam como acima de C2; sem nível, vale a lista fixa antiga. |
+| Desempenho e espaço | `ebfab45` | Histórico de palavras vistas no IndexedDB do worker, com índice em memória; migração do histórico antigo sem perda; `unlimitedStorage`. |
+| Leitura inicial | `d168908` | Adaptadores Netflix/Max leem a fala já na tela quando começam a observar (antes, uma fala parada ficava invisível até a próxima). Achado pela execução headless repetida. |
+| Backup | `ae23aea` | Exportar, importar (mesclando) e recomeçar (só o histórico, ou tudo exceto preferências) na biblioteca. |
+| Tradução | `f5227bd` | MyMemory entra se o Google não responder em 1,2 s, ou na hora se ele falhar; links Linguee/WordReference/Reverso/Cambridge no cartão. |
+
+### Verificação
+
+- `npm run typecheck`, `npm test` (**546 testes em 36 arquivos**), `npm run build` e `git diff --check`: aprovados.
+- Chrome 155 headless, perfil temporário, rede externa bloqueada, mesmo método da rodada 1:
+  - página com forma de Netflix: **20/20**. Além do que já era coberto: página de boas-vindas na instalação, pergunta de nível na primeira legenda, clique real em "A1" grava o nível e pinta a palavra A2 de lilás, perfil antigo com histórico migrado para o IndexedDB ("Hello" já não fica azul), tela cheia real do contêiner com a camada dentro dela e as palavras por cima, clique na palavra em tela cheia sem o player receber o clique, botão na borda direita em tela cheia e sumindo com o mouse parado;
+  - a mesma página, repetida 6 vezes depois da correção da leitura inicial: 6/6 (antes da correção, 1 em 5 falhava);
+  - `player-test.html`: **17/17**;
+  - biblioteca: **4/4** — exportação baixa `streamfluent-backup-AAAA-MM-DD.json`, "Apagar todos os dados" esvazia storage e IndexedDB mantendo o nível, importar o arquivo pelo seletor restaura marcas, frases e histórico.
+- Não verificado: Netflix real com estas mudanças, Max e Cinetaro reais, tempo real de resposta dos tradutores (a rede estava bloqueada), e se os sites de dicionário abrem com as URLs geradas (eles bloqueiam acesso automatizado; o Linguee respondeu 200).
+
+O que ficou para depois está em [proximos-passos.md](proximos-passos.md).

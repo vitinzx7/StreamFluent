@@ -2,7 +2,7 @@
 
 Extensão Chrome Manifest V3 para estudar idiomas com legendas. Netflix e Max usam as legendas já renderizadas no DOM. O modo HTML5, habilitado para Cinetaro e seu player incorporado `cinextream.cc`, lê faixas acessíveis ou um arquivo SRT/VTT local e usa o tempo real do vídeo. Os dois caminhos oferecem as mesmas ferramentas de estudo: palavras clicáveis e coloridas, cartão de consulta, atalhos, pausa automática e salvamento da fala.
 
-**Situação:** implementado, com testes automatizados e uma execução em Chrome headless da página de teste da extensão e de uma página local com forma de Netflix (detalhes em [docs/study-controls-progress.md](docs/study-controls-progress.md)). **Não foi verificado em player real** da Netflix, Max ou Cinetaro. Não há transcrição de áudio nem recuperação automática de falas ausentes.
+**Situação:** implementado, com testes automatizados e execuções em Chrome headless da página de teste da extensão, de uma página local com forma de Netflix e da biblioteca (detalhes em [docs/study-controls-progress.md](docs/study-controls-progress.md)). O usuário usou a versão anterior na **Netflix real** e relatou que tudo funcionou, exceto a tradução da fala atrasada, o botão em cima do de tela cheia e a camada em tela cheia; essas três correções e os níveis ainda não foram vistos na Netflix real. Max e Cinetaro não foram verificados em player real. Não há transcrição de áudio nem recuperação automática de falas ausentes. O que ainda está planejado: [docs/proximos-passos.md](docs/proximos-passos.md).
 
 ## Instalar e recarregar
 
@@ -16,6 +16,8 @@ npm run build
 1. Abra `chrome://extensions`, ative o modo de desenvolvedor e carregue a pasta `dist/` em **Carregar sem compactação**.
 2. Se já estiver instalada, clique em **Recarregar** na extensão depois do build.
 3. Recarregue também a aba do streaming para substituir o content script antigo. Se o navegador solicitar o novo acesso a `cinextream.cc`, conceda esse domínio para conectar o player incorporado.
+
+Na primeira instalação abre uma página que pergunta o seu nível de inglês (A1 a C2). Em quem atualizou, o player pergunta na primeira legenda em inglês; dá para mudar depois no popup ou no painel.
 
 `npm run watch` recompila os bundles; alterações em `public/` exigem um novo build. Não há comando de lint.
 
@@ -34,9 +36,11 @@ npm run build
 | Azul claro | Primeira vez que a palavra aparece no seu histórico daquele idioma (opção "Destacar palavras novas", ligada por padrão). |
 | Vermelho | Marcada como difícil por você. |
 | Verde | Marcada como aprendida por você. A antiga marca amarela foi convertida em aprendida. |
-| Lilás | Uma das 100 palavras especiais em inglês (opção "Destacar palavras especiais", desligada por padrão). |
+| Lilás | Palavra em inglês **acima do seu nível** (opção "Destacar palavras acima do meu nível"; liga ao escolher o nível). |
 
-Sua marca sempre vence; depois vêm especial, nova e normal. Remover a marca volta à cor automática. As palavras especiais são uma lista fixa de 100 palavras de um artigo, cada uma com verbete confirmado no Oxford Advanced Learner's Dictionary — não é um ranking oficial nem um nível CEFR uniforme. A lista vem dentro da extensão e não classifica legendas em português ([procedência](docs/special-words-sources.md)).
+Sua marca sempre vence; depois vêm lilás, nova e normal. Remover a marca volta à cor automática.
+
+**Níveis.** O lilás usa uma lista de cerca de 9.700 palavras inglesas com nível CEFR, montada a partir da CEFR-J Wordlist (A1–B2) e do Octanove Vocabulary Profile (C1–C2); a extensão reconhece também as flexões ("went" conta como "go"). Quanto mais baixo o seu nível, mais palavras ficam lilás: em A1 quase todo vocabulário além do básico; em C2 só as raras. Nomes e palavras fora da lista nunca ficam lilás, e legendas em português também não. Enquanto você não escolhe um nível, o lilás continua sendo a lista fixa de 100 palavras especiais ([procedência](docs/special-words-sources.md)); com nível escolhido, as 67 delas que não estão na lista CEFR contam como "acima de C2". Fontes e licença (CC BY-SA 4.0): [docs/word-levels-sources.md](docs/word-levels-sources.md). Desenhos infantis têm poucas palavras acima de B1 — é normal ver pouco lilás neles.
 
 ### Atalhos
 
@@ -50,7 +54,11 @@ Sua marca sempre vence; depois vêm especial, nova e normal. Remover a marca vol
 | `R` | Salvar a fala original completa, sem precisar escolher palavra e sem esperar tradução. |
 | `Ctrl+C` / `⌘C` | Copiar a fala original completa, quando não há texto selecionado. Com seleção, a cópia normal continua. |
 
-Os atalhos não agem enquanto você digita num campo, nem em Espaço/Enter sobre um botão focado. Na Netflix/Max eles só começam depois que o episódio mostrou uma legenda, e o Espaço continua com a Netflix até o player dela confirmar que aceita play/pause. No HTML5 eles valem com a camada ativa e o foco no documento do player. "Copiar fala" e "Salvar fala" também estão no painel (**Aa** na Netflix/Max, **SF · Legendas** no HTML5).
+Os atalhos não agem enquanto você digita num campo, nem em Espaço/Enter sobre um botão focado. Na Netflix/Max eles só começam depois que o episódio mostrou uma legenda, e o Espaço continua com a Netflix até o player dela confirmar que aceita play/pause. No HTML5 eles valem com a camada ativa e o foco no documento do player. "Copiar fala" e "Salvar fala" também estão no painel.
+
+### Painel e tela cheia
+
+O botão do painel (**Aa** na Netflix/Max, **SF · Legendas** no HTML5) fica na **borda direita, no meio da tela**, longe da barra de controles do player, e some quando o mouse fica parado — mexa o mouse para ele voltar. Os avisos aparecem no topo, no centro. Na tela cheia da Netflix (botão ou tecla F) a legenda, o cartão e o painel continuam aparecendo, e clicar neles não pausa nem tira o vídeo da tela cheia.
 
 ### Pausa automática
 
@@ -59,9 +67,22 @@ Ligada por `Q` ou pelo painel/popup (começa desligada e a escolha fica salva). 
 - **HTML5:** pausa pelo relógio do vídeo no fim da fala, já com o ajuste aplicado; falas sobrepostas pausam uma vez no fim do grupo.
 - **Netflix/Max:** as legendas do DOM não trazem tempos, então a pausa é **aproximada** — acontece quando a fala some ou é trocada na tela, pouco depois do fim real (cerca de 0,1 s na execução local). Duas falas idênticas seguidas, sem mudança no DOM, contam como uma.
 
-### Biblioteca
+### Cartão de palavra
+
+Além da tradução e da definição, o cartão tem **Ver em: Linguee · WordReference · Reverso Context · Cambridge**, que abrem a palavra nesses dicionários numa aba nova. O Linguee e o Reverso mostram a palavra em frases reais traduzidas, o que ajuda quando a tradução de uma palavra solta fica literal demais. A palavra só vai para esses sites se você clicar.
+
+### Biblioteca e seus dados
 
 Abra pelo popup ou pelo painel. Três vistas: **Frases salvas** (por `R` e pelo cartão), **Palavras difíceis** e **Palavras aprendidas**, com busca, filtro de idioma e de plataforma. "Palavras difíceis" abre direto por `library.html?tab=difficult`. Mudar de difícil para aprendida, remover marca ou apagar frases não afeta o resto; "Apagar todas as frases" não apaga marcas nem preferências.
+
+Em **Seus dados**, no fim da biblioteca:
+
+- **Exportar backup** baixa um arquivo `.json` com palavras vistas, marcações, frases e preferências (inclusive o nível).
+- **Importar backup** junta o arquivo ao que já existe: une o histórico, mantém a marcação mais recente de cada palavra, ignora frases repetidas e restaura as preferências.
+- **Apagar histórico de palavras vistas** faz tudo voltar a ser "novo" (azul), mantendo marcações e frases.
+- **Apagar todos os dados de estudo** apaga palavras vistas, marcações e frases, mantendo nível e preferências.
+
+Desinstalar a extensão apaga os dados deste navegador: exporte um backup antes.
 
 ## Usar no Cinetaro / HTML5
 
@@ -90,30 +111,33 @@ No popup, clique em **Testar player local**. A página contém um vídeo sintét
 
 Esta página foi executada com a extensão carregada num Chrome headless isolado e rede externa bloqueada: palavras e cores, cliques, D/S/Espaço/R/Ctrl+C/Q e pausa automática passaram. Ainda vale repetir à mão, num Chrome normal:
 
-- Ativar a tradução da fala e conferir texto e acentos (precisa de rede).
+- Ativar a tradução da fala e conferir texto, acentos e o tempo até ela aparecer (precisa de rede).
 - Importar `example.srt` e `example.vtt`; conferir múltiplas linhas e intervalos.
 - Mudar para 2x; trocar episódio e substituir vídeo durante uma tradução.
 - Entrar/sair da tela cheia do contêiner; conferir painel, legenda e ausência de duplicatas.
-- Repetir na Netflix/Max com conteúdo real — inclusive se a Netflix/Max reagem às mesmas teclas — e no Cinetaro.
+- Repetir na Netflix/Max com conteúdo real — inclusive se a Netflix/Max reagem às mesmas teclas, a tela cheia, a pergunta de nível e o botão na borda direita — e no Cinetaro.
 
-Os testes automatizados usam DOM e respostas controladas: **476 testes em 32 arquivos** passaram, assim como `npm run typecheck`, `npm run build` e `git diff --check`. Eles não comprovam a API real da Netflix, CORS, políticas de fullscreen ou a estrutura atual dos sites.
+Os testes automatizados usam DOM e respostas controladas: **546 testes em 36 arquivos** passaram, assim como `npm run typecheck`, `npm run build` e `git diff --check`. Eles não comprovam a API real da Netflix, CORS, políticas de fullscreen ou a estrutura atual dos sites.
 
 ## Privacidade e rede
 
 - Sem download de streaming, contorno de DRM, telemetria ou análise de áudio.
 - As únicas APIs externas são `clients5.google.com` e `api.mymemory.translated.net` para tradução, e `api.dictionaryapi.dev` para definições em inglês.
 - Saem somente a fala atual e, no fluxo de consulta, a palavra selecionada. Título, episódio, biblioteca, vocabulário e arquivo completo não são enviados. O clique direito não usa a rede.
-- A lista de palavras especiais vem empacotada; os links Linglify/Oxford são só procedência, nunca acessados pela extensão.
+- Os links de dicionário do cartão (Linguee, WordReference, Reverso, Cambridge) só abrem se você clicar; a extensão nunca acessa esses sites sozinha.
+- As listas de palavras especiais e de níveis vêm empacotadas; os links Linglify/Oxford/Open Language Profiles são só procedência, nunca acessados pela extensão.
 - Tradução no modo HTML5 exige ativação visível. Não há tradução antecipada ou em lote, nem tradução disparada por `R`.
 - O worker valida destinos, usa timeout por provedor e não envia cookies nem segue redirecionamentos.
-- Frases, marcas, histórico de palavras e preferências ficam em `chrome.storage.local`, gravados por um único serviço no worker; nada é sincronizado. Copiar usa só escrita no clipboard (sem permissão de leitura).
+- Frases, marcas e preferências ficam em `chrome.storage.local`; o histórico de palavras vistas fica no IndexedDB da extensão. Tudo é gravado por um único serviço no worker e nada é sincronizado. A permissão `unlimitedStorage` (sem aviso na instalação) tira o limite de 10 MB e impede que o Chrome descarte o IndexedDB por falta de espaço. Copiar usa só escrita no clipboard (sem permissão de leitura).
 - Não há chaves ou assinatura nova. O endpoint Google é não documentado e pode recusar chamadas ou mudar. MyMemory possui limites próprios. Nenhum deles tem disponibilidade ou uso ilimitado garantido.
 
 ## Limitações
 
 - Apenas vídeos e faixas que o navegador permite ler. Legendas em imagem, áudio sem faixa e formatos diferentes de SRT/VTT não são suportados.
 - O domínio `cinextream.cc` foi identificado pelo diagnóstico do usuário e recebeu uma entrada específica no manifesto. Outros hosts continuam sem suporte. O aviso lista as origens declaradas dos frames; `iframe.src` pode diferir da origem final após redirecionamento. Enquanto o vídeo estiver inacessível, a importação fica desativada por falta de relógio para sincronizar.
-- Tela cheia do contêiner pode hospedar a camada. Na tela cheia nativa do próprio elemento de vídeo a camada não aparece: as legendas originais voltam e pausa automática, `R` e cópia ficam suspensas.
+- Tela cheia do contêiner (a da Netflix) hospeda a camada. Na tela cheia nativa do próprio elemento de vídeo a camada não aparece: as legendas originais voltam e pausa automática, `R` e cópia ficam suspensas.
+- O nível vale só para legendas em inglês. A lista não cobre todo o vocabulário avançado: palavras raras fora dela não ficam lilás.
+- A tradução da fala ainda depende de serviços gratuitos (Google não documentado, MyMemory com cota pequena); o atraso diminuiu, mas não some se os dois estiverem lentos.
 - Atalhos num iframe só funcionam com o foco nesse frame.
 - Na Netflix/Max a pausa automática é aproximada; uma fala que continua na tela através de uma busca não pausa no próprio fim.
 - Os seletores DOM e a API de player da Netflix/Max continuam sujeitos a mudanças dos sites.
@@ -129,11 +153,13 @@ Os testes automatizados usam DOM e respostas controladas: **476 testes em 32 arq
 - `src/core/word-actions.ts`, `study-actions.ts`, `keyboard-shortcuts.ts`: cliques, comandos e o roteador de teclado.
 - `src/core/study-context.ts`, `playback-controller.ts`, `line-navigation.ts`, `line-timeline.ts`, `auto-pause.ts`: fala de estudo, comandos de reprodução, fala anterior e pausa automática.
 - `src/core/vocabulary.ts`, `word-status.ts`, `word-normalization.ts`, `special-words.ts`, `src/data/special-words.en.json`: histórico, marcas, cores e lista especial.
-- `src/core/study-storage.ts`, `study-data.ts`, `study-messages.ts`, `storage.ts`, `settings.ts`: persistência serializada no worker, migração e clientes.
+- `src/core/cefr.ts`, `word-levels.ts`, `src/data/word-levels.en.json`, `scripts/build-word-levels.mjs`: níveis CEFR, flexões e o gerador da lista.
+- `src/core/study-storage.ts`, `seen-store.ts`, `study-data.ts`, `study-messages.ts`, `storage.ts`, `settings.ts`: persistência serializada no worker (histórico no IndexedDB), migração, backup e clientes.
+- `src/core/ui/idle-fade.ts`: botão que some com o mouse parado e isolamento dos cliques em relação ao player.
 - `src/core/translation.ts`, `translation-request.ts`: tradutor reutilizado e transporte restrito.
 - `src/background/background.ts`: worker (persistência de estudo, provedores, biblioteca e relay dos frames).
 - `src/content/content.ts`: integração Netflix/Max e ciclo de vida.
 - `src/content/cinetaro-session.ts`, `src/core/frame-messages.ts`: coordenação dos frames, sessão do episódio e validação das mensagens.
 - `src/__tests__/`: testes unitários e de integração.
 
-`public/popup.js`, `library.js` e `study-client.js` são JavaScript sem compilação TypeScript; mudanças de protocolo, schema ou detecção precisam manter as cópias coerentes.
+`public/popup.js`, `library.js`, `welcome.js` e `study-client.js` são JavaScript sem compilação TypeScript; mudanças de protocolo, schema, níveis ou detecção precisam manter as cópias coerentes.
