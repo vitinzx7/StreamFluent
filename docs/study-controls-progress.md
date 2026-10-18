@@ -17,7 +17,7 @@ Os resultados de players reais serão registrados separadamente dos testes contr
 4. Concluído: biblioteca com frases/difíceis/aprendidas, busca/filtros, ações confirmadas, atualização entre páginas, deep links e renderização literal. 19 testes de biblioteca/storage/background aprovados; typecheck/build aprovados. Commit do bloco 3: `3b67053`.
 
 
-5. **Em andamento, preservado como checkpoint**: controlador compartilhado de reprodução e contexto de estudo; exposição de alvos/tempos da navegação; ponte Netflix com enum fechado seek/play/pause e verificação de caminho; métodos play/pause dos adaptadores. Os testes unitários do controlador existem, mas os módulos novos ainda não são instanciados por content.ts nem pelo HTML5. Não considerar o bloco 5 aceito nem os blocos 6–10 implementados.
+5. Concluído (retomado do checkpoint WIP `c20091b` por outra sessão): controlador de reprodução revisado — `repeat` recusa snapshot de outra sessão, chamadas ao driver têm prazo (fila nunca fica pendurada), `toggle`/`pause` confirmam o novo estado no `<video>` antes da próxima pressão, alvo pendente vale para A/D/S em sequência. Ponte Netflix com ação fechada `probe` (verifica `play`/`pause` sem chamá-los); `NetflixAdapter.canPlayPause()` só fica verdadeiro após a resposta, então o Espaço continua com a Netflix até lá. Contexto de estudo com fala ao vivo/segurada/retida e conversão para frase `sentence`. Código do WIP reescrito no estilo do repositório. Typecheck, 360 testes em 27 arquivos e build aprovados. Ainda sem integração ao teclado (bloco 6).
 
 ## Validação do checkpoint de transferência
 

@@ -1,5 +1,8 @@
 import { handleNetflixSeekRequests } from "../core/netflix-bridge.ts";
-// Re-injection replaces the previous MAIN listener; no extension privileges.
-const owner = window as Window & { __sfNetflixBridge?: () => void };
-owner.__sfNetflixBridge?.();
-owner.__sfNetflixBridge = handleNetflixSeekRequests(window);
+
+// Runs in Netflix's own page world (manifest "world": "MAIN"); see
+// src/core/netflix-bridge.ts for why seeking cannot happen from content.ts.
+// A re-injection replaces the previous listener instead of adding a second.
+const page = window as Window & { __sfNetflixBridge?: () => void };
+page.__sfNetflixBridge?.();
+page.__sfNetflixBridge = handleNetflixSeekRequests(window);

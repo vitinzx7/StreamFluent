@@ -120,15 +120,77 @@ describe("seeking Netflix through its own player", () => {
 
 
 describe("Netflix playback actions", () => {
+  function withPlayback() {
+    const players = fakeNetflix();
+    const player = players.get("watch-123")! as { seek: ReturnType<typeof vi.fn>; play?: ReturnType<typeof vi.fn>; pause?: ReturnType<typeof vi.fn> };
+    player.play = vi.fn();
+    player.pause = vi.fn();
+    uninstall = handleNetflixSeekRequests(window);
+    return player;
+  }
+
+  it("plays and pauses through Netflix's own player", async () => {
+    const player = withPlayback();
+
+    expect(await requestNetflixAction("pause")).toBe(true);
+    expect(await requestNetflixAction("play")).toBe(true);
+    expect(player.pause).toHaveBeenCalledOnce();
+    expect(player.play).toHaveBeenCalledOnce();
+  });
+
+  it("probes for play/pause without calling them", async () => {
+    const player = withPlayback();
+
+    expect(await requestNetflixAction("probe")).toBe(true);
+    expect(player.play).not.toHaveBeenCalled();
+    expect(player.pause).not.toHaveBeenCalled();
+  });
+
   it("fails safely when an undocumented method is missing", async () => {
-    fakeNetflix(); uninstall = handleNetflixSeekRequests(window);
+    fakeNetflix();
+    uninstall = handleNetflixSeekRequests(window);
+
+    expect(await requestNetflixAction("probe")).toBe(false);
     expect(await requestNetflixAction("play")).toBe(false);
     expect(await requestNetflixAction("pause")).toBe(false);
   });
-  it("rejects arbitrary methods, extra fields and obsolete sessions", () => {
-    const players = fakeNetflix(); uninstall = handleNetflixSeekRequests(window);
-    for (const value of [{ id: 3, path: "/", action: "eval" }, { id: 3, path: "/", action: "play", ms: 4 }, { id: 3, path: "/", action: "seek", ms: 5, code: "bad" }]) expect(decodeSeekRequest(JSON.stringify(value))).toBeNull();
-    document.dispatchEvent(new CustomEvent(SEEK_REQUEST_EVENT, { detail: JSON.stringify({ id: 5, path: "/obsolete", action: "seek", ms: 4000 }) }));
-    expect(players.get("watch-123")!.seek).not.toHaveBeenCalled();
+
+  it("rejects arbitrary methods and extra fields", () => {
+    for (const value of [
+      { id: 3, path: "/", action: "eval" },
+      { id: 3, path: "/", action: "constructor" },
+      { id: 3, path: "/", action: "play", ms: 4 },
+      { id: 3, path: "/", action: "seek", ms: 5, code: "bad" },
+      { id: 0, path: "/", action: "pause" },
+      { id: 3, path: "relative", action: "pause" },
+    ]) {
+      expect(decodeSeekRequest(JSON.stringify(value))).toBeNull();
+    }
+  });
+
+  it("ignores a request made for another episode", async () => {
+    const player = withPlayback();
+    const answers: string[] = [];
+    const listen = (event: Event) => answers.push((event as CustomEvent<string>).detail);
+    document.addEventListener(SEEK_RESULT_EVENT, listen);
+
+    document.dispatchEvent(new CustomEvent(SEEK_REQUEST_EVENT, {
+      detail: JSON.stringify({ id: 5, path: "/watch/obsolete", action: "seek", ms: 4000 }),
+    }));
+    await vi.waitFor(() => expect(answers).toHaveLength(1));
+
+    document.removeEventListener(SEEK_RESULT_EVENT, listen);
+    expect(player.seek).not.toHaveBeenCalled();
+    expect(JSON.parse(answers[0])).toEqual({ id: 5, ok: false });
+  });
+
+  it("does not count an answer that arrives after the episode changed", async () => {
+    withPlayback();
+    window.history.replaceState({}, "", "/watch/1");
+    const result = requestNetflixAction("pause");
+    window.history.replaceState({}, "", "/watch/2");
+
+    expect(await result).toBe(false);
+    window.history.replaceState({}, "", "/");
   });
 });

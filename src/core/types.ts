@@ -82,6 +82,8 @@ export interface StreamingAdapter {
   seekTo?(seconds: number): Promise<boolean>;
   play?(): Promise<boolean>;
   pause?(): Promise<boolean>;
+  /** Synchronous: whether play/pause are known to work right now. */
+  canPlayPause?(): boolean;
 }
 
 export interface StorageSchema {

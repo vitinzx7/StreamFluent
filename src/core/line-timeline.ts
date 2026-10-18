@@ -23,6 +23,14 @@ const WATCHED_SLACK = 1;
 /** With no recorded end, a line is assumed to last at most this long. */
 const MAX_OPEN_LINE = 10;
 
+/** The line on screen, as recorded. */
+export interface CurrentLine {
+  start: number;
+  end: number | null;
+  /** End of the line before, when it ended no later than this one started. */
+  previousEnd?: number;
+}
+
 interface TimedLine {
   text: string;
   start: number;
@@ -41,7 +49,8 @@ export interface LineTimeline {
   played(from: number, to: number): void;
   /** Where "back one line" should land from `time`, or null when unknown. */
   backTarget(time: number): number | null;
-  current(): { start: number; end: number | null; previousEnd?: number } | null;
+  /** The line on screen, or null in silence or after a jump. */
+  current(): CurrentLine | null;
   clear(): void;
   readonly size: number;
 }
@@ -159,10 +168,12 @@ export function createLineTimeline(): LineTimeline {
       return null;
     },
 
-    current() {
+    current(): CurrentLine | null {
       if (!showing) return null;
       const before = lines[lines.indexOf(showing) - 1];
-      return { start: showing.start, end: showing.end, ...(before?.end != null && before.end <= showing.start ? { previousEnd: before.end } : {}) };
+      const line: CurrentLine = { start: showing.start, end: showing.end };
+      if (before?.end != null && before.end <= showing.start) line.previousEnd = before.end;
+      return line;
     },
 
     clear(): void {

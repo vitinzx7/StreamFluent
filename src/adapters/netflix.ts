@@ -30,10 +30,21 @@ const EPISODE_SELECTORS = [
   "[class*='episode']",
 ];
 
+/** After Netflix's player said it has no play/pause, ask again this much later. */
+const PROBE_RETRY_MS = 5000;
+
+interface PlaybackProbe {
+  video: HTMLVideoElement | null;
+  path: string;
+  state: "unknown" | "asking" | "yes" | "no";
+  at: number;
+}
+
 export class NetflixAdapter implements StreamingAdapter {
   name = "Netflix";
   private observer: MutationObserver | null = null;
   private lastText: string | null = null;
+  private probe: PlaybackProbe = { video: null, path: "", state: "unknown", at: 0 };
 
   isSupportedPage(): boolean {
     return location.hostname.includes("netflix.com");
@@ -127,11 +138,42 @@ export class NetflixAdapter implements StreamingAdapter {
    * so this goes through its own player API, reachable only from the page's
    * JavaScript world — see src/core/netflix-bridge.ts.
    */
-  play(): Promise<boolean> { return requestNetflixAction("play"); }
-  pause(): Promise<boolean> { return requestNetflixAction("pause"); }
-
   seekTo(seconds: number): Promise<boolean> {
     return requestNetflixSeek(seconds);
+  }
+
+  play(): Promise<boolean> {
+    return requestNetflixAction("play");
+  }
+
+  pause(): Promise<boolean> {
+    return requestNetflixAction("pause");
+  }
+
+  /**
+   * Whether Netflix's player is known to have play/pause. The API is
+   * undocumented, so this is asked at runtime (once per video and episode,
+   * again a few seconds after a "no") and stays false until it answered —
+   * Space is left to Netflix's own handler meanwhile.
+   */
+  canPlayPause(): boolean {
+    const video = this.getVideo();
+    if (!video) return false;
+    const path = location.pathname;
+    if (this.probe.video !== video || this.probe.path !== path) {
+      this.probe = { video, path, state: "unknown", at: 0 };
+    }
+    const probe = this.probe;
+    const stale = probe.state === "no" && Date.now() - probe.at > PROBE_RETRY_MS;
+    if (probe.state === "unknown" || stale) {
+      probe.state = "asking";
+      void requestNetflixAction("probe").then((ok) => {
+        if (this.probe !== probe) return;
+        probe.state = ok ? "yes" : "no";
+        probe.at = Date.now();
+      });
+    }
+    return probe.state === "yes";
   }
 
   getMediaMetadata(): MediaMetadata | null {

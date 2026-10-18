@@ -72,6 +72,34 @@ describe("seeking", () => {
     expect(writes).toEqual([]);
   });
 
+  it("Netflix reports a missing bridge as a failure and still never writes the time", async () => {
+    vi.useFakeTimers();
+    const { writes } = trackedVideo();
+    const adapter = new NetflixAdapter();
+
+    const seek = adapter.seekTo(12.5);
+    const pause = adapter.pause();
+    await vi.advanceTimersByTimeAsync(1000);
+
+    expect(await seek).toBe(false);
+    expect(await pause).toBe(false);
+    expect(writes).toEqual([]);
+  });
+
+  it("Netflix leaves Space alone until its player confirms play/pause", async () => {
+    trackedVideo();
+    const answer = (event: Event) => {
+      const { id, action } = JSON.parse((event as CustomEvent<string>).detail) as { id: number; action: string };
+      document.dispatchEvent(new CustomEvent(SEEK_RESULT_EVENT, { detail: JSON.stringify({ id, ok: action === "probe" }) }));
+    };
+    document.addEventListener(SEEK_REQUEST_EVENT, answer);
+    const adapter = new NetflixAdapter();
+
+    expect(adapter.canPlayPause()).toBe(false);
+    await vi.waitFor(() => expect(adapter.canPlayPause()).toBe(true));
+    document.removeEventListener(SEEK_REQUEST_EVENT, answer);
+  });
+
   it("Max seeks the video element directly", async () => {
     const { writes } = trackedVideo();
 

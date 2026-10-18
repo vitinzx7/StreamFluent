@@ -116,10 +116,34 @@ export class MaxAdapter implements StreamingAdapter {
     return document.querySelector("video");
   }
 
-  /** Assumes Max's player tolerates a direct seek — not verified on the real site. */
-  async play(): Promise<boolean> { try { const video = this.getVideo(); if (!video) return false; await video.play(); return !video.paused; } catch { return false; } }
-  async pause(): Promise<boolean> { try { const video = this.getVideo(); if (!video) return false; video.pause(); return video.paused; } catch { return false; } }
+  /** Assumes Max's player tolerates direct play/pause — not verified on the real site. */
+  async play(): Promise<boolean> {
+    const video = this.getVideo();
+    if (!video) return false;
+    try {
+      await video.play();
+      return !video.paused;
+    } catch {
+      return false;
+    }
+  }
 
+  async pause(): Promise<boolean> {
+    const video = this.getVideo();
+    if (!video) return false;
+    try {
+      video.pause();
+      return video.paused;
+    } catch {
+      return false;
+    }
+  }
+
+  canPlayPause(): boolean {
+    return !!this.getVideo();
+  }
+
+  /** Assumes Max's player tolerates a direct seek — not verified on the real site. */
   async seekTo(seconds: number): Promise<boolean> {
     const video = this.getVideo();
     if (!video || !Number.isFinite(seconds)) return false;
