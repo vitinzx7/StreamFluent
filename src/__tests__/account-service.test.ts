@@ -119,6 +119,31 @@ describe("optional account sync through the serialized study service", () => {
     release(); await flight; await signing;
     expect(server.remote.signIn).toHaveBeenCalledTimes(count + 1);
   });
+  it("keeps the merge baseline across worker restart and still recognizes delete/edit conflicts", async () => {
+    await mark("difficult"); await login(); await enable(); await mark("learned");
+    const saved = structuredClone(worker.storage);
+    server.data = { revision: 2, document: emptyDocument() };
+    setup(saved); await account.sync();
+    expect((await call("status")).conflictCount).toBe(1);
+    expect((worker.storage.vocabulary as StudyDocument["vocabulary"]).languages.en.marks.hello).toBe("learned");
+  });
+  it("recovers when the server commits but its response is lost", async () => {
+    await login(); await enable(); await mark("difficult");
+    const original = server.remote.write;
+    vi.mocked(server.remote.write).mockImplementationOnce(async (r, d) => { await original(r, d); throw new Error("response lost"); });
+    await account.sync(); expect((await call("status")).synchronized).toBe(false);
+    const revision = server.data!.revision;
+    await account.sync(); expect(server.data!.revision).toBe(revision);
+    expect((await call("status")).synchronized).toBe(true);
+  });
+  it("recovers without a false success if local persistence fails after a cloud commit", async () => {
+    await login(); await enable(); await mark("difficult");
+    const original = server.remote.write;
+    vi.mocked(server.remote.write).mockImplementationOnce(async (r, d) => { const result = await original(r, d); worker.failNextWrite(); return result; });
+    await account.sync(); expect((await call("status")).synchronized).toBe(false);
+    expect((worker.storage.vocabulary as StudyDocument["vocabulary"]).languages.en.marks.hello).toBe("difficult");
+    await account.sync(); expect((await call("status")).synchronized).toBe(true);
+  });
   it("validates backup and imports without silently replacing local conflicts", async () => {
     await mark("learned"); const incoming = studyDocument({ vocabulary: { en: { seen: [], marks: { hello: "difficult", other: "learned" } } } });
     const result = await call("import", { text: makeBackup(incoming), includeSettings: false });

@@ -17,6 +17,7 @@ const shared = {
 };
 
 const entries = {
+  account: "src/account/account.ts",
   content: "src/content/content.ts",
   background: "src/background/background.ts",
   "player-test": "src/content/player-test.ts",

@@ -1,0 +1,28 @@
+<!doctype html>
+<html lang="pt-BR">
+<head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>StreamFluent — Conta e backup</title>
+<link rel="stylesheet" href="account.css"></head>
+<body><main>
+<a href="library.html">← Biblioteca</a><h1>Conta e backup</h1>
+<p>Seu estudo fica salvo neste dispositivo. Você escolhe se quer também guardar uma cópia na sua conta.</p>
+<section aria-labelledby="state-title"><h2 id="state-title">Onde estão meus dados?</h2><p id="state" role="status" aria-live="polite">Carregando…</p><p id="account"></p><p id="last-sync"></p><p id="error" role="alert"></p></section>
+<section aria-labelledby="login-title" id="login-section"><h2 id="login-title">Entrar por e-mail</h2>
+<form id="login"><label>E-mail<input id="email" type="email" autocomplete="username" maxlength="254" required></label>
+<label>Senha<input id="password" type="password" autocomplete="current-password" minlength="8" maxlength="256" required></label>
+<button type="submit">Entrar</button><button type="button" id="signup">Criar conta</button></form>
+<p>Para criar uma conta, use uma senha de pelo menos 8 caracteres. Se o projeto exigir confirmação, confirme o e-mail antes de entrar. Entrar não ativa a sincronização.</p>
+<p>Se esta biblioteca já estiver vinculada a outra conta, use outro perfil Chrome para mantê-las separadas.</p></section>
+<section aria-labelledby="sync-title" id="sync-section" hidden><h2 id="sync-title">Sincronização opcional</h2>
+<label class="consent"><input type="checkbox" id="consent">Quero enviar e restaurar minhas frases, palavras difíceis/aprendidas, contextos (incluindo título/episódio e traduções salvas) e preferências pela minha conta no Supabase do StreamFluent.</label>
+<p>Os provedores de tradução não recebem sua biblioteca. O histórico de palavras apenas vistas fica no dispositivo. Seus dados da conta continuam lá após sair ou desinstalar.</p>
+<button id="enable">Ativar e restaurar/sincronizar</button><button id="sync">Sincronizar agora</button><button id="disable">Pausar sincronização</button><button id="signout">Sair</button>
+<p>Pausar interrompe os próximos envios; uma solicitação já enviada pode terminar. Ao ativar novamente, exclusões e alterações feitas neste dispositivo também serão comparadas com a conta.</p></section>
+<section id="conflict-section" hidden aria-labelledby="conflict-title"><h2 id="conflict-title">Escolha o que preservar</h2><p>As duas cópias mudaram. Nenhuma delas será substituída até sua escolha. “Excluído” significa remover esse item.</p><div id="conflicts"></div><button id="resolve">Aplicar escolhas e sincronizar</button></section>
+<section aria-labelledby="backup-title"><h2 id="backup-title">Backup em arquivo</h2>
+<p>O JSON contém dados pessoais em texto. Guarde em um local seguro. Não contém senha, sessão ou tokens. Histórico de palavras apenas vistas não é incluído.</p>
+<button id="export">Exportar backup</button><label>Importar JSON (até 4 MB)<input id="import-file" type="file" accept=".json,application/json"></label>
+<label class="consent"><input id="import-settings" type="checkbox">Incluir preferências do arquivo quando não conflitam com as atuais</label>
+<p>A importação adiciona itens. Em conflitos, mantém a versão local e informa quantos itens foram mantidos. Com a sincronização ativa, as adições também serão enviadas no próximo ciclo. Você pode usar “Sincronizar agora”.</p>
+<p id="import-preview"></p><button id="import" disabled>Confirmar importação</button></section>
+<p id="feedback" role="status" aria-live="polite"></p>
+</main><script src="account.js"></script></body></html>

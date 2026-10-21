@@ -34,3 +34,12 @@ Fontes oficiais consultadas: changelog Supabase (incluindo mudanças TLS/PG 17.1
 ## Evidências
 
 Plano registrado antes da alteração arquitetural. Resultados C1–C4 serão acrescentados ao progresso. Testes unitários, isolamento SQL no Supabase e browser/player real serão descritos separadamente.
+
+Implementação C1–C4 registrada no progresso. Limites deliberados: um perfil Chrome por conta; sem Google OAuth, sem criptografia ponta a ponta e sem upload de arquivos de legenda/histórico `seen`. O estado remoto é um documento pessoal limitado a 4 MB, adequado ao escopo atual; migrar para itens separados exige novo contrato e testes de migração, não trocar o formato silenciosamente.
+
+Documentação oficial consultada:
+- https://supabase.com/changelog.md
+- https://supabase.com/docs/guides/auth/passwords
+- https://supabase.com/docs/guides/auth/row-level-security
+- https://supabase.com/docs/guides/api/securing-your-api
+- https://developer.chrome.com/docs/extensions/reference/api/storage

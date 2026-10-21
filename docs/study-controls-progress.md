@@ -39,3 +39,27 @@ Plano em `docs/account-sync-plan.md` (commit `66699d2`). C1: documento versionad
 C2: migração `account_study_sync` aplicada pelo MCP ao projeto confirmado. `supabase/tests/account_rls.sql` executado no banco real em transação com rollback: 8 verificações aprovadas (CAS, inserção cruzada, troca de dono, leitura/update/RPC cruzados, isolamento B, DELETE, SELECT e RPC anônimos). Fixtures sintéticas, sem sessões/e-mails reais. Advisor de segurança retornou zero lints. Ainda não é teste de login HTTP nem de Chrome. C1 commit: `101b33d`.
 
 C3: cliente Supabase fixado em `2.118.0`, login/cadastro por e-mail e senha, consentimento separado, sincronização com revisão condicional, fila local compartilhada, base durável e resolução explícita de conflitos implementados. Logout não exclui conta e bloqueio de mistura de contas no mesmo perfil. Sessões no storage restrito a contextos confiáveis; players recebem apenas invalidação de settings/vocabulário e releem pelo protocolo validado. Rede da conta limitada ao projeto e caminhos Auth/Data necessários, sem cookies e sem redirects. Testes de falhas/reinício/restauração controlada, CAS, exclusão, importação, fronteiras de mensagens/rede e edição durante envio adicionados. Suíte parcial de referência: 357 testes/30 arquivos, typecheck e build aprovados. Sem login real de usuário e sem player real nesta etapa.
+
+C4: página Conta e backup acessível pelo popup e biblioteca, com consentimento, estados distintos de salvamento, data da última confirmação, escolha explícita de conflitos e prévia/confirmação de importação. Documentação AGENTS/README/retomada atualizada. C2 commit: `ba7d09c`; C3 commit: `4416d13`.
+
+### Verificação final do objetivo de conta
+
+- `npm ci --no-audit --no-fund`: aprovado com o lockfile; nenhuma versão de dependência existente alterada. Nova dependência direta fixada em `@supabase/supabase-js@2.118.0`.
+- `npm run typecheck`: aprovado.
+- `npm test -- --maxWorkers=2`: **366 testes em 31 arquivos aprovados**. Inclui reinício com base durável, resposta perdida após commit remoto, falha de gravação local após commit remoto, SDK real com HTTP/storage controlados, fronteiras de rede, conflito/exclusão e interface em jsdom.
+- `npm run build` e `git diff --check`: aprovados. Cinco bundles; `dist/` e `node_modules/` não versionados.
+- Supabase real: 8 verificações SQL de isolamento/revisão aprovadas; advisor de segurança sem lints. Consulta posterior confirmou zero documentos de conta e zero usuários de teste remanescentes. Nenhuma biblioteca pessoal foi enviada durante desenvolvimento.
+- API pública Auth consultada com chave publicável: e-mail habilitado, cadastro permitido, confirmação obrigatória; Google desabilitado. Não houve cadastro, envio de e-mail ou login real.
+- Chrome/Playwright: navegador ausente; tentativa de instalar Chromium falhou com download truncado. **Não executado:** Chrome com extensão carregada, e-mail/SMTP real, alarmes MV3, eventos entre abas após restrição do storage, instalação/reinstalação real ou players Netflix/Max/Cinetaro. DOM controlado não comprova esses itens.
+- Implementação C1–C4 presente; aceite de ponta a ponta ainda depende da lista manual abaixo. Nenhum merge ou publicação da extensão. Blocos de controles 5–10 seguem pendentes conforme o checkpoint original.
+
+### Próxima validação manual de conta
+
+1. Gerar `dist/`, recarregar extensão e abas de streaming; conferir a nova permissão exata do projeto Supabase.
+2. Sem login, salvar frase e difícil offline, exportar/importar backup; conferir cópia local e ausência de requests para Supabase.
+3. Criar conta com endereço próprio, confirmar e-mail e entrar. Conferir que login sozinho não envia dados. Se o e-mail não chegar, verificar configuração Auth/SMTP do projeto; não remover confirmação para contornar isso.
+4. Aceitar consentimento, ativar e conferir o estado sincronizado; em outro perfil/dispositivo entrar na mesma conta e restaurar. Não desinstalar a única cópia antes da confirmação da conta ou de obter backup.
+5. Em dois perfis da mesma conta, testar edição offline contra exclusão e duas alterações na mesma marca; conferir escolha explícita e rejeição de escolha antiga após nova alteração.
+6. Testar falha de rede, reconexão, suspensão/reinício do worker e atualização por alarmes. Verificar cores/preferências em duas abas e biblioteca com local storage restrito, sem tokens em scripts de player.
+7. Sair/desinstalar um perfil descartável e confirmar que os dados sincronizados continuam na conta; reinstalar e restaurar. Conta diferente no mesmo perfil deve ser bloqueada. Não reutilizar o perfil principal para este teste.
+8. Repetir validações de reprodução dos controles em players reais separadamente; conta não altera DRM, arquivos de legenda ou ponte Netflix.

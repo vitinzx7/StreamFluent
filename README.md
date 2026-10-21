@@ -7,7 +7,7 @@ Extensão Chrome Manifest V3 para estudar idiomas com legendas. Netflix e Max us
 ## Instalar e recarregar
 
 ```bash
-npm install
+npm ci --no-audit --no-fund
 npm run typecheck
 npm test
 npm run build
@@ -18,6 +18,25 @@ npm run build
 3. Recarregue também a aba do streaming para substituir o content script antigo. Se o navegador solicitar o novo acesso a `cinextream.cc`, conceda esse domínio para conectar o player incorporado.
 
 `npm run watch` recompila os bundles; alterações em `public/` exigem um novo build. Não há comando de lint.
+
+## Conta, sincronização e backup
+
+Abra **Conta e backup** no popup ou na biblioteca. O modo padrão continua somente neste dispositivo.
+
+1. Crie uma conta com e-mail/senha; confirme o e-mail antes de entrar (a API do projeto confirmou e-mail habilitado, cadastro aberto e confirmação obrigatória). Login não envia sua biblioteca.
+2. Leia e marque o consentimento. **Ativar e restaurar/sincronizar** combina frases salvas, palavras difíceis/aprendidas e preferências com a conta. Inclui os contextos e traduções já salvos, nunca os arquivos SRT/VTT completos nem o histórico de palavras apenas vistas.
+3. Confira **Salvo neste dispositivo** e **Sincronizado na conta** separadamente. Edições locais confirmadas continuam disponíveis offline. Após alterações, um alarme tenta sincronizar em aproximadamente 30–60 segundos; outro tenta/puxa atualizações a cada 5 minutos. **Sincronizar agora** força uma tentativa. A confirmação mostra data/hora, pendências, erros ou conflitos.
+4. Ao instalar em outro computador ou reinstalar, entre na mesma conta e ative a sincronização para restaurar os dados **já sincronizados**. Desinstalar ou sair não remove a cópia da conta. Dados que ficaram somente no dispositivo exigem um backup prévio.
+5. Mudanças em dispositivos diferentes são comparadas com a última base confirmada. Exclusões contra itens inalterados são propagadas; edição contra exclusão ou duas edições distintas exige escolher por item entre dispositivo e conta. Revisões condicionais rejeitam envios desatualizados. Não há regra de “última data vence”.
+6. **Exportar backup** gera JSON pessoal sem senha/sessão/tokens. A importação (até 4 MB) é aditiva, tem prévia e confirmação, mantém a versão local nos conflitos e informa quantos manteve. Preferências do arquivo só participam mediante opção explícita. Com sincronização ativa, as adições também serão sincronizadas.
+
+Uma biblioteca fica vinculada à primeira conta usada no perfil Chrome. Sair conserva dados e vínculo. Para outra conta, use outro perfil Chrome; não há troca automática que possa enviar os dados da conta anterior. Google OAuth não está implementado e está desabilitado no projeto.
+
+O Supabase usado é `ttzpioosgfacsutwmhif` (Streamfluent). A migração versionada está em `supabase/migrations/`; **já foi aplicada neste projeto**. Não a reaplique manualmente. `supabase/tests/account_rls.sql` verifica isolamento com duas identidades sintéticas e papel anônimo em transação com rollback. Não são criadas sessões nem enviados e-mails nesse teste.
+
+Não há segredo de backend para configurar na extensão: URL/chave publicável identificam o destino, e o banco exige sessão e RLS. Se usar outro projeto, configure Auth, aplique a migração e atualize juntos a URL/chave publicável do worker e a permissão exata do manifesto. Nunca use `service_role`, senha do banco ou chave administrativa.
+
+**Validação desta integração:** consulte `docs/study-controls-progress.md`. Lógica/DOM e SDK com HTTP controlado foram testados; RLS e CAS foram testados no Supabase real. Cadastro, recebimento/confirmação do e-mail, login em Chrome, notificações entre abas sob storage restrito, alarmes MV3 e restauração após reinstalação real ainda precisam de validação manual. O Chrome não estava disponível e seu download falhou neste ambiente. Não foi enviado e-mail de teste. Se o provedor padrão de e-mail limitar destinatários, configure o SMTP do projeto antes de disponibilizar cadastro para terceiros.
 
 ## Usar no Cinetaro / HTML5
 
@@ -55,17 +74,17 @@ Checklist manual ainda pendente neste ambiente:
 
 Os testes automatizados usam DOM e respostas de rede controladas. Eles não substituem reprodução em Chrome nem comprovam CORS, políticas de fullscreen ou estrutura dos sites reais. Uma chamada isolada ao endpoint Google respondeu `Bom dia.` para `Good morning.` durante o desenvolvimento; isso não garante disponibilidade contínua.
 
-Validação desta entrega: **225 testes em 17 arquivos passaram**, assim como `npm run typecheck`, `npm run build` e `git diff --check`. Inclui regressões DOM de Netflix/Max, importação, ajuste, respostas antigas, transporte, diagnóstico de frames e limpeza. Reprodução manual em navegador continua pendente.
+Validação histórica anterior aos controles de estudo: **225 testes em 17 arquivos passaram**, assim como `npm run typecheck`, `npm run build` e `git diff --check`. Inclui regressões DOM de Netflix/Max, importação, ajuste, respostas antigas, transporte, diagnóstico de frames e limpeza. Reprodução manual em navegador continua pendente.
 
 ## Privacidade e rede
 
 - Sem download de streaming, contorno de DRM, telemetria ou análise de áudio.
-- As únicas APIs externas são `clients5.google.com` e `api.mymemory.translated.net` para tradução, e `api.dictionaryapi.dev` para definições em inglês.
-- Saem somente a fala atual e, no fluxo de consulta, a palavra selecionada. Título, episódio, biblioteca e arquivo completo não são enviados.
+- Tradução/dicionário continuam restritos a `clients5.google.com`, `api.mymemory.translated.net` e `api.dictionaryapi.dev`. A conta opcional usa exclusivamente `ttzpioosgfacsutwmhif.supabase.co` para Auth/Data API.
+- Aos tradutores saem somente a fala atual e a palavra consultada. Título, episódio, biblioteca e arquivo completo não são enviados aos provedores. À conta Supabase, somente após consentimento, vão os itens pessoais e preferências descritos acima.
 - Tradução no modo HTML5 exige ativação visível. Não há tradução antecipada ou em lote.
 - O worker valida destinos, usa timeout por provedor e não envia cookies nem segue redirecionamentos.
-- Frases salvas ficam em `chrome.storage.local`; não são sincronizadas.
-- Não há chaves ou assinatura nova. O endpoint Google é não documentado e pode recusar chamadas ou mudar. MyMemory possui limites próprios. Nenhum deles tem disponibilidade ou uso ilimitado garantido.
+- O worker é o único gravador dos dados de estudo. `chrome.storage.local` é restrito a contextos confiáveis; scripts de players recebem invalidações sem tokens e usam mensagens validadas para reler settings/vocabulário. A sincronização é opcional e pode ser pausada.
+- A única chave distribuída é a publicável do Supabase. Não há chave administrativa na extensão. O endpoint Google é não documentado e pode recusar chamadas ou mudar. MyMemory possui limites próprios. Nenhum deles tem disponibilidade ou uso ilimitado garantido.
 
 ## Limitações
 
@@ -75,6 +94,10 @@ Validação desta entrega: **225 testes em 17 arquivos passaram**, assim como `n
 - A versão HTML5 não inclui o cartão de palavras/biblioteca do fluxo Netflix/Max.
 - Os seletores DOM da Netflix/Max continuam sujeitos a mudanças dos sites.
 - A detecção de episódio usa URL e fonte do vídeo. Players que trocam conteúdo mantendo ambos exigem integração específica.
+
+## Continuidade dos controles de estudo
+
+Os blocos 1–4 estão implementados; bloco 5 permanece parcial; 6–10 permanecem pendentes. A integração de conta é o objetivo adicional C1–C4 e não conclui atalhos, auto-pause ou palavras interativas no HTML5. Leia `docs/CONTINUAR-AQUI.md`, `docs/study-controls-progress.md` e `docs/account-sync-plan.md` antes de continuar. Nunca usar `video.currentTime` como fallback na Netflix.
 
 ## Código
 

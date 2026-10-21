@@ -2,6 +2,10 @@
 
 Este é um **checkpoint de trabalho incompleto**, criado a pedido do usuário para outra IA continuar sem depender do chat anterior.
 
+## Objetivo adicional de conta
+
+Após este checkpoint foi implementada a integração opcional C1–C4. Leia `account-sync-plan.md` e o fim de `study-controls-progress.md`. O projeto Supabase foi consultado e a migração foi aplicada ao projeto Streamfluent `ttzpioosgfacsutwmhif`, com RLS testada. Conta e backup abre pelo popup/biblioteca. Login por e-mail/senha, consentimento separado, restauração, conflitos e exportação/importação estão no código; validação manual de Chrome/SMTP e players reais permanece pendente. Esta integração não conclui o bloco 5 nem os blocos 6–10. O pedido atual permite o destino opcional Supabase, sem enviar biblioteca/metadados aos tradutores.
+
 ## Prompt pronto para a próxima IA
 
 > Continue a implementação do StreamFluent na branch `feat/study-controls-vocabulary`. Leia `AGENTS.md`, este arquivo, `docs/study-controls-progress.md` e a especificação integral em `docs/StreamFluent-especificacao-implementacao.md`. Os blocos 1–4 foram implementados e commitados; o bloco 5 tem uma implementação inicial preservada como WIP e ainda precisa de revisão e integração. Retome pelo bloco 5, depois execute os blocos 6–10 e a matriz de aceite. Preserve os commits e o trabalho existentes, execute os testes relevantes e registre resultados reais. Não reinicie o projeto nem declare os controles concluídos só porque os módulos unitários existem. Não faça merge ou publique a extensão sem um novo pedido do usuário.
@@ -157,10 +161,10 @@ Rodar typecheck, suíte completa e build. Inspecionar manifesto e bundles; não 
 
 ## Restrições a preservar
 
-- Nenhum download de vídeo/DRM, telemetria ou nova API externa.
+- Nenhum download de vídeo/DRM ou telemetria. Além dos provedores, somente o Supabase opcional e visível do plano de conta.
 - Manter os três hosts atuais de tradução/dicionário; Linglify/Oxford são procedência local, não chamadas de runtime.
 - Sem novas permissões wildcard, clipboardRead ou chave de API inventada.
-- Estado pessoal somente local; não enviar biblioteca/metadados a provedores.
+- Estado pessoal local por padrão; sincronização Supabase somente após consentimento. Nunca enviar biblioteca/metadados aos provedores de tradução.
 - Marcas pessoais e frases são independentes; excluir uma não apaga a outra.
 - Especiais só em inglês; learned/difficult exclusivos; remover marca conserva seen.
 - Validar storage/mensagens e schema futuro; não apagar legado em falhas.
