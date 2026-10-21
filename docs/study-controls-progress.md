@@ -34,13 +34,13 @@ Esses resultados validam o código presente e os testes controlados, não a conc
 
 ## Objetivo adicional: conta e sincronização
 
-Plano em `docs/account-sync-plan.md` (commit `66699d2`). C1: documento versionado, backup estrito e merge em três vias implementados; 7 testes direcionados e typecheck passaram. Histórico de palavras não marcadas excluído do documento. Controles 5–10 mantêm os estados anteriores.
+Plano em `docs/account-sync-plan.md` (commit `ecea4f7`). C1: documento versionado, backup estrito e merge em três vias implementados; 7 testes direcionados e typecheck passaram. Histórico de palavras não marcadas excluído do documento. Controles 5–10 mantêm os estados anteriores.
 
-C2: migração `account_study_sync` aplicada pelo MCP ao projeto confirmado. `supabase/tests/account_rls.sql` executado no banco real em transação com rollback: 8 verificações aprovadas (CAS, inserção cruzada, troca de dono, leitura/update/RPC cruzados, isolamento B, DELETE, SELECT e RPC anônimos). Fixtures sintéticas, sem sessões/e-mails reais. Advisor de segurança retornou zero lints. Ainda não é teste de login HTTP nem de Chrome. C1 commit: `101b33d`.
+C2: migração `account_study_sync` aplicada pelo MCP ao projeto confirmado. `supabase/tests/account_rls.sql` executado no banco real em transação com rollback: 8 verificações aprovadas (CAS, inserção cruzada, troca de dono, leitura/update/RPC cruzados, isolamento B, DELETE, SELECT e RPC anônimos). Fixtures sintéticas, sem sessões/e-mails reais. Advisor de segurança retornou zero lints. Ainda não é teste de login HTTP nem de Chrome. C1 commit: `5a34a77`.
 
 C3: cliente Supabase fixado em `2.118.0`, login/cadastro por e-mail e senha, consentimento separado, sincronização com revisão condicional, fila local compartilhada, base durável e resolução explícita de conflitos implementados. Logout não exclui conta e bloqueio de mistura de contas no mesmo perfil. Sessões no storage restrito a contextos confiáveis; players recebem apenas invalidação de settings/vocabulário e releem pelo protocolo validado. Rede da conta limitada ao projeto e caminhos Auth/Data necessários, sem cookies e sem redirects. Testes de falhas/reinício/restauração controlada, CAS, exclusão, importação, fronteiras de mensagens/rede e edição durante envio adicionados. Suíte parcial de referência: 357 testes/30 arquivos, typecheck e build aprovados. Sem login real de usuário e sem player real nesta etapa.
 
-C4: página Conta e backup acessível pelo popup e biblioteca, com consentimento, estados distintos de salvamento, data da última confirmação, escolha explícita de conflitos e prévia/confirmação de importação. Documentação AGENTS/README/retomada atualizada. C2 commit: `ba7d09c`; C3 commit: `4416d13`.
+C4: página Conta e backup acessível pelo popup e biblioteca, com consentimento, estados distintos de salvamento, data da última confirmação, escolha explícita de conflitos e prévia/confirmação de importação. Documentação AGENTS/README/retomada atualizada. C2 commit: `308a7f2`; C3 commit: `f5c743c`.
 
 ### Verificação final do objetivo de conta
 
@@ -63,3 +63,15 @@ C4: página Conta e backup acessível pelo popup e biblioteca, com consentimento
 6. Testar falha de rede, reconexão, suspensão/reinício do worker e atualização por alarmes. Verificar cores/preferências em duas abas e biblioteca com local storage restrito, sem tokens em scripts de player.
 7. Sair/desinstalar um perfil descartável e confirmar que os dados sincronizados continuam na conta; reinstalar e restaurar. Conta diferente no mesmo perfil deve ser bloqueada. Não reutilizar o perfil principal para este teste.
 8. Repetir validações de reprodução dos controles em players reais separadamente; conta não altera DRM, arquivos de legenda ou ponte Netflix.
+
+### Commits do objetivo adicional no GitHub
+
+| Etapa | Commit |
+|---|---|
+| Plano antes da alteração arquitetural | `ecea4f7872ddbc061395c6cfcb0a55aa3e6212bd` |
+| C1 — documento/backup/merge | `5a34a77b4445632d0972a1bb53c2222f8bb77b5d` |
+| C2 — banco/RLS | `308a7f24f27c2886c9b120614d1ffc58ebffd6fa` |
+| C3 — conta/sincronização | `f5c743cbaf71fb5d946dd51109b8b35f9ba04ceb` |
+| C4 — interface/validação | `c45bb1ac357d68ef2da1d3e154f814ea1158c893` |
+
+Todos descendem do checkpoint original `27e2791`. Documentação posterior pode acrescentar outro commit; não houve merge em main nem publicação.
