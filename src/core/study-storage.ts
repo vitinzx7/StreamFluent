@@ -31,7 +31,7 @@ export function isStudySender(sender: chrome.runtime.MessageSender): boolean {
     const url = new URL(sender.url);
     if (url.protocol === "chrome-extension:" && url.hostname === chrome.runtime.id) {
       return (sender.frameId === undefined || sender.frameId === 0)
-        && ["/popup.html", "/library.html", "/player-test.html", "/welcome.html"].includes(url.pathname);
+        && ["/popup.html", "/library.html", "/account.html", "/player-test.html", "/welcome.html"].includes(url.pathname);
     }
     if (!Number.isSafeInteger(sender.tab?.id) || (sender.tab?.id ?? -1) < 0 || url.username || url.password || url.port) return false;
     if (isEmbeddedPlayerUrl(sender.url)) {
@@ -46,7 +46,7 @@ export function isStudySender(sender: chrome.runtime.MessageSender): boolean {
 }
 
 function assert(condition: unknown): asserts condition { if (!condition) throw new Error(INVALID); }
-/** The account page's backups (study-document.ts) keep the same data under `data`, without the seen history. */
+/** Backups the account page exported before 21/10/2026 had its own shape: the same data under `data`, without the seen history. */
 function backupContent(backup: Record<string, unknown>): Record<string, unknown> {
   const data = own(backup, "data");
   return isRecord(data) ? data : backup;

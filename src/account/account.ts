@@ -1,9 +1,10 @@
 import type { Conflict } from "../core/study-document.ts";
+import { requestStudy } from "../core/study-messages.ts";
 const el = <T extends HTMLElement = HTMLElement>(id: string) => document.getElementById(id) as T;
 const input = (id: string) => el<HTMLInputElement>(id);
 let busy = false;
 let conflictToken: string | null = null;
-let importedText: string | null = null;
+let syncEnabled = false;
 let statusSequence = 0;
 async function request<T = Record<string, unknown>>(action: string, payload: Record<string, unknown> = {}): Promise<T> {
   const requestId = crypto.randomUUID();
@@ -13,15 +14,25 @@ async function request<T = Record<string, unknown>>(action: string, payload: Rec
   return reply.data as T;
 }
 interface Status { email: string; signedIn: boolean; enabled: boolean; synchronized: boolean; syncing: boolean; error: string | null; lastSyncedAt: string | null; conflictCount: number; conflictToken: string | null; conflicts: Conflict[] }
+function stateOf(status: Status): [kind: string, text: string] {
+  if (status.synchronized) return ["on", "Salvo neste dispositivo e sincronizado com a conta"];
+  if (status.conflictCount) return ["conflict", "Salvo neste dispositivo · conflitos aguardando sua escolha"];
+  if (status.enabled) return ["pending", "Salvo neste dispositivo · sincronização pendente"];
+  return ["off", status.signedIn ? "Salvo neste dispositivo · sincronização desativada" : "Salvo só neste dispositivo · sincronização desativada"];
+}
 function render(status: Status) {
-  el("state").textContent = status.synchronized ? "Salvo neste dispositivo · Sincronizado na conta"
-    : status.conflictCount ? "Salvo neste dispositivo · Conflitos aguardando escolha"
-    : status.enabled ? "Salvo neste dispositivo · Sincronização pendente" : "Salvo neste dispositivo · Sincronização desativada";
-  el("account").textContent = status.email ? `Conta vinculada: ${status.email}${status.signedIn ? "" : " (entre novamente)"}` : "Sem conta vinculada.";
-  el("last-sync").textContent = status.lastSyncedAt ? `Última confirmação da conta: ${new Date(status.lastSyncedAt).toLocaleString("pt-BR")}` : "Ainda não há sincronização confirmada.";
+  const [kind, text] = stateOf(status);
+  el("state").textContent = text; el("state").dataset.state = kind;
+  el("account").textContent = status.email;
+  const relogin = !!status.email && !status.signedIn;
+  el("relogin").hidden = !relogin;
+  el("relogin").textContent = relogin ? `Esta biblioteca está vinculada a ${status.email}. Entre de novo com essa conta.` : "";
+  if (relogin && !input("email").value) input("email").value = status.email;
+  el("last-sync").textContent = status.lastSyncedAt ? `Última sincronização: ${new Date(status.lastSyncedAt).toLocaleString("pt-BR")}` : "Ainda não há sincronização confirmada.";
   el("error").textContent = status.error ?? "";
   el("login-section").hidden = status.signedIn; el("sync-section").hidden = !status.signedIn;
-  el("sync").hidden = !status.enabled; el("disable").hidden = !status.enabled; el("enable").hidden = status.enabled;
+  el("sync-on").hidden = !status.enabled; el("sync-off").hidden = status.enabled;
+  syncEnabled = status.enabled;
   conflictToken = status.conflictToken;
   const root = el("conflicts");
   // Storage events during an operation must not erase choices the user is making.
@@ -53,7 +64,6 @@ async function run(operation: () => Promise<void>) {
   catch (error) { el("feedback").textContent = error instanceof Error ? error.message : "Não foi possível concluir."; el("feedback").dataset.kind = "error"; }
   finally {
     busy = false; document.querySelectorAll<HTMLButtonElement | HTMLInputElement | HTMLSelectElement>("button, input, select").forEach(b => { b.disabled = false; });
-    (el("import") as HTMLButtonElement).disabled = !importedText;
   }
 }
 el("login").addEventListener("submit", event => {
@@ -80,29 +90,51 @@ el("resolve").addEventListener("click", () => void run(async () => {
   }
   await request("sync", { choices, token: conflictToken }); el("feedback").textContent = "Escolhas processadas. Confira o estado da conta.";
 }));
-el("export").addEventListener("click", () => void run(async () => {
-  const { backup } = await request<{ backup: string }>("export");
-  const url = URL.createObjectURL(new Blob([backup], { type: "application/json" }));
-  const link = document.createElement("a"); link.href = url; link.download = `streamfluent-backup-${new Date().toISOString().slice(0, 10)}.json`; link.click();
-  setTimeout(() => URL.revokeObjectURL(url), 1000); el("feedback").textContent = "Backup preparado sem credenciais. Confira o download e guarde o arquivo em local seguro.";
-}));
-async function preview() {
-  (el("import") as HTMLButtonElement).disabled = true;
-  const file = input("import-file").files?.[0]; importedText = null;
-  if (!file) return;
-  if (file.size > 4 * 1024 * 1024) throw new Error("O arquivo excede 4 MB.");
-  const text = await file.text();
-  const result = await request<{ phrases: number; words: number; keptLocalConflicts: number }>("preview-import", { text, includeSettings: input("import-settings").checked });
-  importedText = text;
-  el("import-preview").textContent = `Arquivo: ${result.phrases} frases e ${result.words} palavras. ${result.keptLocalConflicts} conflitos manterão a versão local. Confirme para adicionar.`;
+
+// ---- backup and starting over: the study protocol, like the library and the player ----
+const MAX_BACKUP_BYTES = 50 * 1024 * 1024;
+interface Backup { vocabulary?: { languages?: Record<string, { seen?: unknown[]; marks?: Record<string, unknown> }> }; phrases?: unknown[] }
+function countBackup(backup: Backup) {
+  const languages = Object.values(backup.vocabulary?.languages ?? {});
+  const seen = languages.reduce((sum, entry) => sum + (entry.seen?.length ?? 0), 0);
+  const marked = languages.reduce((sum, entry) => sum + Object.keys(entry.marks ?? {}).length, 0);
+  return `${seen} palavras vistas, ${marked} marcadas e ${backup.phrases?.length ?? 0} frases`;
 }
-for (const id of ["import-file", "import-settings"]) el(id).addEventListener("change", () => void run(preview));
-el("import").addEventListener("click", () => void run(async () => {
-  if (!importedText) throw new Error("Escolha e confira um backup válido.");
-  const result = await request<{ keptLocalConflicts: number }>("import", { text: importedText, includeSettings: input("import-settings").checked });
-  importedText = null; input("import-file").value = "";
-  el("feedback").textContent = `Importação salva neste dispositivo. ${result.keptLocalConflicts} conflitos mantiveram a versão local. Use Sincronizar agora para enviar à conta.`;
+el("export-data").addEventListener("click", () => void run(async () => {
+  const { data: backup } = await requestStudy<Backup>("export");
+  const url = URL.createObjectURL(new Blob([JSON.stringify(backup)], { type: "application/json" }));
+  const link = document.createElement("a"); link.href = url; link.download = `streamfluent-backup-${new Date().toISOString().slice(0, 10)}.json`;
+  document.body.append(link); link.click(); link.remove();
+  setTimeout(() => URL.revokeObjectURL(url), 10000);
+  el("feedback").textContent = `Backup exportado: ${countBackup(backup)}. Guarde o arquivo em local seguro.`;
 }));
+el("import-button").addEventListener("click", () => input("import-data").click());
+el("import-data").addEventListener("change", () => {
+  const file = input("import-data").files?.[0]; input("import-data").value = "";
+  if (!file) return;
+  void run(async () => {
+    if (file.size > MAX_BACKUP_BYTES) throw new Error("Arquivo grande demais para um backup do StreamFluent.");
+    let backup: unknown;
+    try { backup = JSON.parse(await file.text()); } catch { throw new Error("Esse arquivo não é um backup do StreamFluent."); }
+    let result: { words: number; marks: number; phrases: number };
+    try { result = (await requestStudy<typeof result>("import", { backup })).data; }
+    catch (error) { throw new Error(`Não foi possível importar: ${error instanceof Error ? error.message : "arquivo inválido."}`); }
+    el("feedback").textContent = `Backup importado: ${result.words} palavras vistas novas, ${result.marks} marcações e ${result.phrases} frases adicionadas. Suas preferências foram restauradas.`;
+  });
+});
+function startOver(id: string, question: string, action: "reset-seen" | "reset-all", done: string) {
+  el(id).addEventListener("click", () => {
+    // Deleting is an edit like any other: with sync on, the next cycle removes the same items from the account.
+    const account = action === "reset-all" && syncEnabled ? " Com a sincronização ativa, a cópia na conta também será apagada na próxima sincronização." : "";
+    if (!confirm(question + account)) return;
+    void run(async () => { await requestStudy(action); el("feedback").textContent = done; });
+  });
+}
+startOver("reset-seen", "Apagar o histórico de palavras vistas? Todas as palavras voltam a aparecer como novas (azul). Marcações e frases ficam.",
+  "reset-seen", "Histórico de palavras vistas apagado.");
+startOver("reset-all", "Apagar todos os dados de estudo? Palavras vistas, marcações, frases e traduções guardadas serão apagadas; nível e preferências ficam. Exporte um backup antes se quiser guardar.",
+  "reset-all", "Dados de estudo apagados. Nível e preferências foram mantidos.");
+
 chrome.storage.onChanged.addListener((changes, area) => {
   if (!busy && area === "local" && ["sfAccount", "phrases", "vocabulary", "settings"].some(k => k in changes)) void refresh().catch(() => {});
 });

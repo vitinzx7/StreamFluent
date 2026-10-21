@@ -1,0 +1,76 @@
+/* Shared by library.html and account.html: one header with the tabs, neutral greys only. */
+:root {
+  color-scheme: dark;
+  --bg: #0f1011;
+  --surface: #17181a;
+  --raised: #1f2023;
+  --border: #2a2c30;
+  --border-strong: #3c3f45;
+  --text: #ececed;
+  --muted: #a1a4ab;
+  --faint: #70737b;
+  --danger: #e39a92;
+  background: var(--bg);
+  color: var(--text);
+}
+* { box-sizing: border-box; }
+/* On the body: Chrome gives extension pages their own body font at 75%. */
+body { margin: 0; background: var(--bg); color: var(--text); font: 15px/1.55 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; }
+a { color: var(--text); }
+[hidden] { display: none !important; }
+:focus-visible { outline: 2px solid var(--text); outline-offset: 2px; }
+
+.app-header { position: sticky; top: 0; z-index: 2; background: var(--bg); border-bottom: 1px solid var(--border); }
+.app-bar { max-width: 760px; margin: 0 auto; padding: 16px 24px 0; }
+.brand { display: block; margin-bottom: 6px; font-size: 13px; font-weight: 600; letter-spacing: .02em; color: var(--muted); }
+.tabs { display: flex; gap: 2px; overflow-x: auto; overflow-y: hidden; scrollbar-width: none; }
+.tabs a, .tabs button {
+  margin: 0; padding: 10px 12px; border: 0; border-bottom: 2px solid transparent; border-radius: 0;
+  background: none; color: var(--muted); font: inherit; font-weight: 500; text-decoration: none; white-space: nowrap; cursor: pointer;
+}
+.tabs a:hover, .tabs button:hover { color: var(--text); }
+.tabs [aria-current="page"] { color: var(--text); border-bottom-color: var(--text); }
+
+main { max-width: 760px; margin: 0 auto; padding: 28px 24px 80px; }
+h1 { margin: 0; font-size: 24px; font-weight: 600; letter-spacing: -.01em; }
+h2 { margin: 0 0 6px; font-size: 16px; font-weight: 600; }
+h3 { margin: 0 0 4px; font-size: 14px; font-weight: 600; }
+p { margin: 0 0 10px; }
+.page-head { display: flex; align-items: baseline; flex-wrap: wrap; gap: 4px 14px; margin-bottom: 20px; }
+.muted { color: var(--muted); }
+.hint { color: var(--faint); font-size: 13px; }
+.panel { margin: 16px 0; padding: 22px; border: 1px solid var(--border); border-radius: 10px; background: var(--surface); }
+.panel > :last-child { margin-bottom: 0; }
+
+label { display: block; margin: 14px 0 0; font-size: 13px; color: var(--muted); }
+input:not([type=checkbox]), select {
+  display: block; width: 100%; margin-top: 6px; padding: 10px 12px; border: 1px solid var(--border-strong); border-radius: 6px;
+  background: var(--bg); color: var(--text); font: inherit;
+}
+input[type=checkbox] { accent-color: var(--text); }
+button {
+  padding: 9px 14px; border: 1px solid var(--border-strong); border-radius: 6px;
+  background: var(--raised); color: var(--text); font: inherit; cursor: pointer;
+}
+button:hover:not(:disabled) { border-color: #5b5f67; }
+button.primary { border-color: var(--text); background: var(--text); color: #111214; font-weight: 600; }
+button.primary:hover:not(:disabled) { background: #fff; }
+button.quiet { border-color: transparent; background: none; color: var(--muted); }
+button.quiet:hover:not(:disabled) { color: var(--text); }
+button.danger { color: var(--danger); }
+button.quiet.danger:hover:not(:disabled) { color: var(--danger); border-color: var(--border-strong); }
+button:disabled { opacity: .5; cursor: default; }
+.actions { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 16px; }
+
+/* Replies stay in view: a page can be longer than the window. */
+#feedback:not(:empty) {
+  position: sticky; bottom: 16px; z-index: 1; margin: 20px 0 0; padding: 12px 16px;
+  border: 1px solid var(--border-strong); border-radius: 8px; background: var(--raised); box-shadow: 0 8px 28px #000a;
+}
+#feedback[data-kind=error] { border-color: var(--danger); }
+
+@media (max-width: 520px) {
+  .app-bar { padding: 12px 16px 0; }
+  main { padding: 20px 16px 64px; }
+  .panel { padding: 18px 16px; }
+}

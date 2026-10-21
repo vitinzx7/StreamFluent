@@ -7,36 +7,53 @@
     body {
       width: 300px;
       font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
-      background: #1a1a2e;
-      color: #e0e0e0;
+      background: #17181a;
+      color: #ececed;
       padding: 16px;
     }
     h1 {
       font-size: 16px;
       font-weight: 600;
-      color: #00d4aa;
+      color: #ececed;
+    }
+    .top {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
       margin-bottom: 12px;
+    }
+    .account {
+      padding: 5px 10px;
+      border: 1px solid #3c3f45;
+      border-radius: 6px;
+      background: none;
+      color: #ececed;
+      font-size: 12px;
+      cursor: pointer;
+    }
+    .account:hover {
+      border-color: #5b5f67;
     }
     .status {
       font-size: 13px;
-      color: #888;
+      color: #a1a4ab;
       margin-bottom: 16px;
     }
     .btn {
       display: block;
       width: 100%;
       padding: 10px;
-      border: none;
+      border: 1px solid #2a2c30;
       border-radius: 6px;
-      background: #16213e;
-      color: #e0e0e0;
+      background: #1f2023;
+      color: #ececed;
       font-size: 13px;
       cursor: pointer;
       text-align: left;
       transition: background 0.15s;
     }
     .btn:hover {
-      background: #1a3a5c;
+      border-color: #5b5f67;
     }
     .btn + .btn {
       margin-top: 8px;
@@ -50,25 +67,25 @@
       font-weight: 600;
       letter-spacing: 0.4px;
       text-transform: uppercase;
-      color: #6d7a86;
+      color: #70737b;
       margin-bottom: 6px;
     }
     .field select {
       width: 100%;
       padding: 9px 10px;
-      border: 1px solid #2a3a5c;
+      border: 1px solid #3c3f45;
       border-radius: 6px;
-      background: #16213e;
-      color: #e0e0e0;
+      background: #0f1011;
+      color: #ececed;
       font-size: 13px;
       cursor: pointer;
     }
     .hint {
       font-size: 11px;
-      color: #666;
+      color: #70737b;
       margin-top: 6px;
     }
-    .toggle {
+    .field .toggle {
       display: flex;
       align-items: center;
       gap: 8px;
@@ -76,20 +93,20 @@
       font-weight: 400;
       letter-spacing: 0;
       text-transform: none;
-      color: #e0e0e0;
+      color: #ececed;
       cursor: pointer;
       margin-bottom: 0;
     }
     .toggle input {
       width: 15px;
       height: 15px;
-      accent-color: #00d4aa;
+      accent-color: #ececed;
       cursor: pointer;
     }
   </style>
 </head>
 <body>
-  <h1>StreamFluent</h1>
+  <div class="top"><h1>StreamFluent</h1><button class="account" id="openAccount">Conta</button></div>
   <p class="status" id="status">Checking current page...</p>
   <div class="field">
     <label for="direction">Translation</label>
@@ -124,7 +141,6 @@
   <button class="btn" id="openLibrary">Frases salvas</button>
   <button class="btn" id="openDifficult">Palavras difíceis</button>
   <button class="btn" id="openPlayerTest">Testar player local</button>
-  <button class="btn" id="openAccount">Conta e backup</button>
   <script src="study-client.js"></script>
   <script src="popup.js"></script>
 </body>

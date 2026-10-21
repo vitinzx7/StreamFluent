@@ -117,6 +117,9 @@ describe("local protocol boundary", () => {
     expect(isStudySender({ ...base, frameId: 5, url: "https://cinextream.cc/player", documentId: "document-id" })).toBe(true);
     expect(isStudySender({ ...base, id: "other", url: "https://www.netflix.com/watch/1" })).toBe(false);
     expect(isStudySender({ ...base, url: `chrome-extension://${chrome.runtime.id}/library.html?tab=difficult` })).toBe(true);
+    // The Conta tab holds the backup and the resets.
+    expect(isStudySender({ ...base, url: `chrome-extension://${chrome.runtime.id}/account.html` })).toBe(true);
+    expect(isStudySender({ ...base, url: `chrome-extension://${chrome.runtime.id}/other.html` })).toBe(false);
   });
   it("rejects invalid actions, enums, times, payload keys and malformed requests before writing", async () => {
     const service = createStudyStorageService();

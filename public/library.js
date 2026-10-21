@@ -22,9 +22,9 @@ function words() {
   })));
 }
 async function action(button, operation) {
-  button.disabled = true; get("feedback").textContent = "Salvando…";
+  button.disabled = true; get("feedback").textContent = "Salvando…"; delete get("feedback").dataset.kind;
   try { await operation(); await refresh(); get("feedback").textContent = "Alteração salva."; }
-  catch { get("feedback").textContent = "Não foi possível salvar. Tente novamente."; button.disabled = false; }
+  catch { get("feedback").textContent = "Não foi possível salvar. Tente novamente."; get("feedback").dataset.kind = "error"; button.disabled = false; }
 }
 function actionButton(card, label, actionName, operation) {
   const button = node("button", "card-action", label); button.type = "button"; button.dataset.action = actionName;
@@ -34,7 +34,10 @@ function render() {
   const active = document.activeElement;
   const focused = active?.closest?.("[data-item]")?.dataset.item;
   const focusedAction = active?.dataset?.action;
-  document.querySelectorAll("[data-tab]").forEach(button => button.setAttribute("aria-selected", String(button.dataset.tab === view)));
+  document.querySelectorAll("[data-tab]").forEach(button => {
+    if (button.dataset.tab === view) button.setAttribute("aria-current", "page"); else button.removeAttribute("aria-current");
+  });
+  get("viewTitle").textContent = { phrases: "Frases salvas", difficult: "Palavras difíceis", learned: "Palavras aprendidas" }[view];
   get("platformFilter").hidden = view !== "phrases"; get("clearAll").hidden = view !== "phrases";
   const search = get("search").value.normalize("NFC").toLowerCase().trim(), language = get("languageFilter").value;
   let items;
@@ -97,84 +100,6 @@ document.querySelectorAll("[data-tab]").forEach(button => button.addEventListene
 get("clearAll").addEventListener("click", () => {
   if (confirm("Apagar todas as frases? As marcações de palavras serão mantidas.")) void action(get("clearAll"), () => studyRequest("clear-phrases")).finally(() => { get("clearAll").disabled = false; });
 });
-// ---- backup and starting over: all through the worker, like every other write ----
-const dataStatus = get("dataStatus");
-const MAX_BACKUP_BYTES = 50 * 1024 * 1024;
-
-function countBackup(backup) {
-  const languages = Object.values(backup.vocabulary?.languages ?? {});
-  const seen = languages.reduce((sum, entry) => sum + (entry.seen?.length ?? 0), 0);
-  const marked = languages.reduce((sum, entry) => sum + Object.keys(entry.marks ?? {}).length, 0);
-  return `${seen} palavras vistas, ${marked} marcadas e ${backup.phrases?.length ?? 0} frases`;
-}
-
-get("exportData").addEventListener("click", async () => {
-  dataStatus.textContent = "Preparando o backup…";
-  try {
-    const backup = await studyRequest("export");
-    const url = URL.createObjectURL(new Blob([JSON.stringify(backup)], { type: "application/json" }));
-    const link = document.createElement("a");
-    link.href = url;
-    link.download = `streamfluent-backup-${new Date().toISOString().slice(0, 10)}.json`;
-    document.body.append(link);
-    link.click();
-    link.remove();
-    setTimeout(() => URL.revokeObjectURL(url), 10000);
-    dataStatus.textContent = `Backup exportado: ${countBackup(backup)}.`;
-  } catch {
-    dataStatus.textContent = "Não foi possível exportar. Tente novamente.";
-  }
-});
-
-get("importButton").addEventListener("click", () => get("importData").click());
-get("importData").addEventListener("change", async () => {
-  const input = get("importData");
-  const file = input.files?.[0];
-  input.value = "";
-  if (!file) return;
-  if (file.size > MAX_BACKUP_BYTES) {
-    dataStatus.textContent = "Arquivo grande demais para um backup do StreamFluent.";
-    return;
-  }
-  dataStatus.textContent = "Importando…";
-  let backup;
-  try {
-    backup = JSON.parse(await file.text());
-  } catch {
-    dataStatus.textContent = "Esse arquivo não é um backup do StreamFluent.";
-    return;
-  }
-  try {
-    const result = await studyRequest("import", { backup });
-    await refresh();
-    dataStatus.textContent = `Backup importado: ${result.words} palavras vistas novas, ${result.marks} marcações e ${result.phrases} frases adicionadas. Suas preferências foram restauradas.`;
-  } catch (error) {
-    dataStatus.textContent = `Não foi possível importar: ${error.message}`;
-  }
-});
-
-async function startOver(button, question, operation, done) {
-  if (!confirm(question)) return;
-  button.disabled = true;
-  dataStatus.textContent = "Apagando…";
-  try {
-    await studyRequest(operation);
-    await refresh();
-    dataStatus.textContent = done;
-  } catch {
-    dataStatus.textContent = "Não foi possível apagar. Tente novamente.";
-  } finally {
-    button.disabled = false;
-  }
-}
-
-get("resetSeen").addEventListener("click", () => void startOver(get("resetSeen"),
-  "Apagar o histórico de palavras vistas? Todas as palavras voltam a aparecer como novas (azul). Marcações e frases ficam.",
-  "reset-seen", "Histórico de palavras vistas apagado."));
-get("resetAll").addEventListener("click", () => void startOver(get("resetAll"),
-  "Apagar todos os dados de estudo? Palavras vistas, marcações, frases e traduções guardadas serão apagadas; nível e preferências ficam. Exporte um backup antes se quiser guardar.",
-  "reset-all", "Dados de estudo apagados. Nível e preferências foram mantidos."));
-
 chrome.storage.onChanged.addListener((changes, area) => {
   if (area === "local" && (changes.phrases || changes.vocabulary)) void refresh().catch(() => { get("feedback").textContent = "Não foi possível atualizar. Recarregue para tentar novamente."; });
 });

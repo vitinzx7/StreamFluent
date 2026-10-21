@@ -37,20 +37,6 @@ export function validateDocument(raw: unknown): StudyDocument {
   }
   return result;
 }
-export function parseBackup(text: string): StudyDocument {
-  if (new TextEncoder().encode(text).length > MAX_DOCUMENT_BYTES) throw new Error("Backup excede 4 MB.");
-  const raw: unknown = JSON.parse(text);
-  if (!isRecord(raw) || raw.format !== "streamfluent-backup" || raw.version !== 1) throw new Error("Backup incompatível.");
-  // The library's backup (study-storage.ts) has the data at the top level, plus the seen history: normalized like storage, history dropped.
-  if (!("data" in raw) && Object.keys(raw).every(k => ["format", "version", "exportedAt", "vocabulary", "phrases", "settings"].includes(k))) return studyDocument(raw);
-  if (Object.keys(raw).some(k => !["format", "version", "exportedAt", "data"].includes(k))) throw new Error("Backup incompatível.");
-  return validateDocument(raw.data);
-}
-export function makeBackup(document: StudyDocument): string {
-  const text = JSON.stringify({ format: "streamfluent-backup", version: 1, exportedAt: new Date().toISOString(), data: document });
-  if (new TextEncoder().encode(text).length > MAX_DOCUMENT_BYTES) throw new Error("O backup excede 4 MB. Reduza a biblioteca antes de exportar.");
-  return text;
-}
 export function mergeDocuments(base: StudyDocument, local: StudyDocument, remote: StudyDocument, choices: Choices = {}): { document: StudyDocument; conflicts: Conflict[] } {
   const conflicts: Conflict[] = [];
   function select(key: string, b: unknown, l: unknown, r: unknown): unknown {
@@ -86,10 +72,6 @@ export function mergeDocuments(base: StudyDocument, local: StudyDocument, remote
     Object.assign(document.settings, { [key]: select(`setting:${key}`, base.settings[key], local.settings[key], remote.settings[key]) });
   }
   return { document: validateDocument(document), conflicts };
-}
-/** Import is additive. Conflicting existing entries/preferences stay local and are reported. */
-export function importDocument(local: StudyDocument, incoming: StudyDocument, includeSettings: boolean) {
-  return mergeDocuments(emptyDocument(), local, { ...incoming, settings: includeSettings ? incoming.settings : local.settings });
 }
 /** Remote marks replace personal marks; seen history remains local and is never uploaded. */
 export function localVocabulary(raw: unknown, document: StudyDocument): VocabularyV2 {

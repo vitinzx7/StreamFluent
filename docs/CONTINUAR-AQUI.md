@@ -29,7 +29,7 @@ Enquanto isso, outra sessão (Codex na nuvem) fez a conta opcional C1–C4 a par
 
 ## Conta opcional (Supabase)
 
-Plano e regras de segurança em [account-sync-plan.md](account-sync-plan.md). Conta e backup abre pelo popup/biblioteca: login por e-mail/senha, consentimento separado, restauração, conflitos e exportação/importação. Nunca sai para a conta o histórico de palavras vistas nem as traduções guardadas das falas.
+Plano e regras de segurança em [account-sync-plan.md](account-sync-plan.md). A aba **Conta** (botão no topo do popup e última aba da biblioteca) tem login por e-mail/senha, consentimento separado, restauração, conflitos, o backup em arquivo e as opções de apagar dados. Nunca sai para a conta o histórico de palavras vistas nem as traduções guardadas das falas.
 
 ### Estado registrado pela sessão que fez a conta (20/10/2026)
 

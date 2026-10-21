@@ -2,159 +2,45 @@
 <html lang="pt-BR">
 <head>
   <meta charset="UTF-8" />
-  <title>StreamFluent — Biblioteca de estudo</title>
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>StreamFluent — Biblioteca</title>
+  <link rel="stylesheet" href="app.css" />
   <style>
-    * { margin: 0; padding: 0; box-sizing: border-box; }
-    body {
-      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
-      background: #0f0f23;
-      color: #e0e0e0;
-      padding: 24px;
-      max-width: 700px;
-      margin: 0 auto;
-    }
-    h1 {
-      font-size: 22px;
-      color: #00d4aa;
-      margin-bottom: 4px;
-    }
-    .subtitle {
-      color: #888;
-      font-size: 14px;
-      margin-bottom: 20px;
-    }
-    .toolbar {
-      display: flex;
-      gap: 8px;
-      margin-bottom: 20px;
-      flex-wrap: wrap;
-    }
-    .toolbar input,
-    .toolbar select {
-      padding: 8px 12px;
-      border: 1px solid #333;
-      border-radius: 6px;
-      background: #16213e;
-      color: #e0e0e0;
-      font-size: 13px;
-      outline: none;
-    }
-    .toolbar input { flex: 1; min-width: 160px; }
-    .toolbar select { min-width: 120px; }
-    .toolbar button {
-      padding: 8px 14px;
-      border: none;
-      border-radius: 6px;
-      background: #1a1a2e;
-      color: #e0e0e0;
-      font-size: 13px;
-      cursor: pointer;
-    }
-    .toolbar button:hover { background: #1a3a5c; }
-    .count {
-      font-size: 12px;
-      color: #555;
-      margin-bottom: 16px;
-    }
-    .empty {
-      text-align: center;
-      padding: 48px 0;
-      color: #555;
-    }
-    .card {
-      background: #16213e;
-      border-radius: 8px;
-      padding: 16px;
-      margin-bottom: 12px;
-      position: relative;
-    }
-    .card-word {
-      color: #00d4aa;
-      font-size: 16px;
-      font-weight: 600;
-      margin-bottom: 4px;
-    }
-    .card-translation {
-      font-size: 13px;
-      color: #aaa;
-      margin-bottom: 6px;
-    }
-    .card-definition {
-      font-size: 12px;
-      color: #7d7d7d;
-      margin-bottom: 6px;
-    }
-    .card-sentence {
-      font-size: 13px;
-      color: #ccc;
-      margin-bottom: 8px;
-      font-style: italic;
-    }
-    .card-sentence-translation {
-      font-size: 13px;
-      color: #7ee8d0;
-      margin-bottom: 8px;
-      font-style: italic;
-    }
-    .card-meta {
-      font-size: 11px;
-      color: #666;
-    }
-    .card-delete {
-      position: absolute;
-      top: 12px;
-      right: 12px;
-      background: none;
-      border: none;
-      color: #555;
-      cursor: pointer;
-      font-size: 16px;
-    }
-    .card-delete:hover { color: #e74c3c; }
-    .card-sentence,.card-sentence-translation { white-space:pre-wrap; }
-    .difficult { color:#FF8A80; } .learned { color:#81C784; }
-    nav { display:flex; gap:8px; margin:20px 0; flex-wrap:wrap; }
-    nav button,.card-action { padding:8px; background:#26344c; color:#e0e0e0; border:1px solid #536078; border-radius:5px; cursor:pointer; margin-right:6px; }
-    [aria-selected="true"] { border-color:#00d4aa; }
-    :focus-visible { outline:2px solid #8ECBFF; outline-offset:3px; }
-    [hidden] { display:none!important; }
-    .data { margin-top: 36px; padding-top: 16px; border-top: 1px solid #2a3a5c; }
-    .data h2 { font-size: 16px; color: #00d4aa; margin-bottom: 4px; }
-    .data button { padding: 8px 12px; background: #26344c; color: #e0e0e0; border: 1px solid #536078; border-radius: 5px; cursor: pointer; }
-    .data .danger { border-color: #8a4a4a; }
-    #dataStatus { min-height: 1.4em; font-size: 13px; color: #8ECBFF; }
+    .count { margin: 0; color: var(--faint); font-size: 14px; }
+    .toolbar { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 20px; }
+    .toolbar input, .toolbar select { width: auto; margin: 0; padding: 8px 12px; font-size: 14px; }
+    .toolbar input { flex: 1; min-width: 180px; }
+    .toolbar select { min-width: 140px; }
+    #clearAll { align-self: center; margin-left: auto; font-size: 14px; }
+    .empty { padding: 48px 0; color: var(--faint); text-align: center; }
+    .card { margin-bottom: 10px; padding: 16px 18px; border: 1px solid var(--border); border-radius: 10px; background: var(--surface); }
+    .card-word { margin-bottom: 4px; font-size: 16px; font-weight: 600; }
+    .card-translation { margin-bottom: 6px; color: var(--muted); font-size: 14px; }
+    .card-definition { margin-bottom: 6px; color: var(--faint); font-size: 13px; }
+    .card-sentence { margin-bottom: 6px; font-size: 14px; font-style: italic; }
+    .card-sentence-translation { margin-bottom: 8px; color: var(--muted); font-size: 14px; font-style: italic; }
+    .card-sentence, .card-sentence-translation { white-space: pre-wrap; }
+    .card-meta { margin-bottom: 4px; color: var(--faint); font-size: 12px; }
+    .card-action { margin: 8px 6px 0 0; padding: 6px 10px; font-size: 13px; }
   </style>
 </head>
 <body>
-  <a href="account.html" style="color:#8ECBFF">Conta e backup · verificar sincronização</a>
-  <h1>Biblioteca de estudo</h1>
-  <p class="subtitle">Frases e palavras salvas localmente enquanto você estuda.</p>
-  <nav role="tablist" aria-label="Biblioteca"><button role="tab" data-tab="phrases">Frases salvas</button><button role="tab" data-tab="difficult">Palavras difíceis</button><button role="tab" data-tab="learned">Palavras aprendidas</button></nav>
-  <div class="toolbar">
-    <input type="text" id="search" aria-label="Buscar palavra ou contexto" placeholder="Buscar palavra ou contexto…" />
-    <select id="platformFilter" aria-label="Plataforma">
-      <option value="">All platforms</option>
-    </select>
-    <select id="languageFilter" aria-label="Idioma"><option value="">Todos os idiomas</option></select>
-    <button id="clearAll">Apagar todas as frases</button>
-  </div>
-  <p class="count" id="count"></p>
-  <div id="list">
-    <p class="empty">No phrases saved yet.</p>
-  </div>
-  <p id="feedback" role="status" aria-live="polite"></p>
-  <section class="data" aria-labelledby="dataTitle">
-    <h2 id="dataTitle">Seus dados</h2>
-    <p class="subtitle">Tudo fica só neste navegador; desinstalar a extensão apaga os dados. Exporte um backup para guardar ou levar para outro computador.</p>
+  <header class="app-header"><div class="app-bar">
+    <span class="brand">StreamFluent</span>
+    <nav class="tabs" aria-label="Seções">
+      <button type="button" data-tab="phrases">Frases salvas</button><button type="button" data-tab="difficult">Palavras difíceis</button><button type="button" data-tab="learned">Palavras aprendidas</button><a href="account.html">Conta</a>
+    </nav>
+  </div></header>
+  <main>
+    <div class="page-head"><h1 id="viewTitle">Frases salvas</h1><p class="count" id="count"></p><button type="button" id="clearAll" class="quiet danger">Apagar todas as frases</button></div>
     <div class="toolbar">
-      <button type="button" id="exportData">Exportar backup</button>
-      <button type="button" id="importButton">Importar backup</button>
-      <input type="file" id="importData" accept=".json,application/json" hidden />
-      <button type="button" id="resetSeen" class="danger">Apagar histórico de palavras vistas</button>
-      <button type="button" id="resetAll" class="danger">Apagar todos os dados de estudo</button>
+      <input type="text" id="search" aria-label="Buscar palavra ou contexto" placeholder="Buscar palavra ou contexto…" />
+      <select id="platformFilter" aria-label="Plataforma"><option value="">Todas as plataformas</option></select>
+      <select id="languageFilter" aria-label="Idioma"><option value="">Todos os idiomas</option></select>
     </div>
-    <p id="dataStatus" role="status" aria-live="polite"></p>
-  </section>
+    <div id="list"><p class="empty">Carregando…</p></div>
+    <p id="feedback" role="status" aria-live="polite"></p>
+  </main>
   <script src="study-client.js"></script>
   <script src="library.js"></script>
 </body>

@@ -73,29 +73,27 @@ Além da tradução e da definição, o cartão tem, no rodapé, **Linguee · Wo
 
 ### Biblioteca e seus dados
 
-Abra pelo popup ou pelo painel. Três vistas: **Frases salvas** (por `R` e pelo cartão), **Palavras difíceis** e **Palavras aprendidas**, com busca, filtro de idioma e de plataforma. "Palavras difíceis" abre direto por `library.html?tab=difficult`. Mudar de difícil para aprendida, remover marca ou apagar frases não afeta o resto; "Apagar todas as frases" não apaga marcas nem preferências.
+Abra pelo popup ou pelo painel. A biblioteca e a conta dividem uma barra de abas: **Frases salvas** (por `R` e pelo cartão), **Palavras difíceis**, **Palavras aprendidas** e **Conta**. As três primeiras têm busca, filtro de idioma e de plataforma. "Palavras difíceis" abre direto por `library.html?tab=difficult`. Mudar de difícil para aprendida, remover marca ou apagar frases não afeta o resto; "Apagar todas as frases" não apaga marcas nem preferências.
 
-Em **Seus dados**, no fim da biblioteca:
+Na aba **Conta**, em **Backup e dados**:
 
 - **Exportar backup** baixa um arquivo `.json` com palavras vistas, marcações, frases e preferências (inclusive o nível).
-- **Importar backup** junta o arquivo ao que já existe: une o histórico, mantém a marcação mais recente de cada palavra, ignora frases repetidas e restaura as preferências. Aceita também o backup exportado na página **Conta e backup** (que não tem o histórico de palavras vistas).
+- **Importar backup** junta o arquivo ao que já existe: une o histórico, mantém a marcação mais recente de cada palavra, ignora frases repetidas e restaura as preferências. Aceita também o backup que a página da conta exportava até 21/10/2026 (sem o histórico de palavras vistas). Com a sincronização ativa, o que entrar também vai para a conta.
 - **Apagar histórico de palavras vistas** faz tudo voltar a ser "novo" (azul), mantendo marcações e frases.
-- **Apagar todos os dados de estudo** apaga palavras vistas, marcações e frases, mantendo nível e preferências.
+- **Apagar todos os dados de estudo** apaga palavras vistas, marcações e frases, mantendo nível e preferências. Com a sincronização ativa, a cópia da conta também é apagada na sincronização seguinte (a pergunta de confirmação avisa).
 
 Desinstalar a extensão apaga os dados deste navegador: exporte um backup antes, ou ative a sincronização da conta (abaixo) e confira que ela confirmou.
 
 ## Conta, sincronização e backup
 
-Abra **Conta e backup** no popup ou na biblioteca. O modo padrão continua somente neste dispositivo.
+Abra a aba **Conta**: botão **Conta** no topo do popup, ou a última aba da biblioteca. O modo padrão continua somente neste dispositivo.
 
 1. Crie uma conta com e-mail/senha; confirme o e-mail antes de entrar (a API do projeto confirmou e-mail habilitado, cadastro aberto e confirmação obrigatória). Login não envia sua biblioteca.
-2. Leia e marque o consentimento. **Ativar e restaurar/sincronizar** combina frases salvas, palavras difíceis/aprendidas e preferências com a conta. Inclui os contextos e traduções já salvos, nunca os arquivos SRT/VTT completos nem o histórico de palavras apenas vistas.
-3. Confira **Salvo neste dispositivo** e **Sincronizado na conta** separadamente. Edições locais confirmadas continuam disponíveis offline. Após alterações, um alarme tenta sincronizar em aproximadamente 30–60 segundos; outro tenta/puxa atualizações a cada 5 minutos. **Sincronizar agora** força uma tentativa. A confirmação mostra data/hora, pendências, erros ou conflitos.
+2. Leia e marque o consentimento. **Ativar sincronização** combina frases salvas, palavras difíceis/aprendidas e preferências com a conta. Inclui os contextos e traduções já salvos, nunca os arquivos SRT/VTT completos nem o histórico de palavras apenas vistas.
+3. A linha de estado no topo da aba diz se está salvo só neste dispositivo, pendente, com conflitos ou sincronizado com a conta. Edições locais confirmadas continuam disponíveis offline. Após alterações, um alarme tenta sincronizar em aproximadamente 30–60 segundos; outro tenta/puxa atualizações a cada 5 minutos. **Sincronizar agora** força uma tentativa. A confirmação mostra data/hora, pendências, erros ou conflitos.
 4. Ao instalar em outro computador ou reinstalar, entre na mesma conta e ative a sincronização para restaurar os dados **já sincronizados**. Desinstalar ou sair não remove a cópia da conta. Dados que ficaram somente no dispositivo exigem um backup prévio.
 5. Mudanças em dispositivos diferentes são comparadas com a última base confirmada. Exclusões contra itens inalterados são propagadas; edição contra exclusão ou duas edições distintas exige escolher por item entre dispositivo e conta. Revisões condicionais rejeitam envios desatualizados. Não há regra de “última data vence”.
-6. **Exportar backup** gera JSON pessoal sem senha/sessão/tokens. A importação (até 4 MB) é aditiva, tem prévia e confirmação, mantém a versão local nos conflitos e informa quantos manteve. Preferências do arquivo só participam mediante opção explícita. Com sincronização ativa, as adições também serão sincronizadas.
-
-Há dois backups: o da biblioteca (**Seus dados**) leva também o histórico de palavras vistas; o desta página leva só o que vai para a conta. Cada importação aceita os dois arquivos; o histórico de um backup da biblioteca é ignorado aqui.
+6. O backup em arquivo fica na mesma aba, em **Backup e dados** (ver "Biblioteca e seus dados"). Ele não tem senha, sessão nem tokens.
 
 Uma biblioteca fica vinculada à primeira conta usada no perfil Chrome. Sair conserva dados e vínculo. Para outra conta, use outro perfil Chrome; não há troca automática que possa enviar os dados da conta anterior. Google OAuth não está implementado e está desabilitado no projeto.
 
@@ -134,7 +132,7 @@ Na Netflix, saltos e play/pause passam pela API do próprio player (não documen
 - azul e lilás se revezam; o lilás é a palavra mais difícil acima do seu nível, o azul é a palavra mais difícil que aparece pela primeira vez **desde que a página abriu** (nomes e palavras curtas nunca ficam azuis);
 - vermelho e verde aparecem quando você marca durante a gravação.
 
-Toda cor mostrada continua verdadeira; a demo só mostra menos delas. Para gravar: em `chrome://extensions`, desative o StreamFluent normal e carregue `dist-demo/` (a página de boas-vindas pede o nível). A cada nova tomada, recarregue a página da Netflix; para tirar as marcações da tomada anterior, use "Apagar todos os dados" na biblioteca (o nível fica). A quantidade de falas brancas é `DEMO_WHITE_LINES` em `src/core/demo-colors.ts`.
+Toda cor mostrada continua verdadeira; a demo só mostra menos delas. Para gravar: em `chrome://extensions`, desative o StreamFluent normal e carregue `dist-demo/` (a página de boas-vindas pede o nível). A cada nova tomada, recarregue a página da Netflix; para tirar as marcações da tomada anterior, use "Apagar todos os dados de estudo" na aba Conta (o nível fica). A quantidade de falas brancas é `DEMO_WHITE_LINES` em `src/core/demo-colors.ts`.
 
 ## Player de teste local
 
@@ -148,7 +146,7 @@ Esta página foi executada com a extensão carregada num Chrome headless isolado
 - Entrar/sair da tela cheia do contêiner; conferir painel, legenda e ausência de duplicatas.
 - Repetir na Netflix/Max com conteúdo real — inclusive se a Netflix/Max reagem às mesmas teclas, a tela cheia, a pergunta de nível e o botão na borda direita — e no Cinetaro.
 
-Os testes automatizados usam DOM e respostas controladas: **609 testes em 43 arquivos** passaram, assim como `npm run typecheck`, `npm run build` e `git diff --check`. Eles não comprovam a API real da Netflix, CORS, políticas de fullscreen, a estrutura atual dos sites, nem login, e-mail e sincronização reais com o Supabase.
+Os testes automatizados usam DOM e respostas controladas: **607 testes em 43 arquivos** passaram, assim como `npm run typecheck`, `npm run build` e `git diff --check`. Eles não comprovam a API real da Netflix, CORS, políticas de fullscreen, a estrutura atual dos sites, nem login, e-mail e sincronização reais com o Supabase.
 
 ## Privacidade e rede
 
@@ -192,7 +190,7 @@ Os controles de estudo (blocos 1–10 e a rodada 2) e a conta opcional (C1–C4)
 - `src/core/study-storage.ts`, `seen-store.ts`, `study-data.ts`, `study-messages.ts`, `storage.ts`, `settings.ts`: persistência serializada no worker (histórico no IndexedDB), migração, backup e clientes.
 - `src/core/ui/idle-fade.ts`: botão que some com o mouse parado e isolamento dos cliques em relação ao player.
 - `src/core/translation.ts`, `translation-request.ts`: tradutor reutilizado e transporte restrito.
-- `src/core/account-service.ts`, `account-remote.ts`, `study-document.ts`, `study-notifications.ts`, `src/account/account.ts`, `public/account.html`: conta opcional, documento sincronizado, backup da conta e avisos de mudança aos players.
+- `src/core/account-service.ts`, `account-remote.ts`, `study-document.ts`, `study-notifications.ts`, `src/account/account.ts`, `public/account.html`: conta opcional, documento sincronizado, aba Conta (com o backup) e avisos de mudança aos players. `public/app.css`: cabeçalho com as abas e o visual da biblioteca e da conta.
 - `supabase/migrations/`, `supabase/tests/`: tabela, RLS e função de gravação condicional (já aplicadas no projeto) e o teste de isolamento.
 - `src/background/background.ts`: worker (persistência de estudo, conta, provedores, biblioteca e relay dos frames).
 - `src/content/content.ts`: integração Netflix/Max e ciclo de vida.

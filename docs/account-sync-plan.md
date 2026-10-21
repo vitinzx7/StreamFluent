@@ -35,7 +35,7 @@ Fontes oficiais consultadas: changelog Supabase (incluindo mudanças TLS/PG 17.1
 
 Plano registrado antes da alteração arquitetural. Resultados C1–C4 serão acrescentados ao progresso. Testes unitários, isolamento SQL no Supabase e browser/player real serão descritos separadamente.
 
-Implementação C1–C4 registrada no progresso. Limites deliberados: um perfil Chrome por conta; sem Google OAuth, sem criptografia ponta a ponta e sem upload de arquivos de legenda/histórico `seen`. O estado remoto é um documento pessoal limitado a 4 MB, adequado ao escopo atual; migrar para itens separados exige novo contrato e testes de migração, não trocar o formato silenciosamente.
+Implementação C1–C4 registrada no progresso. Em 21/10/2026 a exportação/importação própria da página da conta foi retirada: o backup único é o do protocolo de estudo, na aba Conta (ver "Aba Conta e visual neutro" no progresso). Limites deliberados: um perfil Chrome por conta; sem Google OAuth, sem criptografia ponta a ponta e sem upload de arquivos de legenda/histórico `seen`. O estado remoto é um documento pessoal limitado a 4 MB, adequado ao escopo atual; migrar para itens separados exige novo contrato e testes de migração, não trocar o formato silenciosamente.
 
 Documentação oficial consultada:
 - https://supabase.com/changelog.md

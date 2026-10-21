@@ -203,3 +203,18 @@ Relato do usuário: na página de conta, preencher e-mail e senha e clicar não 
 - `npm run typecheck`, `npm test` (**609 testes em 43 arquivos**; 2 novos), `npm run build`, `npm run build:demo` e `git diff --check`: aprovados.
 - Chrome headless com o Supabase real: depois do clique, "E-mail ou senha incorretos…" aparece no rodapé da janela (topo em 659 px de 720).
 - Não verificado: cadastro e confirmação reais por e-mail, nem entrar com uma conta existente.
+
+## Aba Conta e visual neutro (21/10/2026)
+
+Pedido do usuário: a conta estava escondida (último botão do popup e um link pequeno no topo da biblioteca) e a página era genérica, com todos os recursos empilhados. Ele pediu uma aba Conta e um visual melhor, sem cores.
+
+- **Abas em comum.** `library.html` e `account.html` dividem um cabeçalho (`public/app.css`) com as abas Frases salvas, Palavras difíceis, Palavras aprendidas e Conta. Conta é um link entre as duas páginas: as mensagens de conta continuam aceitas só de `account.html`. No popup, **Conta** foi para o topo.
+- **Visual.** Tons de cinza, sem a cor de destaque verde-água. Botão principal claro, secundários com contorno, destrutivos em texto avermelhado discreto. O Chrome aplica nas páginas de extensão uma fonte de corpo a 75% (o texto saía com 11,25 px), então a fonte agora é definida no `body`. No popup, as opções com caixa de seleção estavam em maiúsculas por especificidade de CSS; corrigido.
+- **Conta organizada.** Linha de estado com indicador no topo, depois um bloco por situação: sem login, só "Entrar" (com "Criar conta"); com login, "Sua conta" (e-mail, Sair) e a sincronização ligada ou o consentimento para ligar. O texto do consentimento continua o mesmo. As explicações longas foram para "O que vai para a conta".
+- **Um backup só.** A biblioteca e a página da conta tinham dois backups diferentes (ver "Junção da conta com a rodada 2"). Ficou o da biblioteca, mais completo (com o histórico de palavras vistas), agora em **Backup e dados**, na aba Conta, junto com "Apagar histórico" e "Apagar todos os dados de estudo". `account.html` entrou na lista de remetentes do protocolo de estudo. Foram retirados `sf:account:export`, `preview-import` e `import`, além de `makeBackup`, `parseBackup` e `importDocument` em `study-document.ts`. Arquivos exportados pela página da conta continuam importáveis (`backupContent` em `study-storage.ts`). Com a sincronização ativa, a pergunta de "Apagar todos os dados de estudo" avisa que a cópia da conta também será apagada na sincronização seguinte.
+
+### Verificação
+
+- `npm run typecheck`, `npm test` (**607 testes em 43 arquivos**), `npm run build`, `npm run build:demo` e `git diff --check`: aprovados. Os testes de backup e de apagar foram da biblioteca para a aba Conta, contra a fila de estudo real. Novos: o backup não leva dados da conta; o aviso da sincronização ao apagar tudo; a conta recusa as ações de backup retiradas; `account.html` é aceita como remetente de estudo. Retirados: os testes do backup próprio da conta.
+- Chrome 155 headless com `dist/` carregado e a rede externa bloqueada: capturas da biblioteca (frases e palavras difíceis), da conta sem login, com login e sincronização desligada, com sincronização pendente, em largura de celular (390 px) e do popup. Sem erros no console. O estado "com login" foi simulado gravando os metadados de conta no perfil temporário, sem login real.
+- Não verificado: login, cadastro e sincronização reais; o visual no Chrome do usuário.

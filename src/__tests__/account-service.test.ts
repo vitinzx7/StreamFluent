@@ -2,7 +2,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import { installStudyWorker } from "./helpers/study-worker.ts";
 import { createAccountService, ACCOUNT_KEY } from "../core/account-service.ts";
 import type { AccountRemote, RemoteDocument } from "../core/account-remote.ts";
-import { emptyDocument, makeBackup, studyDocument, type StudyDocument } from "../core/study-document.ts";
+import { emptyDocument, studyDocument, type StudyDocument } from "../core/study-document.ts";
 import { requestStudy } from "../core/study-messages.ts";
 const owner = { id: "user-a", email: "a@example.test" };
 function cloud() {
@@ -37,7 +37,7 @@ const mark = (value: "difficult" | "learned" | null, word = "hello") => requestS
 beforeEach(() => { server = cloud(); setup(); });
 describe("optional account sync through the serialized study service", () => {
   it("never contacts the server by default, and login alone does not upload", async () => {
-    await account.sync(); await call("status"); await mark("difficult"); await call("export");
+    await account.sync(); await call("status"); await mark("difficult");
     expect(server.remote.user).not.toHaveBeenCalled(); expect(server.remote.write).not.toHaveBeenCalled();
     await login(); expect(server.remote.write).not.toHaveBeenCalled();
     await expect(call("enable", { consent: false })).rejects.toThrow();
@@ -145,26 +145,17 @@ describe("optional account sync through the serialized study service", () => {
     expect((worker.storage.vocabulary as StudyDocument["vocabulary"]).languages.en.marks.hello).toBe("difficult");
     await account.sync(); expect((await call("status")).synchronized).toBe(true);
   });
-  it("validates backup and imports without silently replacing local conflicts", async () => {
-    await mark("learned"); const incoming = studyDocument({ vocabulary: { en: { seen: [], marks: { hello: "difficult", other: "learned" } } } });
-    const result = await call("import", { text: makeBackup(incoming), includeSettings: false });
-    expect(result.keptLocalConflicts).toBe(1);
-    expect((worker.storage.vocabulary as StudyDocument["vocabulary"]).languages.en.marks).toEqual({ hello: "learned", other: "learned" });
-    const before = structuredClone(worker.storage);
-    await expect(call("import", { text: '{"version":99}', includeSettings: true })).rejects.toThrow();
-    expect(worker.storage).toEqual(before);
-    expect((await call("export")).backup).not.toMatch(/password|access_token|refresh_token|sfAccount/);
-  });
   it("rejects content scripts, other pages, frames and external extension senders", async () => {
     for (const patch of [{ url: "https://www.netflix.com/watch/1" }, { url: chrome.runtime.getURL("library.html") }, { frameId: 4 }, { id: "evil" }]) {
-      const result = await account.handle({ type: "sf:account:export", requestId: "id", payload: {} }, { ...sender(), ...patch });
+      const result = await account.handle({ type: "sf:account:status", requestId: "id", payload: {} }, { ...sender(), ...patch });
       expect(result.ok).toBe(false);
     }
   });
-  it("does not report an import saved if persistence fails and preserves future metadata", async () => {
-    worker.failNextWrite();
-    await expect(call("import", { text: makeBackup(emptyDocument()), includeSettings: false })).rejects.toThrow();
+  it("leaves backups to the study protocol: the account has no export or import of its own", async () => {
+    for (const action of ["export", "preview-import", "import"]) await expect(call(action, { text: "{}", includeSettings: false })).rejects.toThrow(/inválida/);
     expect(worker.storage).toEqual({});
+  });
+  it("preserves future account metadata it cannot read", async () => {
     setup({ [ACCOUNT_KEY]: { version: 99 } });
     await expect(call("status")).rejects.toThrow(/incompatível/);
     expect(worker.storage[ACCOUNT_KEY]).toEqual({ version: 99 });

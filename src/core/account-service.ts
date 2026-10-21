@@ -1,7 +1,7 @@
 import type { StudyStorageService } from "./study-storage.ts";
 import type { AccountRemote } from "./account-remote.ts";
 import { isRecord } from "./study-data.ts";
-import { emptyDocument, importDocument, localVocabulary, makeBackup, mergeDocuments, parseBackup, stable, studyDocument, validateDocument, type Choices, type Conflict, type StudyDocument } from "./study-document.ts";
+import { emptyDocument, localVocabulary, mergeDocuments, stable, studyDocument, validateDocument, type Choices, type Conflict, type StudyDocument } from "./study-document.ts";
 
 export const ACCOUNT_KEY = "sfAccount";
 type Storage = Pick<chrome.storage.LocalStorageArea, "get" | "set">;
@@ -128,18 +128,6 @@ export function createAccountService(study: StudyStorageService, remote: Account
       if (!isRecord(choices) || Object.values(choices).some(v => v !== "local" && v !== "remote") || (payload.token !== undefined && typeof payload.token !== "string")) throw new Error("Resolução inválida.");
       return sync(choices as Choices, payload.token as string | undefined);
     }
-    if (action === "export") return study.exclusive(async () => ({ backup: makeBackup((await snapshot()).document) }));
-    if (action === "preview-import" || action === "import") {
-      if (typeof payload.text !== "string" || typeof payload.includeSettings !== "boolean") throw new Error("Backup inválido.");
-      const incoming = parseBackup(payload.text);
-      const result = await study.exclusive(async () => {
-        const current = await snapshot();
-        const merged = importDocument(current.document, incoming, payload.includeSettings as boolean);
-        if (action === "import") await persist(current.raw, merged.document, current.meta);
-        return { phrases: incoming.phrases.length, words: Object.values(incoming.vocabulary.languages).reduce((n, e) => n + Object.keys(e.marks).length, 0), keptLocalConflicts: merged.conflicts.length };
-      });
-      return result;
-    }
     if (action === "sign-in" || action === "sign-up") {
       const { email, password } = payload;
       if (typeof email !== "string" || email.length > 254 || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email) || typeof password !== "string" || password.length < 8 || password.length > 256) throw new Error("Informe e-mail válido e senha com 8 a 256 caracteres.");
@@ -183,7 +171,7 @@ export function createAccountService(study: StudyStorageService, remote: Account
       try {
         if (!isAccountSender(sender) || !requestId || requestId.length > 200 || !isRecord(message) || typeof message.type !== "string" || !message.type.startsWith("sf:account:") || !isRecord(message.payload)) throw new Error("Pedido de conta inválido.");
         const action = message.type.slice("sf:account:".length);
-        if (["status", "export", "preview-import"].includes(action)) return { ok: true, requestId, data: await operation(action, message.payload) };
+        if (action === "status") return { ok: true, requestId, data: await operation(action, message.payload) };
         if (active) throw new Error("Uma operação de conta está em andamento. Aguarde.");
         const payload = message.payload;
         const changesAuth = ["sign-in", "sign-up", "sign-out"].includes(action);
