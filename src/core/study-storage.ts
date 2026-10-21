@@ -46,6 +46,11 @@ export function isStudySender(sender: chrome.runtime.MessageSender): boolean {
 }
 
 function assert(condition: unknown): asserts condition { if (!condition) throw new Error(INVALID); }
+/** The account page's backups (study-document.ts) keep the same data under `data`, without the seen history. */
+function backupContent(backup: Record<string, unknown>): Record<string, unknown> {
+  const data = own(backup, "data");
+  return isRecord(data) ? data : backup;
+}
 function onlyFields(value: Record<string, unknown>, fields: string[]): boolean {
   return Object.keys(value).every(key => fields.includes(key));
 }
@@ -73,7 +78,7 @@ function validatePayload(action: StudyAction, value: unknown): Record<string, un
       const backup = own(payload, "backup");
       assert(isRecord(backup) && own(backup, "format") === BACKUP_FORMAT);
       if (own(backup, "version") !== BACKUP_VERSION) throw new Error("Versão de backup desconhecida; atualize a extensão.");
-      const phrases = own(backup, "phrases");
+      const phrases = own(backupContent(backup), "phrases");
       assert(phrases === undefined || (Array.isArray(phrases) && phrases.length <= MAX_BACKUP_PHRASES));
       break;
     }
@@ -148,6 +153,7 @@ function newer(candidate: string | null | undefined, current: string | null | un
 }
 
 export interface StudyStorageService {
+  exclusive<T>(operation: () => Promise<T>): Promise<T>;
   handle(message: unknown, sender: chrome.runtime.MessageSender): Promise<StudyReply<unknown>>;
 }
 /**
@@ -168,7 +174,13 @@ export function createStudyStorageService(
   let revision = 0;
   const observed = (payload: Record<string, unknown>): Promise<string[]> =>
     seenWords.add(payload.language as string, (payload.keys as string[]).map(wordKey));
+  function exclusive<T>(operation: () => Promise<T>): Promise<T> {
+    const result = queue.then(operation);
+    queue = result.then(() => undefined, () => undefined);
+    return result;
+  }
   return {
+    exclusive,
     async handle(message, sender) {
       const requestId = isRecord(message) && typeof own(message, "requestId") === "string" ? own(message, "requestId") as string : "";
       const fail = (error: unknown): StudyReply<unknown> => ({ ok: false, requestId, error: error instanceof Error ? error.message : "Não foi possível salvar. Tente novamente." });
@@ -184,7 +196,7 @@ export function createStudyStorageService(
         assert(ACTIONS.has(action));
         payload = validatePayload(action, own(message, "payload"));
       } catch (error) { return fail(error); }
-      const result = queue.then(async (): Promise<StudyReply<unknown>> => {
+      const result = exclusive(async (): Promise<StudyReply<unknown>> => {
         if (action === "observe" && migrated) {
           return { ok: true, requestId, revision, data: { freshKeys: await observed(payload) } };
         }
@@ -266,7 +278,7 @@ export function createStudyStorageService(
             break;
           }
           case "import": {
-            const backup = payload.backup as Record<string, unknown>;
+            const backup = backupContent(payload.backup as Record<string, unknown>);
             const incoming = normalizeVocabulary(own(backup, "vocabulary"));
             let words = 0;
             let marks = 0;
@@ -327,7 +339,6 @@ export function createStudyStorageService(
         migrated = true;
         return { ok: true, requestId, revision: state.studyRevision, data };
       });
-      queue = result.then(() => undefined, () => undefined);
       try { return await result; } catch (error) { return fail(error); }
     },
   };

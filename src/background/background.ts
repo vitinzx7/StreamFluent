@@ -1,3 +1,6 @@
+import { broadcastStudyChanges } from "../core/study-notifications.ts";
+import { createAccountRemote } from "../core/account-remote.ts";
+import { createAccountService } from "../core/account-service.ts";
 import { createStudyStorageService } from "../core/study-storage.ts";
 import { createIndexedDbSeenStore } from "../core/seen-store.ts";
 import { createIndexedDbLineCache, handleLineCacheMessage } from "../core/line-cache.ts";
@@ -46,8 +49,28 @@ export async function relayFrameSession(message: unknown, sender: chrome.runtime
   }
 }
 
+// Fail closed: account operations cannot persist sessions before this succeeds.
+const trustedStorage = typeof chrome.storage.local.setAccessLevel === "function"
+  ? chrome.storage.local.setAccessLevel({ accessLevel: "TRUSTED_CONTEXTS" })
+  : Promise.reject(new Error("Este Chrome não permite restringir o armazenamento de conta."));
+void trustedStorage.catch(() => {});
 const lineCache = createIndexedDbLineCache();
 const studyStorage = createStudyStorageService(chrome.storage.local, createIndexedDbSeenStore(), lineCache);
+const accounts = createAccountService(studyStorage, createAccountRemote(trustedStorage));
+if (chrome.storage.onChanged) chrome.storage.onChanged.addListener((changes, area) => {
+  void broadcastStudyChanges(changes, area).catch(() => {});
+});
+const SYNC_ALARM = "sf-account-sync";
+function scheduleSync() {
+  if (chrome.alarms) void chrome.alarms.create("sf-account-pending", { delayInMinutes: 0.5 });
+}
+if (chrome.alarms) {
+  chrome.alarms.onAlarm.addListener(alarm => {
+    if ([SYNC_ALARM, "sf-account-pending"].includes(alarm.name)) void accounts.sync().catch(() => {});
+  });
+  // Periodic retry also pulls edits made by another device, even with no local writes.
+  void chrome.alarms.get(SYNC_ALARM).then(alarm => { if (!alarm) return chrome.alarms.create(SYNC_ALARM, { periodInMinutes: 5 }); return undefined; }).catch(() => {});
+}
 
 // A new install starts by asking the English level; updates ask in the player instead.
 chrome.runtime.onInstalled.addListener((details) => {
@@ -57,8 +80,15 @@ chrome.runtime.onInstalled.addListener((details) => {
 chrome.runtime.onMessage.addListener((message: unknown, sender, respond) => {
   if (!message || typeof message !== "object") return false;
   const request = message as { type?: unknown; url?: unknown; tab?: unknown };
+  if (typeof request.type === "string" && request.type.startsWith("sf:account:")) {
+    void trustedStorage.then(() => accounts.handle(message, sender)).then(respond, () => respond({ ok: false, requestId: (message as { requestId?: unknown }).requestId, error: "Armazenamento de conta indisponível neste Chrome." }));
+    return true;
+  }
   if (typeof request.type === "string" && request.type.startsWith("sf:study:")) {
-    void studyStorage.handle(message, sender).then(respond);
+    void studyStorage.handle(message, sender).then(reply => {
+      respond(reply);
+      if (reply.ok && !["sf:study:read", "sf:study:observe"].includes(request.type as string)) scheduleSync();
+    });
     return true;
   }
   if (request.type === "sf:frame-lease") {

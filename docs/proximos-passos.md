@@ -13,15 +13,14 @@ O usuário testa sempre na Netflix. Antes de qualquer item novo, conferir no pla
 - o tempo até a fala traduzida aparecer;
 - exportar, apagar e importar um backup.
 
-## 2. Contas e sincronização (precisa de servidor)
+## 2. Contas e sincronização — feita como conta opcional (Supabase)
 
-Para cada pessoa ter seus dados numa conta, recuperáveis depois de desinstalar ou em outro computador.
+Implementada por outra sessão e juntada a esta rodada em 21/10/2026: [plano](account-sync-plan.md), [estado e checklist do Supabase](CONTINUAR-AQUI.md#conta-opcional-supabase). Difere do que foi conversado aqui: o histórico de palavras vistas **não** é enviado (fica no dispositivo) e conflitos não usam "a mais recente vence": edições diferentes do mesmo item pedem escolha explícita. O que ainda falta:
 
-- Arquitetura: **local primeiro**. Legendas, cores e atalhos continuam 100% locais; nada vai à rede a cada fala. Em lotes (a cada minuto, ao pausar, ao fechar), a extensão envia só o que mudou: marcações, frases, preferências e palavras vistas novas.
-- Hospedagem: Supabase (Postgres + login + isolamento por usuário) é o caminho mais curto; Azure (Functions + Cosmos DB, camadas gratuitas) se for preciso concentrar tudo lá. Conferir os termos atuais dos planos gratuitos.
-- Conflitos: a marcação mais recente vence, como no backup; remoções precisam de registro de exclusão para não "ressuscitar".
-- Muda a promessa de privacidade: os dados passam a ir para um servidor próprio. A sincronização precisa ser visível e opcional, com aviso de privacidade (LGPD) e opção de apagar a conta. Exige um host novo no manifesto.
-- O backup em arquivo (já pronto) é o formato natural para a primeira sincronização.
+- Validar num Chrome real: cadastro, e-mail de confirmação, sincronização entre dois perfis, conflitos e alarmes (lista em [progresso](study-controls-progress.md)).
+- SMTP próprio no Supabase antes de amigos criarem conta.
+- Aviso de privacidade (LGPD) e opção de apagar a conta e os dados da nuvem; hoje sair ou desinstalar não apaga nada no servidor.
+- Login com Google; trocar de conta no mesmo perfil Chrome.
 
 ## 3. Tradução de palavra no contexto (precisa de servidor)
 

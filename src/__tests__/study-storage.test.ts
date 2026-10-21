@@ -222,6 +222,20 @@ describe("backups and starting over", () => {
     expect(fresh.data.freshKeys).toEqual(["new"]);
   });
 
+  it("imports a backup exported from the account page, which keeps its data under `data`", async () => {
+    await seedProfile();
+    const mine = await exportNow();
+    worker = installStudyWorker();
+    const account = { format: "streamfluent-backup", version: 1, exportedAt: "2026-10-21T00:00:00.000Z",
+      data: { schemaVersion: 1, phrases: mine.phrases, vocabulary: { schemaVersion: 2, languages: { en: { seen: ["world"], marks: { world: "difficult" } } } }, settings: mine.settings } };
+
+    const result = await requestStudy<{ words: number; marks: number; phrases: number }>("import", { backup: account });
+
+    expect(result.data).toEqual({ words: 1, marks: 1, phrases: 1 });
+    expect((worker.storage.vocabulary as VocabularyV2).languages.en.marks).toEqual({ world: "difficult" });
+    expect(worker.storage.settings).toMatchObject({ level: "B1", autoPause: true });
+  });
+
   it("keeps the most recent choice of each word when merging", async () => {
     await requestStudy("set-mark", { language: "en", word: "old", mark: "difficult" });
     await requestStudy("set-mark", { language: "en", word: "new", mark: "difficult" });

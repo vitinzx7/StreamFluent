@@ -399,17 +399,21 @@ describe("a session change with work in flight", () => {
 });
 
 describe("S02: nothing new leaves the machine", () => {
-  it("asks for exactly the three provider hosts and refuses the word-list sources", () => {
+  it("asks for exactly the three provider hosts plus the optional account project, and refuses the word-list sources", () => {
     expect(manifest.host_permissions.sort()).toEqual([
       "https://api.dictionaryapi.dev/*",
       "https://api.mymemory.translated.net/*",
       "https://clients5.google.com/*",
+      "https://ttzpioosgfacsutwmhif.supabase.co/*",
     ]);
     // unlimitedStorage lifts the 10 MB cap and keeps IndexedDB from eviction; it shows no install warning.
-    expect(manifest.permissions).toEqual(["storage", "unlimitedStorage"]);
+    // alarms retries the optional account sync.
+    expect(manifest.permissions).toEqual(["storage", "unlimitedStorage", "alarms"]);
     for (const url of [
       "https://linglify.com/pt-BR/learn/en/blog/hard-english-words",
       "https://www.oxfordlearnersdictionaries.com/definition/english/ambiguous",
+      // The account project is never a translation provider.
+      "https://ttzpioosgfacsutwmhif.supabase.co/rest/v1/study_accounts",
     ]) {
       expect(isAllowedProviderUrl(url)).toBe(false);
     }

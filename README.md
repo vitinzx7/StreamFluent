@@ -2,12 +2,12 @@
 
 Extensão Chrome Manifest V3 para estudar idiomas com legendas. Netflix e Max usam as legendas já renderizadas no DOM. O modo HTML5, habilitado para Cinetaro e seu player incorporado `cinextream.cc`, lê faixas acessíveis ou um arquivo SRT/VTT local e usa o tempo real do vídeo. Os dois caminhos oferecem as mesmas ferramentas de estudo: palavras clicáveis e coloridas, cartão de consulta, atalhos, pausa automática e salvamento da fala.
 
-**Situação:** implementado, com testes automatizados e execuções em Chrome headless da página de teste da extensão, de uma página local com forma de Netflix e da biblioteca (detalhes em [docs/study-controls-progress.md](docs/study-controls-progress.md)). O usuário usou a versão anterior na **Netflix real** e relatou que tudo funcionou, exceto a tradução da fala atrasada, o botão em cima do de tela cheia e a camada em tela cheia; essas três correções e os níveis ainda não foram vistos na Netflix real. Max e Cinetaro não foram verificados em player real. Não há transcrição de áudio nem recuperação automática de falas ausentes. O que ainda está planejado: [docs/proximos-passos.md](docs/proximos-passos.md).
+**Situação:** implementado, com testes automatizados e execuções em Chrome headless da página de teste da extensão, de uma página local com forma de Netflix e da biblioteca (detalhes em [docs/study-controls-progress.md](docs/study-controls-progress.md)). O usuário usou a versão anterior na **Netflix real** e relatou que tudo funcionou, exceto a tradução da fala atrasada, o botão em cima do de tela cheia e a camada em tela cheia; essas três correções e os níveis ainda não foram vistos na Netflix real. Max e Cinetaro não foram verificados em player real. A conta opcional (Supabase) foi testada com respostas controladas e com as políticas SQL no banco real; cadastro, e-mail e sincronização ainda não foram testados num Chrome real. Não há transcrição de áudio nem recuperação automática de falas ausentes. O que ainda está planejado: [docs/proximos-passos.md](docs/proximos-passos.md).
 
 ## Instalar e recarregar
 
 ```bash
-npm install
+npm ci --no-audit --no-fund
 npm run typecheck
 npm test
 npm run build
@@ -78,11 +78,32 @@ Abra pelo popup ou pelo painel. Três vistas: **Frases salvas** (por `R` e pelo 
 Em **Seus dados**, no fim da biblioteca:
 
 - **Exportar backup** baixa um arquivo `.json` com palavras vistas, marcações, frases e preferências (inclusive o nível).
-- **Importar backup** junta o arquivo ao que já existe: une o histórico, mantém a marcação mais recente de cada palavra, ignora frases repetidas e restaura as preferências.
+- **Importar backup** junta o arquivo ao que já existe: une o histórico, mantém a marcação mais recente de cada palavra, ignora frases repetidas e restaura as preferências. Aceita também o backup exportado na página **Conta e backup** (que não tem o histórico de palavras vistas).
 - **Apagar histórico de palavras vistas** faz tudo voltar a ser "novo" (azul), mantendo marcações e frases.
 - **Apagar todos os dados de estudo** apaga palavras vistas, marcações e frases, mantendo nível e preferências.
 
-Desinstalar a extensão apaga os dados deste navegador: exporte um backup antes.
+Desinstalar a extensão apaga os dados deste navegador: exporte um backup antes, ou ative a sincronização da conta (abaixo) e confira que ela confirmou.
+
+## Conta, sincronização e backup
+
+Abra **Conta e backup** no popup ou na biblioteca. O modo padrão continua somente neste dispositivo.
+
+1. Crie uma conta com e-mail/senha; confirme o e-mail antes de entrar (a API do projeto confirmou e-mail habilitado, cadastro aberto e confirmação obrigatória). Login não envia sua biblioteca.
+2. Leia e marque o consentimento. **Ativar e restaurar/sincronizar** combina frases salvas, palavras difíceis/aprendidas e preferências com a conta. Inclui os contextos e traduções já salvos, nunca os arquivos SRT/VTT completos nem o histórico de palavras apenas vistas.
+3. Confira **Salvo neste dispositivo** e **Sincronizado na conta** separadamente. Edições locais confirmadas continuam disponíveis offline. Após alterações, um alarme tenta sincronizar em aproximadamente 30–60 segundos; outro tenta/puxa atualizações a cada 5 minutos. **Sincronizar agora** força uma tentativa. A confirmação mostra data/hora, pendências, erros ou conflitos.
+4. Ao instalar em outro computador ou reinstalar, entre na mesma conta e ative a sincronização para restaurar os dados **já sincronizados**. Desinstalar ou sair não remove a cópia da conta. Dados que ficaram somente no dispositivo exigem um backup prévio.
+5. Mudanças em dispositivos diferentes são comparadas com a última base confirmada. Exclusões contra itens inalterados são propagadas; edição contra exclusão ou duas edições distintas exige escolher por item entre dispositivo e conta. Revisões condicionais rejeitam envios desatualizados. Não há regra de “última data vence”.
+6. **Exportar backup** gera JSON pessoal sem senha/sessão/tokens. A importação (até 4 MB) é aditiva, tem prévia e confirmação, mantém a versão local nos conflitos e informa quantos manteve. Preferências do arquivo só participam mediante opção explícita. Com sincronização ativa, as adições também serão sincronizadas.
+
+Há dois backups: o da biblioteca (**Seus dados**) leva também o histórico de palavras vistas; o desta página leva só o que vai para a conta. Cada importação aceita os dois arquivos; o histórico de um backup da biblioteca é ignorado aqui.
+
+Uma biblioteca fica vinculada à primeira conta usada no perfil Chrome. Sair conserva dados e vínculo. Para outra conta, use outro perfil Chrome; não há troca automática que possa enviar os dados da conta anterior. Google OAuth não está implementado e está desabilitado no projeto.
+
+O Supabase usado é `ttzpioosgfacsutwmhif` (Streamfluent). A migração versionada está em `supabase/migrations/`; **já foi aplicada neste projeto**. Não a reaplique manualmente. `supabase/tests/account_rls.sql` verifica isolamento com duas identidades sintéticas e papel anônimo em transação com rollback. Não são criadas sessões nem enviados e-mails nesse teste.
+
+Não há segredo de backend para configurar na extensão: URL/chave publicável identificam o destino, e o banco exige sessão e RLS. Se usar outro projeto, configure Auth, aplique a migração e atualize juntos a URL/chave publicável do worker e a permissão exata do manifesto. Nunca use `service_role`, senha do banco ou chave administrativa.
+
+**Validação desta integração:** consulte `docs/study-controls-progress.md`. Lógica/DOM e SDK com HTTP controlado foram testados; RLS e CAS foram testados no Supabase real. Cadastro, recebimento/confirmação do e-mail, login em Chrome, notificações entre abas sob storage restrito, alarmes MV3 e restauração após reinstalação real ainda precisam de validação manual. O Chrome não estava disponível e seu download falhou neste ambiente. Não foi enviado e-mail de teste. Se o provedor padrão de e-mail limitar destinatários, configure o SMTP do projeto antes de disponibilizar cadastro para terceiros.
 
 ## Usar no Cinetaro / HTML5
 
@@ -127,19 +148,19 @@ Esta página foi executada com a extensão carregada num Chrome headless isolado
 - Entrar/sair da tela cheia do contêiner; conferir painel, legenda e ausência de duplicatas.
 - Repetir na Netflix/Max com conteúdo real — inclusive se a Netflix/Max reagem às mesmas teclas, a tela cheia, a pergunta de nível e o botão na borda direita — e no Cinetaro.
 
-Os testes automatizados usam DOM e respostas controladas: **546 testes em 36 arquivos** passaram, assim como `npm run typecheck`, `npm run build` e `git diff --check`. Eles não comprovam a API real da Netflix, CORS, políticas de fullscreen ou a estrutura atual dos sites.
+Os testes automatizados usam DOM e respostas controladas: **607 testes em 43 arquivos** passaram, assim como `npm run typecheck`, `npm run build` e `git diff --check`. Eles não comprovam a API real da Netflix, CORS, políticas de fullscreen, a estrutura atual dos sites, nem login, e-mail e sincronização reais com o Supabase.
 
 ## Privacidade e rede
 
 - Sem download de streaming, contorno de DRM, telemetria ou análise de áudio.
-- As únicas APIs externas são `clients5.google.com` e `api.mymemory.translated.net` para tradução, e `api.dictionaryapi.dev` para definições em inglês.
-- Saem somente a fala atual e, no fluxo de consulta, a palavra selecionada. Título, episódio, biblioteca, vocabulário e arquivo completo não são enviados. O clique direito não usa a rede.
+- Tradução/dicionário continuam restritos a `clients5.google.com`, `api.mymemory.translated.net` e `api.dictionaryapi.dev`. A conta opcional usa exclusivamente `ttzpioosgfacsutwmhif.supabase.co` para Auth/Data API.
+- Aos tradutores saem somente a fala atual e, no fluxo de consulta, a palavra selecionada. Título, episódio, biblioteca, vocabulário e arquivo completo não são enviados aos provedores. O clique direito não usa a rede. À conta Supabase, somente após consentimento, vão os itens pessoais e preferências descritos em "Conta, sincronização e backup".
 - Os links de dicionário do cartão (Linguee, WordReference, Reverso, Cambridge) só abrem se você clicar; a extensão nunca acessa esses sites sozinha.
 - As listas de palavras especiais e de níveis vêm empacotadas; os links Linglify/Oxford/Open Language Profiles são só procedência, nunca acessados pela extensão.
 - Tradução no modo HTML5 exige ativação visível. Não há tradução antecipada ou em lote, nem tradução disparada por `R`.
 - O worker valida destinos, usa timeout por provedor e não envia cookies nem segue redirecionamentos.
-- Frases, marcas e preferências ficam em `chrome.storage.local`; o histórico de palavras vistas e as traduções das falas já exibidas ficam no IndexedDB da extensão (as traduções, até 20 mil falas, as mais antigas saem primeiro; "Apagar todos os dados" apaga também elas). Tudo é gravado por um único serviço no worker e nada é sincronizado. A permissão `unlimitedStorage` (sem aviso na instalação) tira o limite de 10 MB e impede que o Chrome descarte o IndexedDB por falta de espaço. Copiar usa só escrita no clipboard (sem permissão de leitura).
-- Não há chaves ou assinatura nova. O endpoint Google é não documentado e pode recusar chamadas ou mudar. MyMemory possui limites próprios. Nenhum deles tem disponibilidade ou uso ilimitado garantido.
+- Frases, marcas e preferências ficam em `chrome.storage.local`; o histórico de palavras vistas e as traduções das falas já exibidas ficam no IndexedDB da extensão (as traduções, até 20 mil falas, as mais antigas saem primeiro; "Apagar todos os dados" apaga também elas). Tudo é gravado por um único serviço no worker. A sincronização com a conta é opcional, pode ser pausada e nunca envia o histórico de palavras vistas nem as traduções guardadas das falas. `chrome.storage.local` é restrito a contextos confiáveis; scripts de players recebem invalidações sem tokens e usam mensagens validadas para reler settings/vocabulário. A permissão `unlimitedStorage` (sem aviso na instalação) tira o limite de 10 MB e impede que o Chrome descarte o IndexedDB por falta de espaço; `alarms` serve para tentar de novo a sincronização. Copiar usa só escrita no clipboard (sem permissão de leitura).
+- A única chave distribuída é a publicável do Supabase. Não há chave administrativa na extensão. O endpoint Google é não documentado e pode recusar chamadas ou mudar. MyMemory possui limites próprios. Nenhum deles tem disponibilidade ou uso ilimitado garantido.
 
 ## Limitações
 
@@ -152,6 +173,10 @@ Os testes automatizados usam DOM e respostas controladas: **546 testes em 36 arq
 - Na Netflix/Max a pausa automática é aproximada; uma fala que continua na tela através de uma busca não pausa no próprio fim.
 - Os seletores DOM e a API de player da Netflix/Max continuam sujeitos a mudanças dos sites.
 - A detecção de episódio usa URL e fonte do vídeo. Players que trocam conteúdo mantendo ambos exigem integração específica.
+
+## Continuidade dos controles de estudo
+
+Os controles de estudo (blocos 1–10 e a rodada 2) e a conta opcional (C1–C4) foram feitos em branches separadas e juntados em `feat/levels-fullscreen-local-data`. Leia `docs/CONTINUAR-AQUI.md`, `docs/study-controls-progress.md` e `docs/account-sync-plan.md` antes de continuar. Nunca usar `video.currentTime` como fallback na Netflix.
 
 ## Código
 
@@ -167,7 +192,9 @@ Os testes automatizados usam DOM e respostas controladas: **546 testes em 36 arq
 - `src/core/study-storage.ts`, `seen-store.ts`, `study-data.ts`, `study-messages.ts`, `storage.ts`, `settings.ts`: persistência serializada no worker (histórico no IndexedDB), migração, backup e clientes.
 - `src/core/ui/idle-fade.ts`: botão que some com o mouse parado e isolamento dos cliques em relação ao player.
 - `src/core/translation.ts`, `translation-request.ts`: tradutor reutilizado e transporte restrito.
-- `src/background/background.ts`: worker (persistência de estudo, provedores, biblioteca e relay dos frames).
+- `src/core/account-service.ts`, `account-remote.ts`, `study-document.ts`, `study-notifications.ts`, `src/account/account.ts`, `public/account.html`: conta opcional, documento sincronizado, backup da conta e avisos de mudança aos players.
+- `supabase/migrations/`, `supabase/tests/`: tabela, RLS e função de gravação condicional (já aplicadas no projeto) e o teste de isolamento.
+- `src/background/background.ts`: worker (persistência de estudo, conta, provedores, biblioteca e relay dos frames).
 - `src/content/content.ts`: integração Netflix/Max e ciclo de vida.
 - `src/content/cinetaro-session.ts`, `src/core/frame-messages.ts`: coordenação dos frames, sessão do episódio e validação das mensagens.
 - `src/__tests__/`: testes unitários e de integração.

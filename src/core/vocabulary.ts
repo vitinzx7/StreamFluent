@@ -1,3 +1,4 @@
+import { onStudyInvalidated } from "./study-notifications.ts";
 import { normalizeVocabulary } from "./study-data.ts";
 import { requestStudy } from "./study-messages.ts";
 import { wordKey, tokenizeWords } from "./word-normalization.ts";
@@ -59,6 +60,7 @@ export function createVocabularyStore(): VocabularyStore {
     const response = await requestStudy<{ vocabulary: VocabularyV2 }>("read");
     if (seq === changeSeq) apply(response.data.vocabulary, response.revision);
   };
+  const unsubscribe = onStudyInvalidated("vocabulary", () => { void load().catch(() => {}); });
   const ready = load();
   // A caller may attach its error UI later; keep initialization rejection handled.
   void ready.catch(() => {});
@@ -116,6 +118,7 @@ export function createVocabularyStore(): VocabularyStore {
     },
     dispose() {
       disposed = true;
+      unsubscribe();
       chrome.storage.onChanged.removeListener(handleStorageChange);
       listeners.clear();
       occurrences.clear();

@@ -38,6 +38,7 @@ export function installStudyWorker(initial: Record<string, unknown> = {}) {
   });
   return {
     storage, local, sendMessage,
+    get service() { return service; },
     failNextWrite(error = new Error("QUOTA_BYTES quota exceeded")) { failure = error; },
     seen,
     lines,

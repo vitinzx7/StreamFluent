@@ -118,3 +118,74 @@ Pedido do usuário: "primeiro aparece a inglês e depois de 1 s aparece a portug
 Verificação: typecheck, **572 testes em 38 arquivos** (6 da exibição conjunta, 5 do armazenamento), build. IndexedDB real num Chrome headless: grava, lê, descarta as mais antigas no limite e apaga. Nova execução com página em forma de Netflix e **tradutor falso** (o host `clients5.google.com` resolvido para um servidor local que responde em 400 ms), amostrando cada quadro: **6/6, duas vezes** — nenhum quadro com a original sem a tradução; na primeira vez a fala espera ≈0,5 s (0,4 s do tradutor + ≈0,1 s do debounce que já existia; a primeira fala também espera a extensão iniciar); depois de recarregar, ≈0,1 s e nenhuma chamada nova ao tradutor. Página com forma de Netflix **20/20**, `player-test.html` **17/17**, biblioteca **4/4**. Não visto na Netflix real nem com o Google real no navegador.
 
 O que ficou para depois está em [proximos-passos.md](proximos-passos.md).
+
+## Objetivo adicional: conta e sincronização
+
+_Registro da sessão que fez a conta, a partir de `27e2791`. Ali os blocos 5–10 aparecem pendentes porque aquela branch não tinha os commits locais que os concluíram; a junção com eles está na seção seguinte._
+
+Plano em `docs/account-sync-plan.md` (commit `ecea4f7`). C1: documento versionado, backup estrito e merge em três vias implementados; 7 testes direcionados e typecheck passaram. Histórico de palavras não marcadas excluído do documento. Controles 5–10 mantêm os estados anteriores.
+
+C2: migração `account_study_sync` aplicada pelo MCP ao projeto confirmado. `supabase/tests/account_rls.sql` executado no banco real em transação com rollback: 8 verificações aprovadas (CAS, inserção cruzada, troca de dono, leitura/update/RPC cruzados, isolamento B, DELETE, SELECT e RPC anônimos). Fixtures sintéticas, sem sessões/e-mails reais. Advisor de segurança retornou zero lints. Ainda não é teste de login HTTP nem de Chrome. C1 commit: `5a34a77`.
+
+C3: cliente Supabase fixado em `2.118.0`, login/cadastro por e-mail e senha, consentimento separado, sincronização com revisão condicional, fila local compartilhada, base durável e resolução explícita de conflitos implementados. Logout não exclui conta e bloqueio de mistura de contas no mesmo perfil. Sessões no storage restrito a contextos confiáveis; players recebem apenas invalidação de settings/vocabulário e releem pelo protocolo validado. Rede da conta limitada ao projeto e caminhos Auth/Data necessários, sem cookies e sem redirects. Testes de falhas/reinício/restauração controlada, CAS, exclusão, importação, fronteiras de mensagens/rede e edição durante envio adicionados. Suíte parcial de referência: 357 testes/30 arquivos, typecheck e build aprovados. Sem login real de usuário e sem player real nesta etapa.
+
+C4: página Conta e backup acessível pelo popup e biblioteca, com consentimento, estados distintos de salvamento, data da última confirmação, escolha explícita de conflitos e prévia/confirmação de importação. Documentação AGENTS/README/retomada atualizada. C2 commit: `308a7f2`; C3 commit: `f5c743c`.
+
+### Verificação final do objetivo de conta
+
+- `npm ci --no-audit --no-fund`: aprovado com o lockfile; nenhuma versão de dependência existente alterada. Nova dependência direta fixada em `@supabase/supabase-js@2.118.0`.
+- `npm run typecheck`: aprovado.
+- `npm test -- --maxWorkers=2`: **366 testes em 31 arquivos aprovados**. Inclui reinício com base durável, resposta perdida após commit remoto, falha de gravação local após commit remoto, SDK real com HTTP/storage controlados, fronteiras de rede, conflito/exclusão e interface em jsdom.
+- `npm run build` e `git diff --check`: aprovados. Cinco bundles; `dist/` e `node_modules/` não versionados.
+- Supabase real: 8 verificações SQL de isolamento/revisão aprovadas; advisor de segurança sem lints. Consulta posterior confirmou zero documentos de conta e zero usuários de teste remanescentes. Nenhuma biblioteca pessoal foi enviada durante desenvolvimento.
+- API pública Auth consultada com chave publicável: e-mail habilitado, cadastro permitido, confirmação obrigatória; Google desabilitado. Não houve cadastro, envio de e-mail ou login real.
+- Chrome/Playwright: navegador ausente; tentativa de instalar Chromium falhou com download truncado. **Não executado:** Chrome com extensão carregada, e-mail/SMTP real, alarmes MV3, eventos entre abas após restrição do storage, instalação/reinstalação real ou players Netflix/Max/Cinetaro. DOM controlado não comprova esses itens.
+- Implementação C1–C4 presente; aceite de ponta a ponta ainda depende da lista manual abaixo. Nenhum merge ou publicação da extensão. Blocos de controles 5–10 seguem pendentes conforme o checkpoint original.
+
+### Próxima validação manual de conta
+
+1. Gerar `dist/`, recarregar extensão e abas de streaming; conferir a nova permissão exata do projeto Supabase.
+2. Sem login, salvar frase e difícil offline, exportar/importar backup; conferir cópia local e ausência de requests para Supabase.
+3. Criar conta com endereço próprio, confirmar e-mail e entrar. Conferir que login sozinho não envia dados. Se o e-mail não chegar, verificar configuração Auth/SMTP do projeto; não remover confirmação para contornar isso.
+4. Aceitar consentimento, ativar e conferir o estado sincronizado; em outro perfil/dispositivo entrar na mesma conta e restaurar. Não desinstalar a única cópia antes da confirmação da conta ou de obter backup.
+5. Em dois perfis da mesma conta, testar edição offline contra exclusão e duas alterações na mesma marca; conferir escolha explícita e rejeição de escolha antiga após nova alteração.
+6. Testar falha de rede, reconexão, suspensão/reinício do worker e atualização por alarmes. Verificar cores/preferências em duas abas e biblioteca com local storage restrito, sem tokens em scripts de player.
+7. Sair/desinstalar um perfil descartável e confirmar que os dados sincronizados continuam na conta; reinstalar e restaurar. Conta diferente no mesmo perfil deve ser bloqueada. Não reutilizar o perfil principal para este teste.
+8. Repetir validações de reprodução dos controles em players reais separadamente; conta não altera DRM, arquivos de legenda ou ponte Netflix.
+
+### Commits do objetivo adicional no GitHub
+
+| Etapa | Commit |
+|---|---|
+| Plano antes da alteração arquitetural | `ecea4f7872ddbc061395c6cfcb0a55aa3e6212bd` |
+| C1 — documento/backup/merge | `5a34a77b4445632d0972a1bb53c2222f8bb77b5d` |
+| C2 — banco/RLS | `308a7f24f27c2886c9b120614d1ffc58ebffd6fa` |
+| C3 — conta/sincronização | `f5c743cbaf71fb5d946dd51109b8b35f9ba04ceb` |
+| C4 — interface/validação | `c45bb1ac357d68ef2da1d3e154f814ea1158c893` |
+
+Todos descendem do checkpoint original `27e2791`. Documentação posterior pode acrescentar outro commit; não houve merge em main nem publicação.
+
+## Junção da conta com a rodada 2 (21/10/2026)
+
+A conta (C1–C4, até `3719697`) foi feita no GitHub a partir de `27e2791`, sem os 18 commits locais dos blocos 5–10 e da rodada 2 (`a27f6b2`…`1fbedf2`), que ainda não tinham sido enviados. A rodada 2 foi enviada como `feat/levels-fullscreen-local-data` e a branch da conta foi juntada nela por merge, sem reescrever nenhum dos dois históricos.
+
+Conflitos resolvidos:
+
+- `public/manifest.json`: permissões `storage`, `unlimitedStorage` e `alarms`.
+- `src/background/background.ts`: o worker cria o serviço de estudo com o histórico no IndexedDB e o cache de traduções, a conta sobre ele, os alarmes de sincronização e a página de boas-vindas.
+- `src/core/study-storage.ts`: a fila ganhou `exclusive()` (usada pela conta) e o atalho do `observe` continua dentro dela.
+- Documentação: AGENTS/CLAUDE, README, `CONTINUAR-AQUI.md` e este arquivo.
+
+Ajustes que o merge exigiu sem conflito de texto:
+
+- Os dois lados criaram um backup com o mesmo `format`/`version` e formas diferentes (biblioteca: dados no topo, com o histórico; conta: documento em `data`, só palavras marcadas). Trocados, não funcionavam: a biblioteca importava zero itens sem erro e a conta recusava o arquivo da biblioteca. Agora cada importação aceita os dois; na conta, o histórico de um arquivo da biblioteca é ignorado.
+- `validateDocument()` recusava um documento sem uma preferência nova. Com o `level` da rodada 2, documento, base ou backup salvos pela versão da conta anterior ao merge seriam recusados e a sincronização pararia. Preferências ausentes agora recebem o padrão; valor presente inválido e chave desconhecida continuam recusados.
+- Testes: o de preservação do histórico confere o IndexedDB, onde o histórico está agora; o de rede aceita os três provedores mais o host exato do Supabase e confere que ele não é aceito como provedor; 3 testes novos (backup da conta na biblioteca, backup da biblioteca na conta, preferência ausente).
+- Uma marca que chega de outro dispositivo não entra no histórico de palavras vistas deste (a cor dela é a da marca; se a marca for removida, a palavra pode aparecer como nova aqui).
+
+Banco: nada mudou. O documento continua no mesmo formato e `settings.level` passa na verificação do SQL, que só confere os tipos do topo. Nenhuma migração nova.
+
+### Verificação
+
+- `npm ci --no-audit --no-fund`, `npm run typecheck`, `npm test -- --maxWorkers=2` (**607 testes em 43 arquivos**), `npm run build`, `npm run build:demo` e `git diff --check`: aprovados.
+- Não verificado nesta etapa: nada em Chrome; nem a conta (cadastro, e-mail, alarmes, invalidação entre abas com o storage restrito) nem a rodada 2 junto com ela. O Supabase não foi acessado nesta etapa; o estado do banco é o registrado na seção anterior.
