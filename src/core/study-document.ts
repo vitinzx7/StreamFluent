@@ -42,7 +42,9 @@ export function parseBackup(text: string): StudyDocument {
   return validateDocument(raw.data);
 }
 export function makeBackup(document: StudyDocument): string {
-  return JSON.stringify({ format: "streamfluent-backup", version: 1, exportedAt: new Date().toISOString(), data: document }, null, 2);
+  const text = JSON.stringify({ format: "streamfluent-backup", version: 1, exportedAt: new Date().toISOString(), data: document });
+  if (new TextEncoder().encode(text).length > MAX_DOCUMENT_BYTES) throw new Error("O backup excede 4 MB. Reduza a biblioteca antes de exportar.");
+  return text;
 }
 export function mergeDocuments(base: StudyDocument, local: StudyDocument, remote: StudyDocument, choices: Choices = {}): { document: StudyDocument; conflicts: Conflict[] } {
   const conflicts: Conflict[] = [];

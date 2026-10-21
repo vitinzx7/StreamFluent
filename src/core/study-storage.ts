@@ -118,12 +118,19 @@ function validatePayload(action: StudyAction, value: unknown): Record<string, un
 }
 
 export interface StudyStorageService {
+  exclusive<T>(operation: () => Promise<T>): Promise<T>;
   handle(message: unknown, sender: chrome.runtime.MessageSender): Promise<StudyReply<unknown>>;
 }
 /** The entire read/migrate/apply/write transaction is queued, including reads. */
 export function createStudyStorageService(storage: Pick<chrome.storage.LocalStorageArea, "get" | "set"> = chrome.storage.local): StudyStorageService {
   let queue: Promise<void> = Promise.resolve();
+  function exclusive<T>(operation: () => Promise<T>): Promise<T> {
+    const result = queue.then(operation);
+    queue = result.then(() => undefined, () => undefined);
+    return result;
+  }
   return {
+    exclusive,
     async handle(message, sender) {
       const requestId = isRecord(message) && typeof own(message, "requestId") === "string" ? own(message, "requestId") as string : "";
       const fail = (error: unknown): StudyReply<unknown> => ({ ok: false, requestId, error: error instanceof Error ? error.message : "Não foi possível salvar. Tente novamente." });
@@ -139,7 +146,7 @@ export function createStudyStorageService(storage: Pick<chrome.storage.LocalStor
         assert(ACTIONS.has(action));
         payload = validatePayload(action, own(message, "payload"));
       } catch (error) { return fail(error); }
-      const result = queue.then(async (): Promise<StudyReply<unknown>> => {
+      const result = exclusive(async (): Promise<StudyReply<unknown>> => {
         const raw = await storage.get([...KEYS]);
         const state: StorageSchema = {
           vocabulary: normalizeVocabulary(raw.vocabulary), phrases: normalizePhrases(raw.phrases),
@@ -215,7 +222,6 @@ export function createStudyStorageService(storage: Pick<chrome.storage.LocalStor
         }
         return { ok: true, requestId, revision: state.studyRevision, data };
       });
-      queue = result.then(() => undefined, () => undefined);
       try { return await result; } catch (error) { return fail(error); }
     },
   };

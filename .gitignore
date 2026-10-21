@@ -14,3 +14,6 @@ dist/
 
 # Tool caches
 .lh/
+
+# Supabase CLI cache
+supabase/.temp/

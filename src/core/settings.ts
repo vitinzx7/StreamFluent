@@ -1,3 +1,4 @@
+import { onStudyInvalidated } from "./study-notifications.ts";
 import type { StorageSchema } from "./types.ts";
 import { requestStudy } from "./study-messages.ts";
 
@@ -111,7 +112,12 @@ export const SettingsRepository = {
       cb(normalizeSettings(change.newValue));
     };
 
+    let disposed = false, sequence = 0;
+    const unsubscribe = onStudyInvalidated("settings", () => {
+      const current = ++sequence;
+      void SettingsRepository.get().then(value => { if (!disposed && current === sequence) cb(value); }).catch(() => {});
+    });
     chrome.storage.onChanged.addListener(listener);
-    return () => chrome.storage.onChanged.removeListener(listener);
+    return () => { disposed = true; unsubscribe(); chrome.storage.onChanged.removeListener(listener); };
   },
 };

@@ -3,12 +3,13 @@
   "name": "StreamFluent",
   "version": "0.1.0",
   "description": "Legendas para estudar idiomas na Netflix, Max e players HTML5 do Cinetaro.",
-  "permissions": ["storage"],
+  "permissions": ["storage", "alarms"],
   "background": { "service_worker": "background.js" },
   "host_permissions": [
     "https://api.dictionaryapi.dev/*",
     "https://clients5.google.com/*",
-    "https://api.mymemory.translated.net/*"
+    "https://api.mymemory.translated.net/*",
+    "https://ttzpioosgfacsutwmhif.supabase.co/*"
   ],
   "action": {
     "default_popup": "popup.html",

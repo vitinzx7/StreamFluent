@@ -31,6 +31,7 @@ export function installStudyWorker(initial: Record<string, unknown> = {}) {
   });
   return {
     storage, local, sendMessage,
+    get service() { return service; },
     failNextWrite(error = new Error("QUOTA_BYTES quota exceeded")) { failure = error; },
     restart() { service = createStudyStorageService(local as unknown as Pick<chrome.storage.LocalStorageArea, "get" | "set">); },
     emit(changes: Record<string, chrome.storage.StorageChange>) { listeners.forEach((listener) => listener(changes, "local")); },
