@@ -1,4 +1,4 @@
-import { createClient, type SupabaseClient } from "@supabase/supabase-js";
+import { createClient, isAuthError, isAuthRetryableFetchError, type SupabaseClient } from "@supabase/supabase-js";
 import { validateDocument, type StudyDocument } from "./study-document.ts";
 export const ACCOUNT_ORIGIN = "https://ttzpioosgfacsutwmhif.supabase.co";
 // Intentionally public. RLS, not this key, is the authorization boundary.
@@ -13,6 +13,24 @@ export interface AccountRemote {
   signOut(): Promise<void>;
   read(userId: string): Promise<RemoteDocument | null>;
   write(expectedRevision: number, document: StudyDocument): Promise<number | null>;
+}
+// Supabase Auth codes the user can act on. Anything else keeps the caller's generic message.
+const AUTH_MESSAGES: Record<string, string> = {
+  invalid_credentials: "E-mail ou senha incorretos. Se ainda não tem conta, use Criar conta.",
+  email_not_confirmed: "Cadastro ainda não confirmado. Abra o link enviado ao seu e-mail (veja também o spam) e entre de novo.",
+  user_already_exists: "Este e-mail já tem conta. Use Entrar.",
+  email_exists: "Este e-mail já tem conta. Use Entrar.",
+  weak_password: "Senha fraca. Use uma senha mais longa, misturando letras e números.",
+  email_address_invalid: "O servidor de contas recusou este e-mail. Use outro endereço.",
+  email_address_not_authorized: "O envio de e-mail do projeto ainda não aceita este endereço (falta configurar o SMTP próprio no Supabase).",
+  over_email_send_rate_limit: "O projeto atingiu o limite de e-mails por hora. Tente de novo mais tarde.",
+  over_request_rate_limit: "Muitas tentativas seguidas. Aguarde alguns minutos e tente de novo.",
+  signup_disabled: "O cadastro de contas está desativado no momento.",
+};
+function authError(error: unknown, fallback: string): Error {
+  if (isAuthRetryableFetchError(error)) return new Error("Sem conexão com o servidor de contas. Confira a internet e tente de novo.");
+  const code = isAuthError(error) ? error.code : undefined;
+  return new Error((code && AUTH_MESSAGES[code]) || fallback);
 }
 export function allowedAccountUrl(input: string): boolean {
   try {
@@ -62,14 +80,16 @@ export function createAccountRemote(ready: Promise<void>): AccountRemote {
     },
     async signIn(email, password) {
       const { data, error } = await (await getClient()).auth.signInWithPassword({ email, password });
-      if (error || !data.user) throw new Error("Não foi possível entrar. Confira e-mail, senha e confirmação do cadastro.");
+      if (error || !data.user) throw authError(error, "Não foi possível entrar. Confira e-mail, senha e confirmação do cadastro.");
       return userValue(data.user)!;
     },
     async signUp(email, password) {
       const supabase = await getClient();
-      const { error } = await supabase.auth.signUp({ email, password });
-      if (error) throw new Error("Não foi possível cadastrar. Confira os dados e a configuração de e-mail do projeto.");
+      const { data, error } = await supabase.auth.signUp({ email, password });
+      if (error) throw authError(error, "Não foi possível cadastrar. Confira os dados e a configuração de e-mail do projeto.");
       await supabase.auth.signOut({ scope: "local" });
+      // With confirmation on, Supabase answers an already confirmed e-mail with a user without identities and sends nothing.
+      if (data.user?.identities?.length === 0) throw new Error(AUTH_MESSAGES.user_already_exists);
     },
     async signOut() {
       const supabase = await getClient();

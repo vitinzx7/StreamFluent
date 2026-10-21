@@ -189,3 +189,17 @@ Banco: nada mudou. O documento continua no mesmo formato e `settings.level` pass
 
 - `npm ci --no-audit --no-fund`, `npm run typecheck`, `npm test -- --maxWorkers=2` (**607 testes em 43 arquivos**), `npm run build`, `npm run build:demo` e `git diff --check`: aprovados.
 - Não verificado nesta etapa: nada em Chrome; nem a conta (cadastro, e-mail, alarmes, invalidação entre abas com o storage restrito) nem a rodada 2 junto com ela. O Supabase não foi acessado nesta etapa; o estado do banco é o registrado na seção anterior.
+
+## Login sem resposta visível (21/10/2026)
+
+Relato do usuário: na página de conta, preencher e-mail e senha e clicar não fazia nada. Executado num Chrome 155 headless com `dist/` carregado e o Supabase real, entrando com um e-mail inexistente (`@example.com`; nenhum cadastro nem e-mail enviado): o pedido ia e voltava em menos de 1 s, mas a resposta saía no `#feedback`, no fim da página (topo em 1323 px numa janela de 720 px), fora da tela. Também era sempre a mesma frase para senha errada, cadastro não confirmado ou falta de conexão.
+
+- `#feedback` fica preso ao rodapé da janela enquanto tem texto, em vermelho quando é erro.
+- `account-remote.ts` traduz os códigos do Supabase Auth em que o usuário pode agir: senha errada, cadastro não confirmado, e-mail já cadastrado, senha fraca, limite de e-mails ou de tentativas, endereço recusado pelo SMTP padrão, cadastro desligado, sem conexão. Outros códigos mantêm a frase genérica. No cadastro, a resposta do Supabase para um e-mail já confirmado (usuário sem `identities`, nenhum e-mail enviado) passa a avisar que a conta já existe.
+- Configuração pública do Auth lida em `/auth/v1/settings`: e-mail habilitado, confirmação obrigatória, Google desabilitado.
+
+### Verificação
+
+- `npm run typecheck`, `npm test` (**609 testes em 43 arquivos**; 2 novos), `npm run build`, `npm run build:demo` e `git diff --check`: aprovados.
+- Chrome headless com o Supabase real: depois do clique, "E-mail ou senha incorretos…" aparece no rodapé da janela (topo em 659 px de 720).
+- Não verificado: cadastro e confirmação reais por e-mail, nem entrar com uma conta existente.

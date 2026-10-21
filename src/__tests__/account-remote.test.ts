@@ -50,6 +50,27 @@ describe("real SDK with controlled HTTP and trusted storage", () => {
     await restarted.signOut(); expect(values).toEqual({});
     for (const [, init] of fetcher.mock.calls) expect(init).toMatchObject({ credentials: "omit", redirect: "error" });
   });
+  it("explains the Auth refusals the user can act on and keeps a generic message otherwise", async () => {
+    const { createAccountRemote } = await import("../core/account-remote.ts");
+    let reply: () => Response | Promise<Response> = () => new Response("{}");
+    vi.stubGlobal("fetch", vi.fn(async () => reply()));
+    vi.stubGlobal("chrome", { storage: { local: { get: async () => ({}), set: async () => {}, remove: async () => {} } } });
+    const remote = createAccountRemote(Promise.resolve());
+    const refuse = (code: string, status = 400) => () => Response.json({ code: status, error_code: code, msg: code }, { status });
+    reply = refuse("invalid_credentials");
+    await expect(remote.signIn("a@example.test", "fixture-password")).rejects.toThrow(/incorretos/);
+    reply = refuse("email_not_confirmed");
+    await expect(remote.signIn("a@example.test", "fixture-password")).rejects.toThrow(/não confirmado/);
+    reply = refuse("over_email_send_rate_limit", 429);
+    await expect(remote.signUp("a@example.test", "fixture-password")).rejects.toThrow(/limite de e-mails/);
+    reply = refuse("something_new");
+    await expect(remote.signIn("a@example.test", "fixture-password")).rejects.toThrow(/Confira e-mail, senha/);
+    reply = () => { throw new TypeError("Failed to fetch"); };
+    await expect(remote.signIn("a@example.test", "fixture-password")).rejects.toThrow(/Sem conexão/);
+    // Supabase hides an existing confirmed e-mail behind a user without identities.
+    reply = () => Response.json({ id: "5f000000-0000-4000-8000-000000000002", aud: "authenticated", role: "", email: "a@example.test", identities: [], app_metadata: {}, user_metadata: {}, created_at: new Date().toISOString() });
+    await expect(remote.signUp("a@example.test", "fixture-password")).rejects.toThrow(/já tem conta/);
+  });
   it("does not touch auth or persist a session if trusted storage setup failed", async () => {
     const { createAccountRemote } = await import("../core/account-remote.ts");
     const fetcher = vi.fn(); vi.stubGlobal("fetch", fetcher);

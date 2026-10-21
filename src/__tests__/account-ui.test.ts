@@ -34,6 +34,17 @@ describe("account page controlled DOM", () => {
     expect(document.getElementById("state")?.textContent).toMatch(/desativada/);
     expect((document.getElementById("consent") as HTMLInputElement).checked).toBe(false);
   });
+  it("marks a refused login as an error and clears that mark on the next attempt", async () => {
+    (document.getElementById("email") as HTMLInputElement).value = "a@example.test";
+    (document.getElementById("password") as HTMLInputElement).value = "example-password";
+    handler = action => { if (action === "sign-in") throw new Error("E-mail ou senha incorretos."); return state; };
+    const feedback = document.getElementById("feedback")!;
+    document.getElementById("login")!.dispatchEvent(new Event("submit", { bubbles: true, cancelable: true })); await tick(); await tick();
+    expect(feedback.textContent).toBe("E-mail ou senha incorretos."); expect(feedback.dataset.kind).toBe("error");
+    handler = action => action === "status" ? state : {};
+    document.getElementById("login")!.dispatchEvent(new Event("submit", { bubbles: true, cancelable: true }));
+    expect(feedback.textContent).toBe("Processando…"); expect(feedback.dataset.kind).toBeUndefined();
+  });
   it("never labels a failed sync as synchronized", async () => {
     handler = action => {
       if (action === "enable") state = { ...initial, signedIn: true, enabled: true, error: "Falha de rede" };

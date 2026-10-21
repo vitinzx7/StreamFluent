@@ -143,7 +143,7 @@ export function createAccountService(study: StudyStorageService, remote: Account
     if (action === "sign-in" || action === "sign-up") {
       const { email, password } = payload;
       if (typeof email !== "string" || email.length > 254 || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email) || typeof password !== "string" || password.length < 8 || password.length > 256) throw new Error("Informe e-mail válido e senha com 8 a 256 caracteres.");
-      if (action === "sign-up") { await remote.signUp(email, password); return { message: "Cadastro solicitado. Confira seu e-mail para confirmar antes de entrar." }; }
+      if (action === "sign-up") { await remote.signUp(email, password); return { message: "Cadastro solicitado. Abra o link enviado ao seu e-mail (veja também o spam) e depois clique em Entrar." }; }
       const user = await remote.signIn(email, password);
       try {
         await study.exclusive(async () => {

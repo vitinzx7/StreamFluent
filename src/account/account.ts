@@ -48,9 +48,9 @@ async function refresh() { const sequence = ++statusSequence; const next = await
 async function run(operation: () => Promise<void>) {
   if (busy) return;
   busy = true; document.querySelectorAll<HTMLButtonElement | HTMLInputElement | HTMLSelectElement>("button, input, select").forEach(b => { b.disabled = true; });
-  el("feedback").textContent = "Processando…";
+  el("feedback").textContent = "Processando…"; delete el("feedback").dataset.kind;
   try { await operation(); await refresh(); }
-  catch (error) { el("feedback").textContent = error instanceof Error ? error.message : "Não foi possível concluir."; }
+  catch (error) { el("feedback").textContent = error instanceof Error ? error.message : "Não foi possível concluir."; el("feedback").dataset.kind = "error"; }
   finally {
     busy = false; document.querySelectorAll<HTMLButtonElement | HTMLInputElement | HTMLSelectElement>("button, input, select").forEach(b => { b.disabled = false; });
     (el("import") as HTMLButtonElement).disabled = !importedText;

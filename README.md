@@ -148,7 +148,7 @@ Esta página foi executada com a extensão carregada num Chrome headless isolado
 - Entrar/sair da tela cheia do contêiner; conferir painel, legenda e ausência de duplicatas.
 - Repetir na Netflix/Max com conteúdo real — inclusive se a Netflix/Max reagem às mesmas teclas, a tela cheia, a pergunta de nível e o botão na borda direita — e no Cinetaro.
 
-Os testes automatizados usam DOM e respostas controladas: **607 testes em 43 arquivos** passaram, assim como `npm run typecheck`, `npm run build` e `git diff --check`. Eles não comprovam a API real da Netflix, CORS, políticas de fullscreen, a estrutura atual dos sites, nem login, e-mail e sincronização reais com o Supabase.
+Os testes automatizados usam DOM e respostas controladas: **609 testes em 43 arquivos** passaram, assim como `npm run typecheck`, `npm run build` e `git diff --check`. Eles não comprovam a API real da Netflix, CORS, políticas de fullscreen, a estrutura atual dos sites, nem login, e-mail e sincronização reais com o Supabase.
 
 ## Privacidade e rede
 
