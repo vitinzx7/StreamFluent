@@ -35,3 +35,5 @@ Esses resultados validam o código presente e os testes controlados, não a conc
 ## Objetivo adicional: conta e sincronização
 
 Plano em `docs/account-sync-plan.md` (commit `66699d2`). C1: documento versionado, backup estrito e merge em três vias implementados; 7 testes direcionados e typecheck passaram. Histórico de palavras não marcadas excluído do documento. Controles 5–10 mantêm os estados anteriores.
+
+C2: migração `account_study_sync` aplicada pelo MCP ao projeto confirmado. `supabase/tests/account_rls.sql` executado no banco real em transação com rollback: 8 verificações aprovadas (CAS, inserção cruzada, troca de dono, leitura/update/RPC cruzados, isolamento B, DELETE, SELECT e RPC anônimos). Fixtures sintéticas, sem sessões/e-mails reais. Advisor de segurança retornou zero lints. Ainda não é teste de login HTTP nem de Chrome. C1 commit: `101b33d`.
