@@ -1,4 +1,5 @@
-import { EXTENSION_MARKER, parseSeasonEpisode } from "../dom-utils.ts";
+import { EXTENSION_MARKER, parseSeasonEpisode, restoreNativeSubtitles } from "../dom-utils.ts";
+import { hideArtplayerLine, isArtplayerSubtitleTrack } from "../artplayer.ts";
 import { isCinetaroUrl, isEmbeddedPlayerUrl } from "../frame-messages.ts";
 import type { PlayerSnapshot } from "../player-types.ts";
 import type { SubtitleCue } from "../types.ts";
@@ -133,6 +134,10 @@ export function createTimedSubtitles(): { updatePlayer(state: PlayerSnapshot): v
   let snapshot: PlayerSnapshot | null = null;
   let tracks: TextTrack[] = [];
   let selectedTrack: TextTrack | null = null;
+  // The subtitle picked in Artplayer's own menu is the default source, and stays
+  // chosen when Artplayer swaps its track for another language.
+  let followPlayer = true;
+  let lineHiddenIn: Document | null = null;
   let imported: SubtitleCue[] | null = null;
   let importedName = "";
   let cueSignature = "";
@@ -194,6 +199,7 @@ export function createTimedSubtitles(): { updatePlayer(state: PlayerSnapshot): v
   }
 
   const video = (): HTMLVideoElement | null => snapshot?.video ?? null;
+  const isPlayerTrack = (track: TextTrack): boolean => isArtplayerSubtitleTrack(video(), track);
   const driver = createHtml5Driver(video, studySession);
   // A goes back over lines learned as they are shown, the same rules as Netflix/Max.
   const navigation = createLineNavigation({ getVideo: video, seekTo: driver.seekTo });
@@ -395,6 +401,14 @@ export function createTimedSubtitles(): { updatePlayer(state: PlayerSnapshot): v
     if (usable) for (const track of tracks) if (track.mode === "showing") hideTrack(track);
   }
 
+  /** The line a player draws itself (Artplayer) gives way only while ours shows a usable source. */
+  function updatePlayerLine(): void {
+    const doc = enabled.checked && usable && !isVideoFullscreen() && snapshot?.video ? currentDocument : null;
+    if (lineHiddenIn && lineHiddenIn !== doc) restoreNativeSubtitles(lineHiddenIn);
+    lineHiddenIn = doc;
+    if (doc) hideArtplayerLine(doc);
+  }
+
   function rebuildSources(): void {
     const selectedValue = sources.value;
     sources.replaceChildren();
@@ -405,7 +419,8 @@ export function createTimedSubtitles(): { updatePlayer(state: PlayerSnapshot): v
       sources.appendChild(item);
     };
     option("", "Escolha uma fonte");
-    tracks.forEach((track, index) => option(String(index), `${track.label || `Faixa ${index + 1}`} (${track.language || "idioma desconhecido"})`));
+    tracks.forEach((track, index) => option(String(index), isPlayerTrack(track) ? "Legenda do player (idioma escolhido no menu dele)"
+      : `${track.label || `Faixa ${index + 1}`} (${track.language || "idioma desconhecido"})`));
     if (imported) option("file", `Arquivo: ${importedName}`);
     sources.value = selectedTrack ? String(tracks.indexOf(selectedTrack)) : imported && selectedValue === "file" ? "file" : "";
   }
@@ -502,6 +517,7 @@ export function createTimedSubtitles(): { updatePlayer(state: PlayerSnapshot): v
     updateModes();
     readTrack();
     updateModes();
+    updatePlayerLine();
     const active = enabled.checked && !!video && !isVideoFullscreen();
     // Invisible captions cannot be studied: no auto-pause, R or copy on them.
     if (!active && !wasSuspended) suspendStudy();
@@ -521,9 +537,10 @@ export function createTimedSubtitles(): { updatePlayer(state: PlayerSnapshot): v
     present();
     status.textContent = isVideoFullscreen() ? "Tela cheia nativa do vídeo: camada suspensa e legendas originais restauradas."
       : !video ? snapshot?.status || "Procurando vídeo HTML5 acessível…"
-      : !enabled.checked ? "Camada desativada. Escolha uma fonte e ative para usar."
+      : !enabled.checked ? selectedTrack || sources.value === "file" ? "Camada desativada. Ative para usar." : "Camada desativada. Escolha uma fonte e ative para usar."
       : !selectedTrack && sources.value !== "file" ? tracks.length ? "Escolha uma faixa ou importe um SRT/VTT." : "Nenhuma faixa acessível. Importe um arquivo SRT/VTT."
-      : !usable ? "Faixa sem falas acessíveis no momento. Aguarde o carregamento ou importe SRT/VTT."
+      : !usable ? selectedTrack && isPlayerTrack(selectedTrack) ? "A legenda do player está sem falas. Se ela não carregar, escolha um idioma no menu Subtitle do próprio player."
+        : "Faixa sem falas acessíveis no momento. Aguarde o carregamento ou importe SRT/VTT."
       : !displayed.source ? "Sem fala neste instante. Confira a fonte e o ajuste; tradução não cria falas ausentes."
       : translate.checked && language.value === "pt" ? "Fonte já em português: sem envio para tradução."
       : "Legenda sincronizada pelo relógio do vídeo.";
@@ -559,6 +576,7 @@ export function createTimedSubtitles(): { updatePlayer(state: PlayerSnapshot): v
     fileGeneration++;
     restoreTracks();
     selectedTrack = sources.value !== "file" && sources.value !== "" ? tracks[Number(sources.value)] || null : null;
+    followPlayer = !!selectedTrack && isPlayerTrack(selectedTrack);
     if (selectedTrack) language.value = selectedTrack.language.toLowerCase().startsWith("pt") ? "pt" : "en";
     cueSignature = "";
     newStudySource();
@@ -590,6 +608,7 @@ export function createTimedSubtitles(): { updatePlayer(state: PlayerSnapshot): v
       imported = cues;
       importedName = file.name;
       selectedTrack = null;
+      followPlayer = false;
       cueSignature = "";
       rebuildSources();
       sources.value = "file";
@@ -674,6 +693,7 @@ export function createTimedSubtitles(): { updatePlayer(state: PlayerSnapshot): v
         imported = null;
         importedName = "";
         selectedTrack = null;
+        followPlayer = true;
         cueSignature = "";
         usable = false;
         sources.value = "";
@@ -683,13 +703,17 @@ export function createTimedSubtitles(): { updatePlayer(state: PlayerSnapshot): v
       }
       snapshot = state;
       if (changedSession) newStudySource();
-      const captionTracks = state.tracks.filter((track) => track.kind === "subtitles" || track.kind === "captions");
+      const captionTracks = state.tracks.filter((track) => track.kind === "subtitles" || track.kind === "captions"
+        || isArtplayerSubtitleTrack(state.video, track));
       const changedTracks = tracks.length !== captionTracks.length || tracks.some((track, i) => track !== captionTracks[i]);
       if (changedTracks || changedSession) {
         tracks = captionTracks;
-        if (selectedTrack && !tracks.includes(selectedTrack)) {
+        const next = followPlayer ? tracks.find(isPlayerTrack) ?? null
+          : selectedTrack && tracks.includes(selectedTrack) ? selectedTrack : null;
+        if (next !== selectedTrack) {
           restoreTracks();
-          selectedTrack = null;
+          selectedTrack = next;
+          cueSignature = "";
           newStudySource();
           applySource([]);
           resetOffset();
@@ -717,6 +741,8 @@ export function createTimedSubtitles(): { updatePlayer(state: PlayerSnapshot): v
       vocabulary.dispose();
       renderer.destroy();
       restoreTracks();
+      if (lineHiddenIn) restoreNativeSubtitles(lineHiddenIn);
+      lineHiddenIn = null;
       engine.destroy();
       host.remove();
       if (activeInstance === instance) activeInstance = null;

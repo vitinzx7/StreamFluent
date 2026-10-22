@@ -218,3 +218,26 @@ Pedido do usuário: a conta estava escondida (último botão do popup e um link 
 - `npm run typecheck`, `npm test` (**607 testes em 43 arquivos**), `npm run build`, `npm run build:demo` e `git diff --check`: aprovados. Os testes de backup e de apagar foram da biblioteca para a aba Conta, contra a fila de estudo real. Novos: o backup não leva dados da conta; o aviso da sincronização ao apagar tudo; a conta recusa as ações de backup retiradas; `account.html` é aceita como remetente de estudo. Retirados: os testes do backup próprio da conta.
 - Chrome 155 headless com `dist/` carregado e a rede externa bloqueada: capturas da biblioteca (frases e palavras difíceis), da conta sem login, com login e sincronização desligada, com sincronização pendente, em largura de celular (390 px) e do popup. Sem erros no console. O estado "com login" foi simulado gravando os metadados de conta no perfil temporário, sem login real.
 - Não verificado: login, cadastro e sincronização reais; o visual no Chrome do usuário.
+
+## Cinetaro: legenda do Artplayer (22/10/2026)
+
+O usuário relatou que no Cinetaro a extensão "não pega". O diagnóstico, colhido pelo Claude do navegador num episódio real (Mr. Robot S01E01) e colado na conversa, mostrou:
+
+- O botão "SF · Legendas" aparecia no frame `cinextream.cc`, dois níveis abaixo do topo (`cinetaro.to` → `sub.php` na mesma origem → `cinextream.cc`). O painel dizia "Nenhuma faixa de legenda acessível".
+- O player é o Artplayer 5.2.1 sobre hls.js 1.5.17. A legenda escolhida no menu dele (lista vinda de `sub.1x2.space`; o arquivo de `cache.vdrk.site`) vira um blob numa `<track kind="metadata" label="Artplayer">`, em modo `hidden`. O próprio Artplayer escreve as falas ativas em `div.art-subtitle`.
+- A camada só aceitava faixas `subtitles`/`captions`, por decisão (há teste para não oferecer metadados nem capítulos), e por isso não oferecia nada.
+
+O que mudou:
+
+- `src/core/artplayer.ts` reconhece a faixa do Artplayer: tipo `metadata` (ou `subtitles`, como o Artplayer a recria quando o próprio vídeo entra em tela cheia nativa) carregada por um `<track>` de um `video.art-video`. Outras faixas `metadata` continuam fora.
+- No painel, ela aparece como "Legenda do player (idioma escolhido no menu dele)" e já vem escolhida. Ao trocar de idioma no menu do Artplayer, ele troca o elemento `<track>` (o código do 5.2.1 remove o antigo e cria outro), e a camada passa para a faixa nova: o ajuste volta a zero, como em qualquer troca de fonte. Escolher outra fonte ou importar um arquivo interrompe esse acompanhamento até a próxima sessão. Uma sessão nova, por exemplo quando o HLS troca de servidor e o blob do vídeo muda, volta a seguir o player.
+- Enquanto a camada mostra uma fonte com falas, `.art-subtitle` recebe a regra de esconder legendas nativas (`opacity: 0`, a mesma da Netflix/Max) no documento do player. Ao desativar, perder as falas, entrar em tela cheia nativa do vídeo ou destruir a camada, a regra sai. `hideNativeSubtitles`/`restoreNativeSubtitles` passaram a agir no documento do elemento, ou no documento recebido, em vez de só no `document` global.
+- Status novos: "Camada desativada. Ative para usar." quando a fonte já está escolhida. Se a legenda do player estiver vazia (a padrão do site às vezes dá 404): "A legenda do player está sem falas. Se ela não carregar, escolha um idioma no menu Subtitle do próprio player."
+
+### Verificação
+
+- `npm run typecheck`, `npm test` (**611 testes em 43 arquivos**), `npm run build`, `npm run build:demo` e `git diff --check`: aprovados.
+- Testes novos em `timed-subtitles.test.ts`: a faixa do Artplayer é oferecida e escolhida por padrão; `.art-subtitle` é escondida só com a camada ativa e restaurada ao desativar e ao destruir; a camada acompanha a troca de `<track>`, mas não depois que outra fonte foi escolhida; uma faixa vazia mantém a legenda do Artplayer e indica o menu; uma `<track kind="metadata">` num vídeo que não é do Artplayer continua fora. Sem a correção, três deles falham.
+- Chrome 155 headless com `dist/` carregado. Uma réplica local servia `cinetaro.to/watch/…` → `sub.php` → `cinextream.cc/api/embed/…` por HTTPS, com os dois hosts mapeados para 127.0.0.1 e o resto da rede bloqueado. O `cinextream.cc` era um frame de outro processo, como no site, e rodava o Artplayer 5.2.1 do npm com um vídeo de teste e VTTs em inglês e português. O site começa com `subtitle.url` vazio e chama `switch` depois.
+  - Resultados: o topo não ficou com interface. O frame mostrou a "Legenda do player" escolhida. Com a camada ativa, em 2 s apareceu "[Elliot] / You're going to stop seeing Krista." com `.art-subtitle` em opacidade 0. Depois de `art.subtitle.switch(Portuguese.vtt)`, a fonte continuou a mesma e mostrou "Esta é a segunda fala." em 5 s e "Olá, amigo." tocando. Ao desativar, `.art-subtitle` voltou a opacidade 1. Sem erros no console. As capturas mostram uma legenda só.
+- Não verificado: o site real (Cloudflare bloqueia o Chrome headless), hls.js com troca de servidor, a tela cheia do Artplayer e os atalhos com o foco no frame real.

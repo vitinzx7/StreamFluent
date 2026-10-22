@@ -66,7 +66,7 @@ Validação em players reais — nada disso pôde ser feito no ambiente de desen
 
 1. **Netflix:** se `videoPlayer` ainda expõe `seek`/`play`/`pause` (o `probe` responde), se A/S/D/Espaço não acionam também o handler da Netflix (ordem de listeners), se os seletores de legenda ainda funcionam e quanto atrasa a pausa automática aproximada.
 2. **Max:** se escrever `currentTime` e chamar `play/pause` no `<video>` é aceito pelo player, e os seletores.
-3. **Cinetaro / `cinextream.cc`:** faixas acessíveis, foco dos atalhos dentro do frame, permissão de clipboard no frame (senão aparece o campo de cópia manual) e tela cheia.
+3. **Cinetaro / `cinextream.cc`:** a "Legenda do player" (Artplayer) vir escolhida e acompanhar a troca de idioma no menu do player, a legenda do Artplayer sumir só com a camada ativa, troca de servidor do HLS no meio do episódio, foco dos atalhos dentro do frame, permissão de clipboard no frame (senão aparece o campo de cópia manual) e tela cheia do Artplayer.
 4. **Conta:** a lista "Próxima validação manual de conta" do [progresso](study-controls-progress.md): cadastro e confirmação por e-mail, sincronização entre dois perfis, conflitos, alarmes do MV3 e cores atualizando nas abas com o storage restrito.
 
 Se uma plataforma real falhar num requisito central, corrigir antes de considerá-la pronta. Não declarar compatibilidade a partir de mocks, da fixture ou da página com forma de Netflix usada na execução headless.

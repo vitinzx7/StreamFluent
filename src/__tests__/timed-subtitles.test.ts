@@ -126,12 +126,9 @@ afterEach(() => {
   vi.unstubAllGlobals();
 });
 
-function setup() {
+function mount(video: HTMLVideoElement, tracks: TextTrack[]) {
   installStudyWorker();
-  const video = document.createElement("video");
-  document.body.appendChild(video);
-  const track = { kind: "subtitles", mode: "showing", language: "en", label: "English", cues: [{ startTime: 1, endTime: 3, text: "Hello <img src=x onerror=alert(1)>" }] } as unknown as TextTrack;
-  const state: PlayerSnapshot = { video, sessionKey: "ep1", currentTime: 1, paused: true, seeking: false, playbackRate: 1, tracks: [track], status: "ready" };
+  const state: PlayerSnapshot = { video, sessionKey: "ep1", currentTime: 1, paused: true, seeking: false, playbackRate: 1, tracks, status: "ready" };
   overlay = createTimedSubtitles();
   overlay.updatePlayer(state);
   const host = document.querySelector<HTMLElement>("[data-streamfluent-timed]")!;
@@ -143,8 +140,40 @@ function setup() {
     else el.value = value;
     el.dispatchEvent(new Event("change"));
   };
-  change("source", "0");
-  return { state, track, host, shadow, get, change };
+  return { state, host, shadow, get, change };
+}
+
+function setup() {
+  const video = document.createElement("video");
+  document.body.appendChild(video);
+  const track = { kind: "subtitles", mode: "showing", language: "en", label: "English", cues: [{ startTime: 1, endTime: 3, text: "Hello <img src=x onerror=alert(1)>" }] } as unknown as TextTrack;
+  const c = mount(video, [track]);
+  c.change("source", "0");
+  return { ...c, track };
+}
+
+/** The shape seen in the cinextream.cc frame: Artplayer 5.2.1 over hls.js. */
+function artplayer(text = "Hello", videoClass = "art-video") {
+  const player = document.createElement("div");
+  player.className = "art-video-player";
+  const video = document.createElement("video");
+  video.className = videoClass;
+  const line = document.createElement("div");
+  line.className = "art-subtitle";
+  player.append(video, line);
+  document.body.appendChild(player);
+  // Picking another language in Artplayer's menu swaps the <track> element.
+  const attach = (cueText: string) => {
+    video.querySelector("track")?.remove();
+    const element = document.createElement("track");
+    const cues = cueText ? [{ startTime: 1, endTime: 3, text: cueText }] : [];
+    const track = { kind: "metadata", mode: "hidden", language: "", label: "Artplayer", cues } as unknown as TextTrack;
+    Object.defineProperty(element, "track", { value: track });
+    video.appendChild(element);
+    return track;
+  };
+  const track = attach(text);
+  return { ...mount(video, [track]), track, line, attach };
 }
 
 describe("player subtitle UI", () => {
@@ -274,5 +303,55 @@ describe("player subtitle UI", () => {
     overlay = createTimedSubtitles();
     expect(frameDocument.querySelectorAll("[data-streamfluent-timed]")).toHaveLength(0);
     expect(document.querySelectorAll("[data-streamfluent-timed]")).toHaveLength(1);
+  });
+});
+
+describe("Artplayer subtitle (cinextream.cc)", () => {
+  const HIDDEN = "data-streamfluent-native-hidden";
+
+  it("offers the player's own subtitle by default and hides the line Artplayer draws while ours shows", () => {
+    const c = artplayer();
+    const select = c.get<HTMLSelectElement>("source");
+    expect(select.value).toBe("0");
+    expect(select.selectedOptions[0].textContent).toBe("Legenda do player (idioma escolhido no menu dele)");
+    expect(c.get("status").textContent).toBe("Camada desativada. Ative para usar.");
+    expect(c.line.hasAttribute(HIDDEN)).toBe(false);
+    c.change("enabled", true);
+    expect(c.shadow.querySelector(".source")?.textContent).toBe("Hello");
+    expect(c.line.hasAttribute(HIDDEN)).toBe(true);
+    expect(c.track.mode).toBe("hidden");
+    c.change("enabled", false);
+    expect(c.line.hasAttribute(HIDDEN)).toBe(false);
+    c.change("enabled", true);
+    overlay!.destroy();
+    expect(c.line.hasAttribute(HIDDEN)).toBe(false);
+    expect(document.getElementById("streamfluent-native-hidden")).toBeNull();
+  });
+
+  it("follows the track Artplayer swaps in for another language, unless another source was chosen", () => {
+    const c = artplayer();
+    c.change("enabled", true);
+    overlay!.updatePlayer({ ...c.state, tracks: [c.attach("Olá")] });
+    expect(c.get<HTMLSelectElement>("source").value).toBe("0");
+    expect(c.shadow.querySelector(".source")?.textContent).toBe("Olá");
+    expect(c.line.hasAttribute(HIDDEN)).toBe(true);
+    c.change("source", "");
+    expect(c.line.hasAttribute(HIDDEN)).toBe(false);
+    overlay!.updatePlayer({ ...c.state, tracks: [c.attach("Bye")] });
+    expect(c.get<HTMLSelectElement>("source").value).toBe("");
+    expect(c.shadow.querySelector(".source")?.textContent).toBe("");
+  });
+
+  it("keeps Artplayer's line and points to its menu while the chosen language has no cues", () => {
+    const c = artplayer("");
+    c.change("enabled", true);
+    expect(c.get("status").textContent).toContain("menu Subtitle do próprio player");
+    expect(c.line.hasAttribute(HIDDEN)).toBe(false);
+  });
+
+  it("does not take a metadata <track> from a video that is not Artplayer's", () => {
+    const c = artplayer("Hello", "plain");
+    expect(c.get<HTMLSelectElement>("source").options).toHaveLength(1);
+    expect(c.get("source").textContent).toBe("Nenhuma faixa de legenda acessível");
   });
 });

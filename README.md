@@ -2,7 +2,7 @@
 
 Extensão Chrome Manifest V3 para estudar idiomas com legendas. Netflix e Max usam as legendas já renderizadas no DOM. O modo HTML5, habilitado para Cinetaro e seu player incorporado `cinextream.cc`, lê faixas acessíveis ou um arquivo SRT/VTT local e usa o tempo real do vídeo. Os dois caminhos oferecem as mesmas ferramentas de estudo: palavras clicáveis e coloridas, cartão de consulta, atalhos, pausa automática e salvamento da fala.
 
-**Situação:** implementado, com testes automatizados e execuções em Chrome headless da página de teste da extensão, de uma página local com forma de Netflix e da biblioteca (detalhes em [docs/study-controls-progress.md](docs/study-controls-progress.md)). O usuário usou a versão anterior na **Netflix real** e relatou que tudo funcionou, exceto a tradução da fala atrasada, o botão em cima do de tela cheia e a camada em tela cheia; essas três correções e os níveis ainda não foram vistos na Netflix real. Max e Cinetaro não foram verificados em player real. A conta opcional (Supabase) foi testada com respostas controladas e com as políticas SQL no banco real; cadastro, e-mail e sincronização ainda não foram testados num Chrome real. Não há transcrição de áudio nem recuperação automática de falas ausentes. O que ainda está planejado: [docs/proximos-passos.md](docs/proximos-passos.md).
+**Situação:** implementado, com testes automatizados e execuções em Chrome headless da página de teste da extensão, de uma página local com forma de Netflix e da biblioteca (detalhes em [docs/study-controls-progress.md](docs/study-controls-progress.md)). O usuário usou a versão anterior na **Netflix real** e relatou que tudo funcionou, exceto a tradução da fala atrasada, o botão em cima do de tela cheia e a camada em tela cheia; essas três correções e os níveis ainda não foram vistos na Netflix real. Max e Cinetaro não foram verificados em player real; o Cinetaro foi testado numa réplica local dos frames com o Artplayer verdadeiro. A conta opcional (Supabase) foi testada com respostas controladas e com as políticas SQL no banco real; cadastro, e-mail e sincronização ainda não foram testados num Chrome real. Não há transcrição de áudio nem recuperação automática de falas ausentes. O que ainda está planejado: [docs/proximos-passos.md](docs/proximos-passos.md).
 
 ## Instalar e recarregar
 
@@ -107,8 +107,8 @@ Não há segredo de backend para configurar na extensão: URL/chave publicável 
 
 Abra `https://cinetaro.to/watch/62560?ep=8` e inicie o player. A extensão executa dentro do frame `cinextream.cc`, mantendo apenas um painel ativo. O topo transmite a troca de episódio por mensagens internas validadas, sem enviar a URL para os tradutores. No painel StreamFluent:
 
-1. Selecione uma faixa acessível ou importe um arquivo `.srt`/`.vtt` em UTF-8, até 2 MB. Informe se o arquivo já está em português ou se está em inglês.
-2. Ative a camada de legendas. A importação fica apenas em memória, sem upload do arquivo.
+1. A fonte já vem como **Legenda do player**: a legenda que o próprio player (Artplayer) carregou. Para mudar o idioma, use o menu de legendas do player (engrenagem → Subtitle); a camada acompanha a troca. Também dá para escolher outra faixa acessível ou importar um arquivo `.srt`/`.vtt` em UTF-8, até 2 MB. Informe se a fonte já está em português ou se está em inglês.
+2. Ative a camada de legendas. Enquanto ela mostra falas, a legenda desenhada pelo player some, para não aparecerem duas; ao desativar, ela volta. A importação fica apenas em memória, sem upload do arquivo.
 3. Ative a tradução para português brasileiro se quiser enviar a fala atual ao tradutor. O texto original continua disponível enquanto a tradução está pendente ou falha. Clicar numa palavra consulta só aquela palavra, sem ligar a tradução das falas.
 4. Use **Adiantar 0,5 s** quando a legenda aparece depois da fala; use **Atrasar 0,5 s** quando aparece antes. **Restaurar** volta a zero.
 
@@ -146,7 +146,7 @@ Esta página foi executada com a extensão carregada num Chrome headless isolado
 - Entrar/sair da tela cheia do contêiner; conferir painel, legenda e ausência de duplicatas.
 - Repetir na Netflix/Max com conteúdo real — inclusive se a Netflix/Max reagem às mesmas teclas, a tela cheia, a pergunta de nível e o botão na borda direita — e no Cinetaro.
 
-Os testes automatizados usam DOM e respostas controladas: **607 testes em 43 arquivos** passaram, assim como `npm run typecheck`, `npm run build` e `git diff --check`. Eles não comprovam a API real da Netflix, CORS, políticas de fullscreen, a estrutura atual dos sites, nem login, e-mail e sincronização reais com o Supabase.
+Os testes automatizados usam DOM e respostas controladas: **611 testes em 43 arquivos** passaram, assim como `npm run typecheck`, `npm run build` e `git diff --check`. Eles não comprovam a API real da Netflix, CORS, políticas de fullscreen, a estrutura atual dos sites, nem login, e-mail e sincronização reais com o Supabase.
 
 ## Privacidade e rede
 
@@ -163,7 +163,7 @@ Os testes automatizados usam DOM e respostas controladas: **607 testes em 43 arq
 ## Limitações
 
 - Apenas vídeos e faixas que o navegador permite ler. Legendas em imagem, áudio sem faixa e formatos diferentes de SRT/VTT não são suportados.
-- O domínio `cinextream.cc` foi identificado pelo diagnóstico do usuário e recebeu uma entrada específica no manifesto. Outros hosts continuam sem suporte. O aviso lista as origens declaradas dos frames; `iframe.src` pode diferir da origem final após redirecionamento. Enquanto o vídeo estiver inacessível, a importação fica desativada por falta de relógio para sincronizar.
+- O domínio `cinextream.cc` foi identificado pelo diagnóstico do usuário e recebeu uma entrada específica no manifesto. Outros hosts continuam sem suporte. O aviso lista as origens declaradas dos frames; `iframe.src` pode diferir da origem final após redirecionamento. Enquanto o vídeo estiver inacessível, a importação fica desativada por falta de relógio para sincronizar. O player desse domínio é o Artplayer, que guarda a legenda numa faixa do tipo `metadata`: a extensão aceita essa faixa dele, mas não outras faixas `metadata` (capítulos, miniaturas, metadados do HLS).
 - Tela cheia do contêiner (a da Netflix) hospeda a camada. Na tela cheia nativa do próprio elemento de vídeo a camada não aparece: as legendas originais voltam e pausa automática, `R` e cópia ficam suspensas.
 - O nível vale só para legendas em inglês. A lista não cobre todo o vocabulário avançado: palavras raras fora dela não ficam lilás.
 - A tradução da fala ainda depende de serviços gratuitos (Google não documentado, MyMemory com cota pequena). Na primeira vez que uma fala aparece, as duas linhas chegam juntas, mas só quando a tradução chega (≈0,3–0,6 s com o Google medido daqui; até 1 s, depois disso a original aparece sozinha). A Netflix só mostra a fala atual, então ela não pode ser traduzida antes.

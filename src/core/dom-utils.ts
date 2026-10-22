@@ -68,10 +68,10 @@ export function extractSubtitleText(container: HTMLElement): string | null {
 const NATIVE_HIDDEN_MARKER = "data-streamfluent-native-hidden";
 const NATIVE_HIDDEN_STYLE_ID = "streamfluent-native-hidden";
 
-function ensureNativeHiddenStyle(): void {
-  if (document.getElementById(NATIVE_HIDDEN_STYLE_ID)) return;
+function ensureNativeHiddenStyle(doc: Document): void {
+  if (doc.getElementById(NATIVE_HIDDEN_STYLE_ID)) return;
 
-  const style = document.createElement("style");
+  const style = doc.createElement("style");
   style.id = NATIVE_HIDDEN_STYLE_ID;
   style.setAttribute(EXTENSION_MARKER, "");
   // A stylesheet rule (not an inline style) because the players rewrite the
@@ -80,7 +80,7 @@ function ensureNativeHiddenStyle(): void {
   // styles. Opacity rather than `display: none` so the cue container keeps its
   // box: the players measure it to position cues, and we still read its text.
   style.textContent = `[${NATIVE_HIDDEN_MARKER}] { opacity: 0 !important; pointer-events: none !important; }`;
-  (document.head || document.documentElement).appendChild(style);
+  (doc.head || doc.documentElement).appendChild(style);
 }
 
 /**
@@ -99,16 +99,17 @@ export function findSubtitleRoot(container: HTMLElement, selectors: string[]): H
   return root;
 }
 
+/** Works in the container's own document: the HTML5 player can sit in a same-origin frame. */
 export function hideNativeSubtitles(container: HTMLElement): void {
-  ensureNativeHiddenStyle();
-  container.setAttribute(NATIVE_HIDDEN_MARKER, "");
+  ensureNativeHiddenStyle(container.ownerDocument);
+  if (!container.hasAttribute(NATIVE_HIDDEN_MARKER)) container.setAttribute(NATIVE_HIDDEN_MARKER, "");
 }
 
-export function restoreNativeSubtitles(): void {
-  document.querySelectorAll(`[${NATIVE_HIDDEN_MARKER}]`).forEach((el) => {
+export function restoreNativeSubtitles(doc: Document = document): void {
+  doc.querySelectorAll(`[${NATIVE_HIDDEN_MARKER}]`).forEach((el) => {
     el.removeAttribute(NATIVE_HIDDEN_MARKER);
   });
-  document.getElementById(NATIVE_HIDDEN_STYLE_ID)?.remove();
+  doc.getElementById(NATIVE_HIDDEN_STYLE_ID)?.remove();
 }
 
 export function findElement(selectors: string[]): HTMLElement | null {
